@@ -1,0 +1,130 @@
+import Foundation
+import SwiftData
+
+/// Stateless service for starting/stopping/switching the timer.
+///
+/// Lives in `BillableCore` so the same logic is reachable from the iOS app,
+/// the watchOS companion, App Intents (Siri / Shortcuts), and widget intents.
+/// Operates directly on a `ModelContext` — callers supply the right one for
+/// their target (main app context, intent-isolated context, etc.).
+///
+/// Invariant: there is **at most one** running `TimeEntry` at a time.
+/// `start(project:in:)` and `switchTo(project:in:)` both enforce this by
+/// stopping any existing running entry before creating the new one.
+public enum TimerService {
+
+    public enum TimerError: Error, Equatable {
+        /// The project the caller wants to start a timer for is archived.
+        case projectIsArchived
+        /// No timer is currently running, but the caller asked to stop one.
+        case noRunningTimer
+        /// The caller asked to switch into the same project that's already running.
+        case alreadyTrackingSameProject
+    }
+
+    /// The currently running TimeEntry, if any. `nil` when idle.
+    @MainActor
+    public static func currentRunningEntry(in context: ModelContext) -> TimeEntry? {
+        let descriptor = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate { $0.endedAt == nil }
+        )
+        return (try? context.fetch(descriptor))?.first
+    }
+
+    /// Start tracking time for `project`. If a different timer is currently
+    /// running, it is stopped at `at` (the same instant) so there are no gaps
+    /// or overlaps in the timeline.
+    @MainActor
+    @discardableResult
+    public static func start(
+        project: Project,
+        at start: Date = .now,
+        notes: String? = nil,
+        in context: ModelContext
+    ) throws -> TimeEntry {
+        guard !project.isArchived else { throw TimerError.projectIsArchived }
+
+        if let running = currentRunningEntry(in: context) {
+            if running.project?.persistentModelID == project.persistentModelID {
+                // Caller is asking to start a timer for the project that's already running.
+                // Treat as a no-op — the running entry continues uninterrupted.
+                return running
+            }
+            running.endedAt = start
+            running.updatedAt = start
+        }
+
+        let entry = TimeEntry(
+            startedAt: start,
+            endedAt: nil,
+            notes: notes,
+            isManual: false,
+            project: project
+        )
+        context.insert(entry)
+        try context.save()
+        return entry
+    }
+
+    /// Stop the currently running timer. Errors if nothing is running so the
+    /// caller can decide whether that's surprising (UI should suppress; intents
+    /// surface as "no timer to stop").
+    @MainActor
+    public static func stop(
+        at end: Date = .now,
+        in context: ModelContext
+    ) throws -> TimeEntry {
+        guard let running = currentRunningEntry(in: context) else {
+            throw TimerError.noRunningTimer
+        }
+        // Guard against a stop time earlier than start (clock skew, manual edits)
+        let safeEnd = max(end, running.startedAt.addingTimeInterval(1))
+        running.endedAt = safeEnd
+        running.updatedAt = safeEnd
+        try context.save()
+        return running
+    }
+
+    /// Atomic stop + start: ends any running timer and starts a new one at the
+    /// same instant. Convenience wrapper around `start(project:in:)`.
+    @MainActor
+    @discardableResult
+    public static func switchTo(
+        project: Project,
+        at instant: Date = .now,
+        in context: ModelContext
+    ) throws -> TimeEntry {
+        guard !project.isArchived else { throw TimerError.projectIsArchived }
+
+        if let running = currentRunningEntry(in: context),
+           running.project?.persistentModelID == project.persistentModelID {
+            throw TimerError.alreadyTrackingSameProject
+        }
+        return try start(project: project, at: instant, in: context)
+    }
+
+    /// Log a completed entry with explicit start/end times (after-the-fact entry).
+    /// Marks `isManual = true`.
+    @MainActor
+    @discardableResult
+    public static func logCompletedEntry(
+        project: Project,
+        start: Date,
+        end: Date,
+        notes: String? = nil,
+        in context: ModelContext
+    ) throws -> TimeEntry {
+        guard !project.isArchived else { throw TimerError.projectIsArchived }
+        let safeEnd = max(end, start.addingTimeInterval(1))
+        let entry = TimeEntry(
+            startedAt: start,
+            endedAt: safeEnd,
+            notes: notes,
+            isManual: true,
+            project: project
+        )
+        context.insert(entry)
+        try context.save()
+        return entry
+    }
+}

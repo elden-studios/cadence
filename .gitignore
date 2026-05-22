@@ -1,0 +1,35 @@
+# Xcode
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+xcuserdata/
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/*/Package.resolved
+Packages/*/.build/
+Packages/*/.swiftpm/
+
+# Carthage / CocoaPods (not used, but in case)
+Carthage/Build/
+Pods/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Snapshot test failures
+**/__Snapshots__/__Failures__/
+
+# Local config
+*.local
+secrets.xcconfig
