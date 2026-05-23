@@ -1305,7 +1305,8 @@ struct SchedulingTests {
     @Test("recordFired appends to firedDates so the step doesn't repeat")
     @MainActor
     func recordFiredAppends() async throws {
-        let (service, invoice, _) = try await makeScheduledReminderFixture()
+        let (service, invoice, container) = try await makeScheduledReminderFixture()
+        _ = container  // keep the container alive — required because Scheduler captures its context
         let schedule = try #require(invoice.reminderSchedule)
         let firstFire = try #require(schedule.fireDates.first)
 
