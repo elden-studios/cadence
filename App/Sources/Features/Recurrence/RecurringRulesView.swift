@@ -94,7 +94,7 @@ struct RecurringRulesView: View {
             center: UNUserNotificationCenter.current(),
             modelContext: modelContext
         )
-        scheduler.cancel(id: template.id)
+        RecurrenceScheduling.cancelAll(for: template, scheduler: scheduler, modelContext: modelContext)
         modelContext.delete(template)
         try? modelContext.save()
     }

@@ -151,8 +151,9 @@ struct RecurrenceEditorView: View {
         // Note: Recurrence schedules don't need a separate JIT permission ask
         // here — by the time the user reaches the editor, they've already granted
         // notification permission via InvoiceGeneratorView.saveRecurrence. If
-        // permission was revoked later, Scheduler.schedule silently no-ops and the
-        // banner in RecurringRulesView surfaces the permission state.
+        // permission was revoked later, Scheduler.schedule silently no-ops (returns
+        // .noPermission); the user discovers this when no notification arrives.
+        // TODO(v1.1.1): Add a permission banner on RecurringRulesView (sweep P3).
         do {
             try modelContext.save()
             Task {

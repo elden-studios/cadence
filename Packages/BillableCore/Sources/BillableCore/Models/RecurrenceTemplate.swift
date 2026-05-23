@@ -8,9 +8,10 @@ public final class RecurrenceTemplate {
     @Attribute(.unique) public var id: UUID
 
     /// No `@Relationship(deleteRule: .cascade)` — Client deletion cascades to
-    /// `RecurrenceTemplate` rows explicitly in `ClientEditorView` (Phase 3,
-    /// Appendix A of the plan). Adding `.cascade` here would skip the explicit
-    /// Scheduler cancellation logic that runs alongside the delete.
+    /// `RecurrenceTemplate` rows explicitly in `ClientsView.deleteClient` (Phase 6
+    /// fix for F10). The explicit cascade is necessary so the Scheduler
+    /// cancellation can run alongside the delete; a `.cascade` relationship would
+    /// skip that logic.
     public var client: Client?
 
     /// `RecurrenceCadence.rawValue` — stored as String for SwiftData/CloudKit safety.

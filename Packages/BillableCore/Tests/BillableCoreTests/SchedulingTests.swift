@@ -1625,6 +1625,52 @@ struct SchedulingTests {
         #expect(rows.isEmpty)
     }
 
+    @Test("ClientsView cascade: deleting Client cancels + deletes its RecurrenceTemplates")
+    @MainActor
+    func clientCascadeDeletesTemplates() async throws {
+        // This test mirrors what ClientsView.deleteClient does (we can't call
+        // SwiftUI view methods from a unit test). It verifies the cascade logic
+        // is correct against real SwiftData state.
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: Date().addingTimeInterval(86400)
+        )
+        context.insert(template)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        try await RecurrenceScheduling.scheduleNext(for: template, scheduler: scheduler)
+
+        // Sanity: 1 template, 1 scheduled notification
+        #expect(try context.fetch(FetchDescriptor<RecurrenceTemplate>()).count == 1)
+        #expect(try context.fetch(FetchDescriptor<ScheduledNotification>()).count == 1)
+
+        // Simulate ClientsView.deleteClient cascade
+        let clientPID = client.persistentModelID
+        let templates = (try? context.fetch(FetchDescriptor<RecurrenceTemplate>())) ?? []
+        let owned = templates.filter { $0.client?.persistentModelID == clientPID }
+        for t in owned {
+            RecurrenceScheduling.cancelAll(for: t, scheduler: scheduler, modelContext: context)
+            context.delete(t)
+        }
+        context.delete(client)
+        try context.save()
+
+        // After: 0 templates, 0 scheduled notifications
+        #expect(try context.fetch(FetchDescriptor<RecurrenceTemplate>()).isEmpty)
+        #expect(try context.fetch(FetchDescriptor<ScheduledNotification>()).isEmpty)
+        #expect(center.removedIdentifiers.count == 1)
+    }
+
 }
 
 // Small actor helper for capturing UUID(s) from a fire-and-forget hook Task.
