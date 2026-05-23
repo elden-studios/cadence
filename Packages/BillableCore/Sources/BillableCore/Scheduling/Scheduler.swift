@@ -124,6 +124,8 @@ public final class Scheduler {
         content.body = body
         content.sound = .default
 
+        // Minute granularity is intentional — all callers (8am daily) fire at :00 seconds.
+        // Add .second here if sub-minute precision ever becomes necessary.
         let trigger = UNCalendarNotificationTrigger(
             dateMatching: Calendar.current.dateComponents(
                 [.year, .month, .day, .hour, .minute],
@@ -144,6 +146,12 @@ public final class Scheduler {
     /// Cancel a previously-registered notification by id. Removes both the
     /// iOS pending request and the SwiftData bookkeeping row. Idempotent —
     /// calling on a nonexistent id is a no-op (no throw, no side effect).
+    ///
+    /// `id` is the `ScheduledNotification.id` (the iOS request identifier),
+    /// not `payloadID` (the entity FK stored in the payload).
+    ///
+    /// Save errors during row deletion are intentionally silenced via `try?`
+    /// — cancel is non-throwing and idempotent by contract.
     public func cancel(id: UUID) {
         center.removePendingNotificationRequests(withIdentifiers: [id.uuidString])
         let descriptor = FetchDescriptor<ScheduledNotification>(
