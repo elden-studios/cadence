@@ -57,7 +57,7 @@ struct SchedulingTests {
         #expect(SchedulerPayload.decode(payloadType: "garbage", payloadID: UUID()) == nil)
     }
 
-    @Test("Scheduler.requestAuthorization caches granted state")
+    @Test("Scheduler.requestAuthorization returns true when center grants permission")
     @MainActor
     func authorizationGrantsAndCaches() async throws {
         let center = FakeNotificationCenter()
