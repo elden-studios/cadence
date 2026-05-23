@@ -282,6 +282,18 @@ struct SchedulingTests {
         let payload = scheduler.handleNotificationTap(requestIdentifier: "not-a-uuid")
         #expect(payload == nil)
     }
+
+    @Test("RecurrenceCadence round-trips via raw String")
+    func cadenceRoundTrip() throws {
+        let monthly = RecurrenceCadence.monthly(dayOfMonth: 1)
+        let weekly  = RecurrenceCadence.weekly(weekday: .monday)
+        let biweekly = RecurrenceCadence.biweekly(weekday: .friday)
+
+        #expect(RecurrenceCadence.from(raw: monthly.rawValue) == monthly)
+        #expect(RecurrenceCadence.from(raw: weekly.rawValue) == weekly)
+        #expect(RecurrenceCadence.from(raw: biweekly.rawValue) == biweekly)
+        #expect(RecurrenceCadence.from(raw: "garbage") == nil)
+    }
 }
 
 // MARK: - Test helpers
