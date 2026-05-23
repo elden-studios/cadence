@@ -420,6 +420,75 @@ struct SchedulingTests {
         #expect(liveTemplate.isEnded() == false)
         #expect(openTemplate.isEnded() == false)
     }
+
+    @Test("computeNextFireDate: monthly day=1 → first of next month at 8am local")
+    @MainActor
+    func nextFireMonthlyDayOne() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        let from = cal.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 10))!
+        let next = RecurrenceService.computeNextFireDate(
+            cadence: .monthly(dayOfMonth: 1),
+            after: from,
+            calendar: cal
+        )
+        let expected = cal.date(from: DateComponents(year: 2026, month: 7, day: 1, hour: 8))!
+        #expect(next == expected)
+    }
+
+    @Test("computeNextFireDate: monthly day=31 → clamps to last day of short month")
+    @MainActor
+    func nextFireMonthlyDay31Feb() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        let from = cal.date(from: DateComponents(year: 2026, month: 1, day: 31, hour: 12))!
+        let next = RecurrenceService.computeNextFireDate(
+            cadence: .monthly(dayOfMonth: 31),
+            after: from,
+            calendar: cal
+        )
+        let expected = cal.date(from: DateComponents(year: 2026, month: 2, day: 28, hour: 8))!
+        #expect(next == expected)
+    }
+
+    @Test("computeNextFireDate: weekly Mon → next Monday at 8am")
+    @MainActor
+    func nextFireWeeklyMonday() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 2
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        // 2026-06-03 is a Wednesday
+        let from = cal.date(from: DateComponents(year: 2026, month: 6, day: 3, hour: 12))!
+        let next = RecurrenceService.computeNextFireDate(
+            cadence: .weekly(weekday: .monday),
+            after: from,
+            calendar: cal
+        )
+        // Next Monday is 2026-06-08
+        let expected = cal.date(from: DateComponents(year: 2026, month: 6, day: 8, hour: 8))!
+        #expect(next == expected)
+    }
+
+    @Test("computeNextFireDate: biweekly Fri → 2 Fridays from now at 8am")
+    @MainActor
+    func nextFireBiweeklyFriday() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 2
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        // 2026-06-03 is a Wednesday. The next Friday is 2026-06-05. Biweekly = 2 Fridays out = 2026-06-19.
+        let from = cal.date(from: DateComponents(year: 2026, month: 6, day: 3, hour: 12))!
+        let next = RecurrenceService.computeNextFireDate(
+            cadence: .biweekly(weekday: .friday),
+            after: from,
+            calendar: cal
+        )
+        let expected = cal.date(from: DateComponents(year: 2026, month: 6, day: 19, hour: 8))!
+        #expect(next == expected)
+    }
 }
 
 // MARK: - Test helpers
