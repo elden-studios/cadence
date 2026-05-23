@@ -213,10 +213,12 @@ struct SchedulingTests {
         ))
         try container.mainContext.save()
 
-        _ = await scheduler.resyncOnLaunch(now: Date())
+        let result = await scheduler.resyncOnLaunch(now: Date())
 
         let remaining = try container.mainContext.fetch(FetchDescriptor<ScheduledNotification>())
         #expect(remaining.isEmpty)
+        #expect(result.pruned == 1)
+        #expect(result.reregistered == 0)
     }
 
     @Test("Scheduler.handleNotificationTap decodes payload by id")
@@ -240,6 +242,17 @@ struct SchedulingTests {
 
         let payload = scheduler.handleNotificationTap(requestIdentifier: id.uuidString)
         #expect(payload == .reminder(scheduleID: payloadID))
+    }
+
+    @Test("Scheduler.handleNotificationTap returns nil for invalid UUID string")
+    @MainActor
+    func tapInvalidUUID() throws {
+        let center = FakeNotificationCenter()
+        let container = try BillableModelContainer.inMemory()
+        let scheduler = Scheduler(center: center, modelContext: container.mainContext)
+
+        let payload = scheduler.handleNotificationTap(requestIdentifier: "not-a-uuid")
+        #expect(payload == nil)
     }
 }
 

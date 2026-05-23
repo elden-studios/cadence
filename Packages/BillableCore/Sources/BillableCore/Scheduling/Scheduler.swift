@@ -221,8 +221,9 @@ public final class Scheduler {
                     content: content,
                     trigger: trigger
                 )
-                try? await center.add(request)
-                reregistered += 1
+                if (try? await center.add(request)) != nil {
+                    reregistered += 1
+                }
             }
         }
 
