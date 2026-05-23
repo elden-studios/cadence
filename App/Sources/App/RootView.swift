@@ -9,6 +9,7 @@ struct RootView: View {
     @State private var showingReportsPaywall = false
     @State private var needsOnboarding: Bool = false
     @State private var selectedTab: Int = 0
+    @State private var invoicesPendingTarget: InvoicesView.NavigationTarget?
     private var subscriptions = SubscriptionManager.shared
 
     var body: some View {
@@ -38,7 +39,7 @@ struct RootView: View {
                     .tabItem { Label("Clients", systemImage: "person.2") }
                     .tag(1)
 
-                InvoicesView()
+                InvoicesView(pendingPushTarget: $invoicesPendingTarget)
                     .tabItem { Label("Invoices", systemImage: "doc.text") }
                     .tag(2)
 
@@ -55,11 +56,20 @@ struct RootView: View {
             }
             .onChange(of: router.pendingDestination) { _, newValue in
                 guard let destination = newValue else { return }
-                // For Task 3.2 we have only one routing strategy: switch to the Invoices tab.
-                // Full per-destination push (e.g., navigate to InvoiceDetail with the specific
-                // invoiceID) is deferred to Task 5.4 when ReminderService is wired in.
-                _ = destination  // suppress unused warning; full handling in Task 5.4
-                selectedTab = 2  // Invoices tab
+                switch destination {
+                case .invoiceDetail(let invoiceID):
+                    selectedTab = 2
+                    invoicesPendingTarget = .detail(invoiceID: invoiceID)
+                case .invoicePreview(let invoiceID):
+                    // InvoicePreviewView cannot be reconstructed from a persisted invoice;
+                    // fall back to detail view (matches InvoicePreviewDestinationLoader behaviour).
+                    selectedTab = 2
+                    invoicesPendingTarget = .detail(invoiceID: invoiceID)
+                case .recurringList:
+                    // Switch to Invoices tab; no NavigationTarget to push —
+                    // the catch-up banner on TodayView owns the recurring-list UX.
+                    selectedTab = 2
+                }
                 router.pendingDestination = nil
             }
         }
