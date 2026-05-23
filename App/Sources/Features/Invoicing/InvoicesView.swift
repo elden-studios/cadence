@@ -64,9 +64,8 @@ struct InvoicesView: View {
                     InvoiceDetailDestinationLoader(invoiceID: invoiceID)
                 case .preview(let invoiceID):
                     InvoicePreviewDestinationLoader(invoiceID: invoiceID)
-                case .recurrenceEditor:
-                    // Placeholder — Task 3.5 will replace with RecurrenceEditorView(template:)
-                    Text("Recurrence editor (Task 3.5)")
+                case .recurrenceEditor(let templateID):
+                    RecurrenceEditorDestinationLoader(templateID: templateID)
                 case .pendingMaterializations:
                     // Placeholder — Task 3.6 will replace with a list view.
                     Text("Pending materializations (Task 3.6)")
@@ -110,11 +109,7 @@ struct InvoicesView: View {
             .padding(.bottom, 8)
 
             if filter == .recurring {
-                ContentUnavailableView(
-                    "No recurring schedules",
-                    systemImage: "arrow.triangle.2.circlepath",
-                    description: Text("Set up monthly billing for a retainer client from the New Invoice screen.")
-                )
+                RecurringRulesView()
             } else {
                 List(filteredInvoices) { invoice in
                     NavigationLink {
@@ -171,6 +166,22 @@ private struct InvoicePreviewDestinationLoader: View {
     }
     private func fetch() -> Invoice? {
         let descriptor = FetchDescriptor<Invoice>(predicate: #Predicate { $0.uuid == invoiceID })
+        return try? modelContext.fetch(descriptor).first
+    }
+}
+
+private struct RecurrenceEditorDestinationLoader: View {
+    @Environment(\.modelContext) private var modelContext
+    let templateID: UUID
+    var body: some View {
+        if let template = fetch() {
+            RecurrenceEditorView(template: template)
+        } else {
+            ContentUnavailableView("Schedule not found", systemImage: "questionmark.folder")
+        }
+    }
+    private func fetch() -> RecurrenceTemplate? {
+        let descriptor = FetchDescriptor<RecurrenceTemplate>(predicate: #Predicate { $0.id == templateID })
         return try? modelContext.fetch(descriptor).first
     }
 }
