@@ -12,29 +12,29 @@ import SwiftData
 /// models (e.g., `ScheduledNotification`) never sync to iCloud while user data
 /// (clients, invoices, time entries) does.
 public enum BillableModelContainer {
-    /// Mirrored models (sync to CloudKit private DB when enabled).
-    public static let mirroredSchema = Schema([
+    /// Single source of truth for mirrored model types.
+    private static let mirroredTypes: [any PersistentModel.Type] = [
         BusinessProfile.self,
         Client.self,
         Project.self,
         TimeEntry.self,
         Invoice.self,
-    ])
+    ]
+
+    /// Single source of truth for local-only model types.
+    private static let localOnlyTypes: [any PersistentModel.Type] = [
+        ScheduledNotification.self,
+    ]
+
+    /// Mirrored models (sync to CloudKit private DB when enabled).
+    public static let mirroredSchema = Schema(mirroredTypes)
 
     /// Local-only models (never sync to CloudKit).
-    public static let localOnlySchema = Schema([
-        ScheduledNotification.self,
-    ])
+    public static let localOnlySchema = Schema(localOnlyTypes)
 
     /// Convenience for SwiftData previews and tests that want a single schema.
-    public static let schema = Schema([
-        BusinessProfile.self,
-        Client.self,
-        Project.self,
-        TimeEntry.self,
-        Invoice.self,
-        ScheduledNotification.self,
-    ])
+    /// Derived from the type lists so adding a model only requires one edit.
+    public static let schema = Schema(mirroredTypes + localOnlyTypes)
 
     public static func inMemory() throws -> ModelContainer {
         let mirrored = ModelConfiguration(
@@ -92,7 +92,7 @@ public enum BillableModelContainer {
             return try local()
         }
         let mirroredStoreURL = groupURL.appendingPathComponent("Billable.store")
-        let localStoreURL = groupURL.appendingPathComponent("Billable-local.store")
+        let localConfigURL = groupURL.appendingPathComponent("Billable-local.store")
 
         let mirroredConfig: ModelConfiguration
         if let cloudKitContainerID {
@@ -114,7 +114,7 @@ public enum BillableModelContainer {
         let localConfig = ModelConfiguration(
             "local",
             schema: localOnlySchema,
-            url: localStoreURL,
+            url: localConfigURL,
             cloudKitDatabase: .none
         )
 
