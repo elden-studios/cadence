@@ -1801,6 +1801,36 @@ struct SchedulingTests {
         #expect(err != .noBusinessProfile)
     }
 
+    @Test("ReminderTemplateRenderer survives an empty template gracefully")
+    @MainActor
+    func renderEmptyTemplate() throws {
+        // Sanity check used by PaymentRemindersView's preview when user clears
+        // the field — renderer should produce empty string, not crash.
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+        let invoice = Invoice(
+            number: "INV-0001", dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+        _ = container  // keep alive
+
+        let rendered = ReminderTemplateRenderer.render(
+            template: "",
+            invoice: invoice,
+            senderName: "Me"
+        )
+        #expect(rendered.isEmpty)
+    }
+
 }
 
 // Small actor helper for capturing UUID(s) from a fire-and-forget hook Task.

@@ -40,6 +40,7 @@ struct PaymentRemindersView: View {
                     Text(saveError).foregroundStyle(.red)
                 }
             }
+            previewSection
         }
         .navigationTitle("Payment reminders")
         .onAppear { syncFromConfig() }
@@ -102,6 +103,76 @@ struct PaymentRemindersView: View {
             Text("Merge fields: {clientName} {clientFirstName} {invoiceNumber} {amount} {dueDate} {daysOverdue} {senderName}")
                 .font(.caption2).foregroundStyle(.tertiary)
         } header: { Text("Email template") }
+    }
+
+    // MARK: - Preview
+
+    /// Synthetic Invoice + Client used for the preview render. Not inserted into
+    /// any ModelContext — just a value snapshot for ReminderTemplateRenderer.
+    private static func makePreviewInvoice() -> Invoice {
+        let sampleClient = Client(
+            name: "Acme Corp",
+            color: .blue,
+            contactName: "Pat Doe",
+            email: "pat@acme.example"
+        )
+        let dueAt = Date().addingTimeInterval(-86400 * 3)  // 3 days ago
+        let invoice = Invoice(
+            number: "INV-0042",
+            dueAt: dueAt,
+            clientNameSnapshot: "Acme Corp",
+            issuerNameSnapshot: "Studio Lina",
+            issuerAddressSnapshot: "",
+            issuerEmailSnapshot: "hello@studio-lina.example",
+            paymentTermsSnapshot: "Net 14",
+            taxLabelSnapshot: "Tax",
+            taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            lineItems: [
+                InvoiceLineItem(description: "Sample work", hours: 12, hourlyRate: 100, sourceTimeEntryRef: nil)
+            ],
+            client: sampleClient
+        )
+        return invoice
+    }
+
+    private var previewSection: some View {
+        let invoice = Self.makePreviewInvoice()
+        let renderedSubject = ReminderTemplateRenderer.render(
+            template: subject,
+            invoice: invoice,
+            senderName: "Studio Lina",
+            now: Date()
+        )
+        let renderedBody = ReminderTemplateRenderer.render(
+            template: bodyText,
+            invoice: invoice,
+            senderName: "Studio Lina",
+            now: Date()
+        )
+        return Section {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Subject")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(renderedSubject)
+                    .font(.body)
+                Divider()
+                Text("Body")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(renderedBody)
+                    .font(.body)
+                    .textSelection(.enabled)
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("Preview (sample invoice)")
+        } footer: {
+            Text("Rendered against a sample invoice (INV-0042, $1,200, 3 days overdue). Edits to the template above update this preview live.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
     }
 
     // MARK: - State sync
