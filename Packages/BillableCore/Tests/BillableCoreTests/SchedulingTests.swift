@@ -310,6 +310,42 @@ struct SchedulingTests {
         // Non-integer day
         #expect(RecurrenceCadence.from(raw: "monthlyDay:fifteen") == nil)
     }
+
+    @Test("RangeRule.previousMonth resolves from a fire date")
+    func rangeRulePreviousMonth() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        let fireAt = cal.date(from: DateComponents(year: 2026, month: 6, day: 1, hour: 8))!
+        let range = RangeRule.previousMonth.resolve(from: fireAt, calendar: cal)
+
+        let expectedStart = cal.date(from: DateComponents(year: 2026, month: 5, day: 1))!
+        let expectedEnd   = cal.date(from: DateComponents(year: 2026, month: 6, day: 1))!
+        #expect(range.start == expectedStart)
+        #expect(range.end == expectedEnd)
+    }
+
+    @Test("RangeRule.previousWeek resolves to Mon-Sun before the fire date")
+    func rangeRulePreviousWeek() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 2 // Monday-first
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        let fireAt = cal.date(from: DateComponents(year: 2026, month: 6, day: 8))! // Monday
+        let range = RangeRule.previousWeek.resolve(from: fireAt, calendar: cal)
+
+        let expectedStart = cal.date(from: DateComponents(year: 2026, month: 6, day: 1))! // prior Mon
+        let expectedEnd   = fireAt
+        #expect(range.start == expectedStart)
+        #expect(range.end == expectedEnd)
+    }
+
+    @Test("RangeRule.implied maps cadence to range rule")
+    func rangeRuleImplied() {
+        #expect(RangeRule.implied(from: .monthly(dayOfMonth: 1)) == .previousMonth)
+        #expect(RangeRule.implied(from: .weekly(weekday: .monday)) == .previousWeek)
+        #expect(RangeRule.implied(from: .biweekly(weekday: .friday)) == .previousBiweek)
+    }
 }
 
 // MARK: - Test helpers
