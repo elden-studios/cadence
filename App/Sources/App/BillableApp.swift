@@ -82,6 +82,10 @@ struct BillableApp: App {
             let service = ReminderService(scheduler: scheduler, modelContext: container.mainContext)
             try? await service.cancelForInvoice(invoice)
         }
+        // UI test entry point: bypass the AppDelegate and seed a route directly.
+        if CommandLine.arguments.contains("--ui-test-route-recurring") {
+            notificationRouter.pendingDestination = .recurringList
+        }
     }
 
     @MainActor

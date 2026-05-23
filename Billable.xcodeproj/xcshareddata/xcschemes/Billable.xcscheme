@@ -64,6 +64,17 @@
                ReferencedContainer = "container:Billable.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "D5568F0EEDE34AB9DB657870"
+               BuildableName = "BillableUITests.xctest"
+               BlueprintName = "BillableUITests"
+               ReferencedContainer = "container:Billable.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

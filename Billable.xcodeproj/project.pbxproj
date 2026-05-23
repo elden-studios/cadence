@@ -14,6 +14,7 @@
 		13F01DA09E8AAC832ACC171E /* TimelineScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E47D1836002E521CEC4ABED /* TimelineScreen.swift */; };
 		17683A63578279729D6FFD5D /* TimeBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB4F85B38816D91407DAFA7 /* TimeBlockView.swift */; };
 		215B980EDB0C94CB3C43BDDE /* BillableCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3267A35D1AD7CEA36846D498 /* BillableCore */; };
+		220427E9DC4EDF77A52184D4 /* NotificationTapFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 591084DA183D854DBB380551 /* NotificationTapFlowUITests.swift */; };
 		2D0A1664F829479F98BCF429 /* BusinessProfileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2EF767AE53DA0B1D6D7CB4 /* BusinessProfileEditorView.swift */; };
 		2E4E0201847ECA7967521565 /* TimerLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1CF2FCD917839FB1C1B0961 /* TimerLiveActivity.swift */; };
 		37C6C0308B1818FF8998144D /* RecurrenceEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43745976E9C74DF7790C99F6 /* RecurrenceEditorView.swift */; };
@@ -21,6 +22,7 @@
 		4028699D4BB648227DDCE1A1 /* TodaySummaryWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1846D95B8BE348E4ACC1081 /* TodaySummaryWidget.swift */; };
 		45F34A925B9B048BB38C04E4 /* ProjectEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67186A12889E18CA99C96468 /* ProjectEditorView.swift */; };
 		475BB31EACE4C8818AAA73EF /* CurrentTimerWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E91171FBD2C8986707A0D7 /* CurrentTimerWidget.swift */; };
+		49D52608F66166AA6374F027 /* PaymentRemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784CFBF0D18A69982D67542A /* PaymentRemindersView.swift */; };
 		4AE8C117F5731A8705359060 /* CatchUpBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBADB4F0E80F455CCAE9BBEB /* CatchUpBanner.swift */; };
 		54B2A96BFF44D4D7560DFFCE /* InvoicePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348BBD35CE9E77443AB397E5 /* InvoicePreviewView.swift */; };
 		5B3E36C7C4F81A453DD76FB0 /* BillableApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5120185E61165F6EB9DFFB00 /* BillableApp.swift */; };
@@ -34,6 +36,7 @@
 		AC9498FDD4C99CCA94517C37 /* IntentRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2886369E15E77C0BF85347CE /* IntentRegistration.swift */; };
 		B1FD44CA0631170789683FB8 /* BillableWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3C50D41C7D1E70A67970DA90 /* BillableWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		BF665524A4D7640150D356DC /* BillableCore in Frameworks */ = {isa = PBXBuildFile; productRef = 395F2979670525E0A6D0127A /* BillableCore */; };
+		C2262AA7F35DC1505C63AC40 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD383FD631A4DEA4B774CA4C /* DiagnosticsView.swift */; };
 		CB24424A092E9FB3F14CCB6E /* ClientDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70D5726F1FA7DA14C4B5B011 /* ClientDetailView.swift */; };
 		CD8FFD9FDBE064528DE473F3 /* Billable.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 21732C0D814DAE2B28FA1B62 /* Billable.storekit */; };
 		CE99BEFA8F985754461255B2 /* RecurringRulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E465117F26AD0FBA4BB72F29 /* RecurringRulesView.swift */; };
@@ -55,6 +58,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = A1BD7ED8DCB4A78616F4856D;
 			remoteInfo = BillableWidgets;
+		};
+		5BA5D8811F098FDACF377A2F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F63FBFA597923945A79AF434 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6B38C3C1A728B9AE6959BB8F;
+			remoteInfo = Billable;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -85,11 +95,14 @@
 		43745976E9C74DF7790C99F6 /* RecurrenceEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceEditorView.swift; sourceTree = "<group>"; };
 		5120185E61165F6EB9DFFB00 /* BillableApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillableApp.swift; sourceTree = "<group>"; };
 		56AC735AE9894CA166F3F644 /* TimelineGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineGeometry.swift; sourceTree = "<group>"; };
+		591084DA183D854DBB380551 /* NotificationTapFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationTapFlowUITests.swift; sourceTree = "<group>"; };
 		5BFD0B16A9AEBF1189186DEE /* BillableWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillableWidgetBundle.swift; sourceTree = "<group>"; };
 		67186A12889E18CA99C96468 /* ProjectEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectEditorView.swift; sourceTree = "<group>"; };
 		6B4CE4F3496BC81EE3278AA8 /* Billable.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Billable.entitlements; sourceTree = "<group>"; };
 		70D5726F1FA7DA14C4B5B011 /* ClientDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientDetailView.swift; sourceTree = "<group>"; };
 		724FB2203374655998BDFC2A /* ClientsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientsView.swift; sourceTree = "<group>"; };
+		768AE800926A4803021129AC /* BillableUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BillableUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		784CFBF0D18A69982D67542A /* PaymentRemindersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentRemindersView.swift; sourceTree = "<group>"; };
 		7A6E72016CCD549BFCBEBE2E /* InvoiceGeneratorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoiceGeneratorView.swift; sourceTree = "<group>"; };
 		803928EB045F3BBE7B115C1D /* BillableCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = BillableCore; path = Packages/BillableCore; sourceTree = SOURCE_ROOT; };
 		834A2DF7B192A8F0EC56E4F7 /* ManualEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualEntrySheet.swift; sourceTree = "<group>"; };
@@ -103,6 +116,7 @@
 		AE12ED25B0CCD0F3FC46F7FD /* PendingMaterializationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMaterializationsView.swift; sourceTree = "<group>"; };
 		AEEC7C6934436D870B713A6B /* ReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsView.swift; sourceTree = "<group>"; };
 		BBADB4F0E80F455CCAE9BBEB /* CatchUpBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatchUpBanner.swift; sourceTree = "<group>"; };
+		BD383FD631A4DEA4B774CA4C /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		BD3AC7ABEFEA2F890535AE82 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		C1846D95B8BE348E4ACC1081 /* TodaySummaryWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodaySummaryWidget.swift; sourceTree = "<group>"; };
 		C4E91171FBD2C8986707A0D7 /* CurrentTimerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentTimerWidget.swift; sourceTree = "<group>"; };
@@ -204,6 +218,7 @@
 			isa = PBXGroup;
 			children = (
 				E65B3FEDC45E06FB51538B6B /* Billable.app */,
+				768AE800926A4803021129AC /* BillableUITests.xctest */,
 				3C50D41C7D1E70A67970DA90 /* BillableWidgets.appex */,
 			);
 			name = Products;
@@ -222,10 +237,19 @@
 		789A72A711F4A6CCA6EE8085 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				7E01ADD86DB3FBD3BB5041B8 /* BillableUITests */,
 				6352BBD570F513F934FCA091 /* Resources */,
 				BD16A0569E45B706C438C43C /* Sources */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		7E01ADD86DB3FBD3BB5041B8 /* BillableUITests */ = {
+			isa = PBXGroup;
+			children = (
+				591084DA183D854DBB380551 /* NotificationTapFlowUITests.swift */,
+			);
+			path = BillableUITests;
 			sourceTree = "<group>";
 		};
 		806E19C750C06A34383B539F /* Paywall */ = {
@@ -259,6 +283,8 @@
 			isa = PBXGroup;
 			children = (
 				1B2EF767AE53DA0B1D6D7CB4 /* BusinessProfileEditorView.swift */,
+				BD383FD631A4DEA4B774CA4C /* DiagnosticsView.swift */,
+				784CFBF0D18A69982D67542A /* PaymentRemindersView.swift */,
 				95E9742504A11D397C6528B9 /* SettingsView.swift */,
 			);
 			path = Settings;
@@ -412,6 +438,24 @@
 			productReference = 3C50D41C7D1E70A67970DA90 /* BillableWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		D5568F0EEDE34AB9DB657870 /* BillableUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 604E2964AF1D47C029D641B8 /* Build configuration list for PBXNativeTarget "BillableUITests" */;
+			buildPhases = (
+				9404ACFAC4CFDB7AA5899613 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6B0B3FB4D16C10A81ECA5AF3 /* PBXTargetDependency */,
+			);
+			name = BillableUITests;
+			packageProductDependencies = (
+			);
+			productName = BillableUITests;
+			productReference = 768AE800926A4803021129AC /* BillableUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -428,6 +472,11 @@
 					A1BD7ED8DCB4A78616F4856D = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
+					};
+					D5568F0EEDE34AB9DB657870 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+						TestTargetID = 6B38C3C1A728B9AE6959BB8F;
 					};
 				};
 			};
@@ -449,6 +498,7 @@
 			projectRoot = "";
 			targets = (
 				6B38C3C1A728B9AE6959BB8F /* Billable */,
+				D5568F0EEDE34AB9DB657870 /* BillableUITests */,
 				A1BD7ED8DCB4A78616F4856D /* BillableWidgets */,
 			);
 		};
@@ -487,6 +537,7 @@
 				D6C88C7178DAC48161ACBF43 /* ClientEditorView.swift in Sources */,
 				6AD7D08A875EEB4A6FD4B25A /* ClientsView.swift in Sources */,
 				AC7E0D1860B0B7ACEB0A1F14 /* DayTimelineView.swift in Sources */,
+				C2262AA7F35DC1505C63AC40 /* DiagnosticsView.swift in Sources */,
 				AC9498FDD4C99CCA94517C37 /* IntentRegistration.swift in Sources */,
 				E39562526A4793650B561132 /* InvoiceDetailView.swift in Sources */,
 				97FBEA7B10420B0ED0942886 /* InvoiceGeneratorView.swift in Sources */,
@@ -494,6 +545,7 @@
 				F66815EDDB470712A3D8EA6F /* InvoicesView.swift in Sources */,
 				F205361A2A1AF33476C14C76 /* ManualEntrySheet.swift in Sources */,
 				E002CC9D3FAFAAFFB473954B /* OnboardingView.swift in Sources */,
+				49D52608F66166AA6374F027 /* PaymentRemindersView.swift in Sources */,
 				EFAE46DE1F000F3FDD237A19 /* PaywallView.swift in Sources */,
 				08880CCE2F89200E1C723A26 /* PendingMaterializationsView.swift in Sources */,
 				45F34A925B9B048BB38C04E4 /* ProjectEditorView.swift in Sources */,
@@ -522,6 +574,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		9404ACFAC4CFDB7AA5899613 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				220427E9DC4EDF77A52184D4 /* NotificationTapFlowUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -529,6 +589,11 @@
 			isa = PBXTargetDependency;
 			target = A1BD7ED8DCB4A78616F4856D /* BillableWidgets */;
 			targetProxy = 0938A46F152A2F4088CD4CD9 /* PBXContainerItemProxy */;
+		};
+		6B0B3FB4D16C10A81ECA5AF3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6B38C3C1A728B9AE6959BB8F /* Billable */;
+			targetProxy = 5BA5D8811F098FDACF377A2F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -763,6 +828,42 @@
 			};
 			name = Release;
 		};
+		CF0905C08955AD93D6D2C69E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.eldenstudios.billable.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Billable;
+			};
+			name = Release;
+		};
+		E729BD6BA09B5A7A4E41892B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.eldenstudios.billable.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Billable;
+			};
+			name = Debug;
+		};
 		FB78806082AFD5B966E57AA4 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -790,6 +891,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		604E2964AF1D47C029D641B8 /* Build configuration list for PBXNativeTarget "BillableUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E729BD6BA09B5A7A4E41892B /* Debug */,
+				CF0905C08955AD93D6D2C69E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		6C0D43B61A8455AF6BF3CFE0 /* Build configuration list for PBXProject "Billable" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
