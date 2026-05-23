@@ -33,3 +33,6 @@ Pods/
 # Local config
 *.local
 secrets.xcconfig
+
+# Git worktrees (for parallel feature work)
+.worktrees/
