@@ -167,6 +167,80 @@ struct SchedulingTests {
         let remaining = try container.mainContext.fetch(FetchDescriptor<ScheduledNotification>())
         #expect(remaining.isEmpty)
     }
+
+    @Test("Scheduler.resyncOnLaunch re-registers SwiftData rows missing iOS-side")
+    @MainActor
+    func resyncReRegistersMissing() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let scheduler = Scheduler(center: center, modelContext: container.mainContext)
+        _ = try await scheduler.requestAuthorization()
+
+        // Insert two rows directly, simulating a state where iOS has lost the requests.
+        let id1 = UUID(), id2 = UUID()
+        let future = Date().addingTimeInterval(3600)
+        container.mainContext.insert(ScheduledNotification(
+            id: id1, fireAt: future, payloadType: "recurrence", payloadID: UUID()
+        ))
+        container.mainContext.insert(ScheduledNotification(
+            id: id2, fireAt: future, payloadType: "reminder", payloadID: UUID()
+        ))
+        try container.mainContext.save()
+        // iOS-side starts empty (center.pendingRequests already empty)
+
+        let result = await scheduler.resyncOnLaunch(now: Date())
+
+        #expect(result.reregistered == 2)
+        #expect(center.addedRequests.count == 2)
+        let identifiers = Set(center.addedRequests.map(\.identifier))
+        #expect(identifiers.contains(id1.uuidString))
+        #expect(identifiers.contains(id2.uuidString))
+    }
+
+    @Test("Scheduler.resyncOnLaunch prunes already-fired (past) rows")
+    @MainActor
+    func resyncPrunesPast() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let scheduler = Scheduler(center: center, modelContext: container.mainContext)
+        _ = try await scheduler.requestAuthorization()
+
+        let past = Date().addingTimeInterval(-3600)
+        container.mainContext.insert(ScheduledNotification(
+            fireAt: past, payloadType: "recurrence", payloadID: UUID()
+        ))
+        try container.mainContext.save()
+
+        _ = await scheduler.resyncOnLaunch(now: Date())
+
+        let remaining = try container.mainContext.fetch(FetchDescriptor<ScheduledNotification>())
+        #expect(remaining.isEmpty)
+    }
+
+    @Test("Scheduler.handleNotificationTap decodes payload by id")
+    @MainActor
+    func tapDecodesPayload() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let scheduler = Scheduler(center: center, modelContext: container.mainContext)
+        _ = try await scheduler.requestAuthorization()
+
+        let payloadID = UUID()
+        _ = try await scheduler.schedule(
+            payload: .reminder(scheduleID: payloadID),
+            fireAt: Date().addingTimeInterval(60),
+            title: "T", body: "B"
+        )
+        let id = try #require(
+            container.mainContext.fetch(FetchDescriptor<ScheduledNotification>()).first?.id
+        )
+
+        let payload = scheduler.handleNotificationTap(requestIdentifier: id.uuidString)
+        #expect(payload == .reminder(scheduleID: payloadID))
+    }
 }
 
 // MARK: - Test helpers
