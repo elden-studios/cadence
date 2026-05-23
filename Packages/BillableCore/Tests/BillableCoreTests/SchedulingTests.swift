@@ -294,6 +294,22 @@ struct SchedulingTests {
         #expect(RecurrenceCadence.from(raw: biweekly.rawValue) == biweekly)
         #expect(RecurrenceCadence.from(raw: "garbage") == nil)
     }
+
+    @Test("RecurrenceCadence.from rejects malformed inputs")
+    func cadenceParserRejectsInvalid() {
+        // Out-of-range day-of-month
+        #expect(RecurrenceCadence.from(raw: "monthlyDay:0") == nil)
+        #expect(RecurrenceCadence.from(raw: "monthlyDay:32") == nil)
+        #expect(RecurrenceCadence.from(raw: "monthlyDay:-1") == nil)
+        // Invalid weekday code
+        #expect(RecurrenceCadence.from(raw: "weekly:xyz") == nil)
+        #expect(RecurrenceCadence.from(raw: "biweekly:") == nil)
+        // Missing colon / empty
+        #expect(RecurrenceCadence.from(raw: "monthlyDay") == nil)
+        #expect(RecurrenceCadence.from(raw: "") == nil)
+        // Non-integer day
+        #expect(RecurrenceCadence.from(raw: "monthlyDay:fifteen") == nil)
+    }
 }
 
 // MARK: - Test helpers
