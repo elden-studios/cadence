@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 import BillableCore
 
 struct ClientsView: View {
@@ -67,8 +68,7 @@ struct ClientsView: View {
             ) {
                 Button("Delete client and all data", role: .destructive) {
                     if let client = deletionCandidate {
-                        modelContext.delete(client)
-                        try? modelContext.save()
+                        deleteClient(client)
                     }
                     deletionCandidate = nil
                 }
@@ -77,6 +77,25 @@ struct ClientsView: View {
                 Text("This permanently deletes the client, their projects, and their time entries. Archive instead if you might come back.")
             }
         }
+    }
+
+    private func deleteClient(_ client: Client) {
+        let scheduler = Scheduler(
+            center: UNUserNotificationCenter.current(),
+            modelContext: modelContext
+        )
+        // Cancel + delete RecurrenceTemplate rows owned by this client first.
+        // Fetch all templates and filter in-memory: SwiftData's #Predicate does
+        // not support cross-store relationship equality comparisons.
+        let allTemplates = (try? modelContext.fetch(FetchDescriptor<RecurrenceTemplate>())) ?? []
+        let clientPID = client.persistentModelID
+        for template in allTemplates where template.client?.persistentModelID == clientPID {
+            RecurrenceScheduling.cancelAll(for: template, scheduler: scheduler, modelContext: modelContext)
+            modelContext.delete(template)
+        }
+        // Then delete the client (cascades to Project via existing @Relationship).
+        modelContext.delete(client)
+        try? modelContext.save()
     }
 
     private func startAddClient() {

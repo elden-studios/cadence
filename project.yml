@@ -44,6 +44,7 @@ schemes:
       config: Debug
       targets:
         - Billable
+        - BillableUITests
     archive:
       config: Release
     profile:
@@ -113,3 +114,17 @@ targets:
     dependencies:
       - package: BillableCore
         product: BillableCore
+
+  BillableUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: App/BillableUITests
+    dependencies:
+      - target: Billable
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.eldenstudios.billable.uitests
+        TEST_TARGET_NAME: Billable
+        GENERATE_INFOPLIST_FILE: YES

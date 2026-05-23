@@ -72,6 +72,24 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    NavigationLink {
+                        PaymentRemindersView()
+                    } label: {
+                        Label("Payment reminders", systemImage: "bell.badge")
+                    }
+                } header: { Text("Reminders") }
+
+                if CommandLine.arguments.contains("--debug-scheduler") {
+                    Section {
+                        NavigationLink {
+                            DiagnosticsView()
+                        } label: {
+                            Label("Diagnostics", systemImage: "stethoscope")
+                        }
+                    } header: { Text("Debug") }
+                }
+
                 Section("About") {
                     LabeledContent("Version", value: appVersionString)
                 }

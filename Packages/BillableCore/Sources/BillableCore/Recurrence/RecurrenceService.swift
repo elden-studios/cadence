@@ -82,6 +82,7 @@ public enum RecurrenceService {
         case noBusinessProfile
         case noClient
         case ended
+        case conflict   // CAS: another caller materialized this template first
     }
 
     /// Resolve the prior period, build line items from eligible entries, and
@@ -95,7 +96,8 @@ public enum RecurrenceService {
         template: RecurrenceTemplate,
         now: Date = .now,
         calendar: Calendar = .current,
-        context: ModelContext
+        context: ModelContext,
+        scheduler: Scheduler? = nil
     ) throws -> Invoice {
         guard !template.isEnded(now: now) else {
             throw MaterializationError.ended
@@ -107,6 +109,12 @@ public enum RecurrenceService {
         guard let profile = profiles.first else {
             throw MaterializationError.noBusinessProfile
         }
+
+        // CAS guard: stash the lastFiredAt we observed at function entry.
+        // If another caller materialized this template mid-flight (e.g., a second
+        // device via CloudKit Mirror), the cached lastFiredAt won't match the
+        // current value at mutation time — we bail without inserting a duplicate Draft.
+        let observedLastFiredAt = template.lastFiredAt
 
         let range = template.rangeRuleValue.resolve(from: now, calendar: calendar)
 
@@ -151,12 +159,29 @@ public enum RecurrenceService {
             for entry in entries { entry.invoiceID = invoice.uuid }
         }
 
+        // CAS check: bail if another caller already advanced lastFiredAt.
+        guard template.lastFiredAt == observedLastFiredAt else {
+            log.notice("materializeDraft(): CAS conflict — another caller materialized first; templateID=\(template.id.uuidString, privacy: .public)")
+            // Rollback any context changes the body made (line items, draft, stamping).
+            context.rollback()
+            throw MaterializationError.conflict
+        }
+
         // Advance template state.
         template.lastFiredAt = now
         template.nextFireDate = computeNextFireDate(
             cadence: template.cadenceValue, after: now, calendar: calendar
         )
         try context.save()
+
+        // Schedule the next-cycle notification if a scheduler was supplied.
+        if let scheduler {
+            Task {
+                try? await RecurrenceScheduling.scheduleNext(
+                    for: template, scheduler: scheduler, calendar: calendar
+                )
+            }
+        }
 
         log.info("materializeDraft(): templateID=\(template.id.uuidString, privacy: .public) lineItems=\(lineItems.count, privacy: .public)")
         return invoice

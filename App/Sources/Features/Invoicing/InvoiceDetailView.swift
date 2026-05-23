@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import PDFKit
 import StoreKit
+import UserNotifications
 import BillableCore
 
 struct InvoiceDetailView: View {
@@ -13,12 +14,35 @@ struct InvoiceDetailView: View {
 
     @State private var showingShare = false
     @State private var showingDeleteConfirm = false
+    @State private var pendingMailSubject: String = ""
+    @State private var pendingMailBody: String = ""
+    @State private var pendingMailRecipients: [String] = []
+    @State private var pendingMailFireDate: Date?
 
     private static let hasPromptedReviewKey = "billable.hasPromptedReview"
+
+    // MARK: - Pending reminder step
+
+    /// The first reminder fire date that has happened (<= now) but is NOT
+    /// yet in `firedDates` — i.e., the step the user needs to act on. Returns
+    /// nil if the invoice has no schedule, is not sent, or has no unfired past fires.
+    private var pendingReminderStep: (offsetDays: Int, fireDate: Date)? {
+        guard let schedule = invoice.reminderSchedule else { return nil }
+        guard invoice.status == .sent else { return nil }
+        let now = Date()
+        for fire in schedule.fireDates where fire <= now {
+            if !schedule.firedDates.contains(fire) {
+                let days = Calendar.current.dateComponents([.day], from: invoice.dueAt, to: now).day ?? 0
+                return (max(days, 0), fire)
+            }
+        }
+        return nil
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                reminderBanner
                 statusBanner
                 pdfPreview
                 actionButtons
@@ -73,6 +97,32 @@ struct InvoiceDetailView: View {
                 dismiss()
             }
             Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    // MARK: - Reminder banner
+
+    @ViewBuilder
+    private var reminderBanner: some View {
+        if let step = pendingReminderStep {
+            HStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(step.offsetDays) days overdue")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Send a reminder to \(invoice.client?.name ?? invoice.clientNameSnapshot)?")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Send reminder") { composeReminder(for: step.fireDate) }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+            }
+            .padding(12)
+            .background(Color.orange.opacity(0.12), in: .rect(cornerRadius: 12))
+            .padding(.horizontal)
         }
     }
 
@@ -225,6 +275,45 @@ struct InvoiceDetailView: View {
                 subject: "Reminder: Invoice \(invoice.number) still outstanding",
                 body: "Hi,\n\nJust a friendly nudge — invoice \(invoice.number) for \(invoice.total.formatted(.currency(code: invoice.currencyCodeSnapshot))) was due on \(invoice.dueAt.formatted(date: .abbreviated, time: .omitted)). Let me know if you need anything to process payment.\n\nThanks!"
               ) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    private func composeReminder(for fireDate: Date) {
+        let configs = (try? modelContext.fetch(FetchDescriptor<ReminderConfig>())) ?? []
+        let config = configs.first
+        let profiles = (try? modelContext.fetch(FetchDescriptor<BusinessProfile>())) ?? []
+        let profile = profiles.first
+        let senderName = profile?.name ?? ""
+
+        let subjectTemplate = config?.subjectTemplate ?? ReminderConfig.defaultSubjectTemplate
+        let bodyTemplate = config?.bodyTemplate ?? ReminderConfig.defaultBodyTemplate
+
+        pendingMailSubject = ReminderTemplateRenderer.render(
+            template: subjectTemplate,
+            invoice: invoice,
+            senderName: senderName,
+            now: Date()
+        )
+        pendingMailBody = ReminderTemplateRenderer.render(
+            template: bodyTemplate,
+            invoice: invoice,
+            senderName: senderName,
+            now: Date()
+        )
+        pendingMailRecipients = [invoice.clientEmailSnapshot].compactMap { $0 }
+        pendingMailFireDate = fireDate
+
+        // Record fired BEFORE presenting so the step doesn't repeat even if the
+        // user cancels — once we've offered to send, the step is considered acted on.
+        let scheduler = Scheduler(
+            center: UNUserNotificationCenter.current(),
+            modelContext: modelContext
+        )
+        let service = ReminderService(scheduler: scheduler, modelContext: modelContext)
+        service.recordFired(invoice: invoice, at: fireDate)
+
+        let recipient = pendingMailRecipients.first ?? ""
+        guard let url = mailtoURL(to: recipient, subject: pendingMailSubject, body: pendingMailBody) else { return }
         UIApplication.shared.open(url)
     }
 

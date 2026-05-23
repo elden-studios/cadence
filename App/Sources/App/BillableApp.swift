@@ -65,7 +65,27 @@ struct BillableApp: App {
                 modelContext: container.mainContext
             )
         }
-        // Invoice state-machine hooks (ReminderService) installed in Task 5.4.
+        // Invoice state-machine hooks → ReminderService (Task 5.4).
+        Invoice.didMarkSentHook = { @MainActor [container = container] invoice in
+            let scheduler = Scheduler(
+                center: UNUserNotificationCenter.current(),
+                modelContext: container.mainContext
+            )
+            let service = ReminderService(scheduler: scheduler, modelContext: container.mainContext)
+            try? await service.scheduleForInvoice(invoice)
+        }
+        Invoice.didMarkPaidHook = { @MainActor [container = container] invoice in
+            let scheduler = Scheduler(
+                center: UNUserNotificationCenter.current(),
+                modelContext: container.mainContext
+            )
+            let service = ReminderService(scheduler: scheduler, modelContext: container.mainContext)
+            try? await service.cancelForInvoice(invoice)
+        }
+        // UI test entry point: bypass the AppDelegate and seed a route directly.
+        if CommandLine.arguments.contains("--ui-test-route-recurring") {
+            notificationRouter.pendingDestination = .recurringList
+        }
     }
 
     @MainActor

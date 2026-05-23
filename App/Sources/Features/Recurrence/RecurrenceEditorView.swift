@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 import BillableCore
 
 struct RecurrenceEditorView: View {
@@ -138,11 +139,26 @@ struct RecurrenceEditorView: View {
         template.nextFireDate = RecurrenceService.computeNextFireDate(
             cadence: cadence, after: Date()
         )
-        // TODO(Task 5.4): JIT permission ask when Scheduler.schedule is wired in here.
-        // Today this saves the template; the actual notification scheduling happens
-        // when Phase 4/5 hooks Scheduler.schedule into the save path.
+
+        // Cancel any existing pending notification (cadence may have changed,
+        // nextFireDate is now different) and schedule the new one.
+        let scheduler = Scheduler(
+            center: UNUserNotificationCenter.current(),
+            modelContext: modelContext
+        )
+        RecurrenceScheduling.cancelAll(for: template, scheduler: scheduler, modelContext: modelContext)
+
+        // Note: Recurrence schedules don't need a separate JIT permission ask
+        // here — by the time the user reaches the editor, they've already granted
+        // notification permission via InvoiceGeneratorView.saveRecurrence. If
+        // permission was revoked later, Scheduler.schedule silently no-ops (returns
+        // .noPermission); the user discovers this when no notification arrives.
+        // TODO(v1.1.1): Add a permission banner on RecurringRulesView (sweep P3).
         do {
             try modelContext.save()
+            Task {
+                try? await RecurrenceScheduling.scheduleNext(for: template, scheduler: scheduler)
+            }
             dismiss()
         } catch {
             errorMessage = "Couldn't save: \(error.localizedDescription)"
@@ -154,8 +170,12 @@ struct RecurrenceEditorView: View {
         generatingNow = true
         defer { generatingNow = false }
         do {
+            let scheduler = Scheduler(
+                center: UNUserNotificationCenter.current(),
+                modelContext: modelContext
+            )
             _ = try RecurrenceService.materializeDraft(
-                template: template, now: .now, context: modelContext
+                template: template, now: .now, context: modelContext, scheduler: scheduler
             )
             dismiss()
         } catch RecurrenceService.MaterializationError.noBusinessProfile {

@@ -18,6 +18,14 @@ struct ClientEditorView: View {
 
     @State private var hasLoaded = false
 
+    @State private var reminderMode: ReminderMode = .useDefault
+    @State private var clientCustomOffsets: Set<Int> = []
+
+    enum ReminderMode: String, CaseIterable, Hashable {
+        case useDefault, custom
+        var label: String { self == .useDefault ? "Use default" : "Custom for this client" }
+    }
+
     var body: some View {
         Form {
             Section("Basics") {
@@ -41,6 +49,42 @@ struct ClientEditorView: View {
                 TextField("Notes", text: $notes, axis: .vertical)
                     .lineLimit(3...8)
             }
+
+            Section {
+                Picker("Reminders", selection: $reminderMode) {
+                    Text(ReminderMode.useDefault.label).tag(ReminderMode.useDefault)
+                    Text(ReminderMode.custom.label).tag(ReminderMode.custom)
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: reminderMode) { _, newMode in
+                    if newMode == .useDefault {
+                        client?.reminderOffsets = nil
+                        clientCustomOffsets = []
+                    } else {
+                        // Seed with current global defaults if available, else fall back to [3,7,14]
+                        if let config = try? modelContext.fetch(FetchDescriptor<ReminderConfig>()).first {
+                            clientCustomOffsets = Set(config.enabledOffsets)
+                        } else {
+                            clientCustomOffsets = [3, 7, 14]
+                        }
+                        client?.reminderOffsets = clientCustomOffsets.sorted()
+                    }
+                    try? modelContext.save()
+                }
+
+                if reminderMode == .custom {
+                    ForEach([3, 7, 14, 30], id: \.self) { offset in
+                        Toggle("After \(offset) days overdue", isOn: Binding(
+                            get: { clientCustomOffsets.contains(offset) },
+                            set: { isOn in
+                                if isOn { clientCustomOffsets.insert(offset) } else { clientCustomOffsets.remove(offset) }
+                                client?.reminderOffsets = clientCustomOffsets.sorted()
+                                try? modelContext.save()
+                            }
+                        ))
+                    }
+                }
+            } header: { Text("Reminders") }
         }
         .navigationTitle(client == nil ? "New client" : "Edit client")
         .navigationBarTitleDisplayMode(.inline)
@@ -86,6 +130,17 @@ struct ClientEditorView: View {
         email = client.email ?? ""
         address = client.address ?? ""
         notes = client.notes ?? ""
+        loadReminderState()
+    }
+
+    private func loadReminderState() {
+        if let offsets = client?.reminderOffsets {
+            reminderMode = .custom
+            clientCustomOffsets = Set(offsets)
+        } else {
+            reminderMode = .useDefault
+            clientCustomOffsets = []
+        }
     }
 
     private func save() {

@@ -762,6 +762,1087 @@ struct SchedulingTests {
         #expect(overdue[2].nextFireDate == recent)
     }
 
+    @Test("ReminderConfig persists with default offsets and templates")
+    @MainActor
+    func reminderConfigPersists() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let config = ReminderConfig.defaultConfig()
+        context.insert(config)
+        try context.save()
+
+        let fetched = try context.fetch(FetchDescriptor<ReminderConfig>())
+        #expect(fetched.count == 1)
+        let c = try #require(fetched.first)
+        #expect(c.enabledOffsets == [3, 7, 14])
+        #expect(c.subjectTemplate.contains("{invoiceNumber}"))
+        #expect(c.bodyTemplate.contains("{clientFirstName}"))
+        #expect(c.masterEnabled == false)  // off until user enables explicitly
+    }
+
+    @Test("ReminderConfig default templates contain all expected merge fields")
+    @MainActor
+    func reminderConfigDefaultTemplatesMergeFields() {
+        let config = ReminderConfig.defaultConfig()
+        // Subject: at minimum invoiceNumber
+        #expect(config.subjectTemplate.contains("{invoiceNumber}"))
+        // Body: clientFirstName, invoiceNumber, amount, dueDate, senderName
+        #expect(config.bodyTemplate.contains("{clientFirstName}"))
+        #expect(config.bodyTemplate.contains("{invoiceNumber}"))
+        #expect(config.bodyTemplate.contains("{amount}"))
+        #expect(config.bodyTemplate.contains("{dueDate}"))
+        #expect(config.bodyTemplate.contains("{senderName}"))
+    }
+
+    @Test("InvoiceReminderSchedule stores fireDates and tracks firedDates")
+    @MainActor
+    func reminderSchedulePersists() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let dueAt = Date(timeIntervalSince1970: 1_900_000_000)
+        let fires = [3, 7, 14].map { Calendar.current.date(byAdding: .day, value: $0, to: dueAt)! }
+        let schedule = InvoiceReminderSchedule(fireDates: fires)
+        context.insert(schedule)
+        try context.save()
+
+        let fetched = try context.fetch(FetchDescriptor<InvoiceReminderSchedule>())
+        #expect(fetched.first?.fireDates == fires)
+        #expect(fetched.first?.firedDates.isEmpty == true)
+    }
+
+    @Test("InvoiceReminderSchedule appends to firedDates without duplicates via mutation")
+    @MainActor
+    func reminderScheduleFiredDatesAppend() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let schedule = InvoiceReminderSchedule(fireDates: [], firedDates: [])
+        context.insert(schedule)
+        try context.save()
+
+        let fireA = Date(timeIntervalSince1970: 1_900_000_000)
+        schedule.firedDates.append(fireA)
+        try context.save()
+
+        let fetched = try #require(context.fetch(FetchDescriptor<InvoiceReminderSchedule>()).first)
+        #expect(fetched.firedDates == [fireA])
+    }
+
+    @Test("Client.reminderOffsets defaults to nil")
+    @MainActor
+    func clientReminderOffsetsDefaultsNil() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+        try context.save()
+        let fetched = try #require(context.fetch(FetchDescriptor<Client>()).first)
+        #expect(fetched.reminderOffsets == nil)
+    }
+
+    @Test("Client.reminderOffsets can be set and persisted")
+    @MainActor
+    func clientReminderOffsetsSet() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue, reminderOffsets: [5, 10])
+        context.insert(client)
+        try context.save()
+        let fetched = try #require(context.fetch(FetchDescriptor<Client>()).first)
+        #expect(fetched.reminderOffsets == [5, 10])
+    }
+
+    @Test("Invoice.reminderSchedule starts nil and can be set")
+    @MainActor
+    func invoiceReminderScheduleField() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let invoice = Invoice(
+            number: "INV-0001",
+            dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me",
+            issuerAddressSnapshot: "",
+            issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "Net 14",
+            taxLabelSnapshot: "Tax",
+            taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD"
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let fetched = try #require(context.fetch(FetchDescriptor<Invoice>()).first)
+        #expect(fetched.reminderSchedule == nil)
+
+        let schedule = InvoiceReminderSchedule(fireDates: [Date()])
+        schedule.invoice = invoice
+        invoice.reminderSchedule = schedule
+        context.insert(schedule)
+        try context.save()
+
+        let refetched = try #require(context.fetch(FetchDescriptor<Invoice>()).first)
+        #expect(refetched.reminderSchedule?.fireDates.count == 1)
+    }
+
+    @Test("ReminderTemplateRenderer resolves all merge fields")
+    @MainActor
+    func renderResolvesAllFields() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let client = Client(
+            name: "Acme Corp",
+            color: .blue,
+            contactName: "Jane Doe"
+        )
+        context.insert(client)
+
+        let profile = BusinessProfile(name: "Louay Bazerbashi", currencyCode: "USD")
+        context.insert(profile)
+
+        let due = Date(timeIntervalSince1970: 1_900_000_000)
+        let invoice = Invoice(
+            number: "INV-0042",
+            dueAt: due,
+            clientNameSnapshot: "Acme Corp",
+            issuerNameSnapshot: "Louay Bazerbashi",
+            issuerAddressSnapshot: "",
+            issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "Net 14",
+            taxLabelSnapshot: "Tax",
+            taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            lineItems: [InvoiceLineItem(description: "Work", hours: 10, hourlyRate: 100, sourceTimeEntryRef: nil)],
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let template = "Hi {clientFirstName}, {invoiceNumber} for {amount} was due {dueDate}. — {senderName}"
+        let now = due.addingTimeInterval(3 * 86400)
+        let rendered = ReminderTemplateRenderer.render(
+            template: template,
+            invoice: invoice,
+            senderName: "Louay Bazerbashi",
+            now: now
+        )
+
+        #expect(rendered.contains("Hi Jane"))
+        #expect(rendered.contains("INV-0042"))
+        #expect(rendered.contains("1,000"))      // 10h * $100 = $1,000 — formatter detail varies by locale, just check digits
+        #expect(rendered.contains("Louay Bazerbashi"))
+        // {dueDate} resolves to a localized date; we just check it's substituted
+        #expect(rendered.contains("{dueDate}") == false)
+    }
+
+    @Test("ReminderTemplateRenderer computes daysOverdue from now and dueAt")
+    @MainActor
+    func renderDaysOverdue() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let due = Date(timeIntervalSince1970: 1_900_000_000)
+        let invoice = Invoice(
+            number: "INV-0007", dueAt: due,
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let now = due.addingTimeInterval(7 * 86400)
+        let rendered = ReminderTemplateRenderer.render(
+            template: "{daysOverdue} days overdue",
+            invoice: invoice, senderName: "Me", now: now
+        )
+        #expect(rendered == "7 days overdue")
+    }
+
+    @Test("ReminderTemplateRenderer falls back to clientName when no contactName")
+    @MainActor
+    func renderFirstNameFallback() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Solo Acme", color: .blue)  // No contactName
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0001", dueAt: Date(),
+            clientNameSnapshot: "Solo Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let rendered = ReminderTemplateRenderer.render(
+            template: "Hi {clientFirstName}",
+            invoice: invoice, senderName: "Me"
+        )
+        #expect(rendered == "Hi Solo")  // First word of clientName when contactName is nil
+    }
+
+    @Test("ReminderTemplateRenderer leaves unknown tokens untouched")
+    @MainActor
+    func renderUnknownTokenUntouched() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0001", dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let rendered = ReminderTemplateRenderer.render(
+            template: "Hello {unknownToken}",
+            invoice: invoice, senderName: "Me"
+        )
+        #expect(rendered == "Hello {unknownToken}")  // unchanged
+    }
+
+    @Test("ReminderTemplateRenderer daysOverdue clamps to 0 when now is before dueAt")
+    @MainActor
+    func renderDaysOverdueClampNonNegative() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let due = Date(timeIntervalSince1970: 1_900_000_000)
+        let invoice = Invoice(
+            number: "INV-0001", dueAt: due,
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        // Now is 5 days BEFORE due — daysOverdue must clamp to 0, not -5
+        let now = due.addingTimeInterval(-5 * 86400)
+        let rendered = ReminderTemplateRenderer.render(
+            template: "{daysOverdue}",
+            invoice: invoice, senderName: "Me", now: now
+        )
+        #expect(rendered == "0")
+    }
+
+    @Test("scheduleForInvoice resolves offsets and creates fire dates at 8am local")
+    @MainActor
+    func scheduleForInvoiceCreatesFires() async throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let config = ReminderConfig.defaultConfig()
+        config.masterEnabled = true
+        context.insert(config)
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let due = cal.date(from: DateComponents(year: 2026, month: 6, day: 15))!
+        let invoice = Invoice(
+            number: "INV-0010", dueAt: due,
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent(at: due.addingTimeInterval(-86400)) // Sent yesterday
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        let reminderService = ReminderService(scheduler: scheduler, modelContext: context, calendar: cal)
+
+        try await reminderService.scheduleForInvoice(invoice)
+
+        let schedule = try #require(invoice.reminderSchedule)
+        let expected3  = cal.date(from: DateComponents(year: 2026, month: 6, day: 18, hour: 8))!
+        let expected7  = cal.date(from: DateComponents(year: 2026, month: 6, day: 22, hour: 8))!
+        let expected14 = cal.date(from: DateComponents(year: 2026, month: 6, day: 29, hour: 8))!
+        #expect(schedule.fireDates == [expected3, expected7, expected14])
+        #expect(center.addedRequests.count == 3)
+    }
+
+    @Test("scheduleForInvoice no-ops when masterEnabled is false")
+    @MainActor
+    func scheduleForInvoiceMasterDisabled() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let config = ReminderConfig.defaultConfig()
+        config.masterEnabled = false
+        context.insert(config)
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0011", dueAt: Date().addingTimeInterval(86400),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        let service = ReminderService(scheduler: scheduler, modelContext: context)
+
+        try await service.scheduleForInvoice(invoice)
+        #expect(invoice.reminderSchedule == nil)
+        #expect(center.addedRequests.isEmpty)
+    }
+
+    @Test("scheduleForInvoice respects per-client override")
+    @MainActor
+    func scheduleForInvoiceClientOverride() async throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let config = ReminderConfig.defaultConfig()
+        config.masterEnabled = true
+        config.enabledOffsets = [3, 7]
+        context.insert(config)
+
+        let client = Client(name: "Acme", color: .blue, reminderOffsets: [5])
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let due = cal.date(from: DateComponents(year: 2026, month: 6, day: 15))!
+        let invoice = Invoice(
+            number: "INV-0012", dueAt: due,
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        let service = ReminderService(scheduler: scheduler, modelContext: context, calendar: cal)
+        try await service.scheduleForInvoice(invoice)
+
+        let schedule = try #require(invoice.reminderSchedule)
+        #expect(schedule.fireDates.count == 1)
+        let expected5 = cal.date(from: DateComponents(year: 2026, month: 6, day: 20, hour: 8))!
+        #expect(schedule.fireDates.first == expected5)
+    }
+
+    @Test("scheduleForInvoice no-ops when no ReminderConfig exists")
+    @MainActor
+    func scheduleForInvoiceNoConfig() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        // NO ReminderConfig inserted
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0013", dueAt: Date().addingTimeInterval(86400),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        let service = ReminderService(scheduler: scheduler, modelContext: context)
+        try await service.scheduleForInvoice(invoice)
+
+        #expect(invoice.reminderSchedule == nil)
+        #expect(center.addedRequests.isEmpty)
+    }
+
+    // Helper that builds a fully-scheduled invoice fixture used by 4.6 tests.
+    @MainActor
+    func makeScheduledReminderFixture() async throws -> (ReminderService, Invoice, ModelContainer) {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let config = ReminderConfig.defaultConfig()
+        config.masterEnabled = true
+        context.insert(config)
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0014",
+            dueAt: cal.date(from: DateComponents(year: 2026, month: 6, day: 15))!,
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        let service = ReminderService(scheduler: scheduler, modelContext: context, calendar: cal)
+        try await service.scheduleForInvoice(invoice)
+        return (service, invoice, container)
+    }
+
+    @Test("cancelForInvoice removes all pending fires + deletes schedule")
+    @MainActor
+    func cancelForInvoiceClears() async throws {
+        let (service, invoice, container) = try await makeScheduledReminderFixture()
+        let scheduleID = try #require(invoice.reminderSchedule?.id)
+        let priorCount = try container.mainContext.fetch(FetchDescriptor<ScheduledNotification>()).count
+        #expect(priorCount > 0)
+
+        try await service.cancelForInvoice(invoice)
+
+        #expect(invoice.reminderSchedule == nil)
+        let after = try container.mainContext.fetch(FetchDescriptor<ScheduledNotification>())
+        #expect(after.isEmpty)
+        // Schedule row also gone
+        let scheduleRows = try container.mainContext.fetch(
+            FetchDescriptor<InvoiceReminderSchedule>(predicate: #Predicate { $0.id == scheduleID })
+        )
+        #expect(scheduleRows.isEmpty)
+    }
+
+    @Test("cancelForInvoice is idempotent (no-op when no schedule exists)")
+    @MainActor
+    func cancelForInvoiceIdempotent() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let center = FakeNotificationCenter()
+        center.authorized = true
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0015", dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        let service = ReminderService(scheduler: scheduler, modelContext: context)
+
+        // No schedule exists — should be no-op, no throw
+        try await service.cancelForInvoice(invoice)
+        #expect(invoice.reminderSchedule == nil)
+    }
+
+    @Test("recordFired appends to firedDates so the step doesn't repeat")
+    @MainActor
+    func recordFiredAppends() async throws {
+        let (service, invoice, container) = try await makeScheduledReminderFixture()
+        _ = container  // keep the container alive — required because Scheduler captures its context
+        let schedule = try #require(invoice.reminderSchedule)
+        let firstFire = try #require(schedule.fireDates.first)
+
+        service.recordFired(invoice: invoice, at: firstFire)
+        #expect(invoice.reminderSchedule?.firedDates == [firstFire])
+
+        // Second call is idempotent — no duplicate
+        service.recordFired(invoice: invoice, at: firstFire)
+        #expect(invoice.reminderSchedule?.firedDates.count == 1)
+    }
+
+    @Test("recordFired is a no-op when invoice has no schedule")
+    @MainActor
+    func recordFiredNoSchedule() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+        let invoice = Invoice(
+            number: "INV-0016", dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        let service = ReminderService(scheduler: scheduler, modelContext: context)
+
+        // No throw, no crash
+        service.recordFired(invoice: invoice, at: Date())
+        #expect(invoice.reminderSchedule == nil)  // still nil
+    }
+
+    @Test("Invoice.markSent fires didMarkSentHook")
+    @MainActor
+    func markSentFiresHook() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+        let invoice = Invoice(
+            number: "INV-0050", dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        // Capture the invoice the hook receives. We extract uuid (Sendable) inside
+        // the @MainActor hook closure before crossing into the actor, which avoids
+        // sending a non-Sendable Invoice value across isolation boundaries.
+        //
+        // We save+restore the hook around the test so that parallel tests that also
+        // call markSent() don't stomp on this test's `captured` actor.
+        let previousSentHook = Invoice.didMarkSentHook
+        let captured = HookCapture()
+        Invoice.didMarkSentHook = { @MainActor inv in
+            let id = inv.uuid
+            await captured.capture(id: id)
+        }
+        defer { Invoice.didMarkSentHook = previousSentHook }
+
+        try invoice.markSent()
+        // Wait for the fire-and-forget Task to run. The Task is enqueued on the
+        // main actor; we yield here so the scheduler can execute it. The explicit
+        // wait-loop (up to 500ms) makes the test robust under parallel test load.
+        let targetID = invoice.uuid
+        var waited = 0
+        while await !captured.invoiceIDs.contains(targetID), waited < 500 {
+            try await Task.sleep(for: .milliseconds(10))
+            waited += 10
+        }
+        #expect(await captured.invoiceIDs.contains(invoice.uuid))
+    }
+
+    @Test("Invoice.markPaid fires didMarkPaidHook")
+    @MainActor
+    func markPaidFiresHook() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+        let invoice = Invoice(
+            number: "INV-0051", dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+        try invoice.markSent()
+
+        let previousPaidHook = Invoice.didMarkPaidHook
+        let captured = HookCapture()
+        Invoice.didMarkPaidHook = { @MainActor inv in
+            let id = inv.uuid
+            await captured.capture(id: id)
+        }
+        defer { Invoice.didMarkPaidHook = previousPaidHook }
+
+        try invoice.markPaid()
+        let targetIDPaid = invoice.uuid
+        var waitedPaid = 0
+        while await !captured.invoiceIDs.contains(targetIDPaid), waitedPaid < 500 {
+            try await Task.sleep(for: .milliseconds(10))
+            waitedPaid += 10
+        }
+        #expect(await captured.invoiceIDs.contains(invoice.uuid))
+    }
+
+    @Test("BadgeCount.compute counts pending recurrence materializations + pending reminder fires")
+    @MainActor
+    func badgeCountCombines() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        // 1 pending recurrence: nextFireDate in the past, active, not ended
+        let past = Date().addingTimeInterval(-3600)
+        context.insert(RecurrenceTemplate(
+            client: client, cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry, nextFireDate: past
+        ))
+
+        // 1 sent invoice with an unfired past reminder step
+        let invoice = Invoice(
+            number: "INV-0099",
+            dueAt: Date().addingTimeInterval(-86400 * 4),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        let schedule = InvoiceReminderSchedule(
+            invoice: invoice,
+            fireDates: [Date().addingTimeInterval(-3600)],  // 1 fire in the past
+            firedDates: []                                    // not acted on
+        )
+        invoice.reminderSchedule = schedule
+        context.insert(invoice); context.insert(schedule)
+        try context.save()
+
+        let count = BadgeCount.compute(context: context, now: Date())
+        #expect(count == 2)  // 1 recurrence + 1 reminder
+
+        // markSent reads `Invoice.didMarkSentHook` (a `nonisolated(unsafe)` static)
+        // and may spawn a fire-and-forget Task capturing `invoice`. Under parallel
+        // tests the hook can point at *another* test's closure that outlives this
+        // function. Drain pending main-actor work while keeping `container` alive
+        // so the Task reads `invoice` before its container deinits.
+        try? await Task.sleep(for: .milliseconds(50))
+        _ = container
+    }
+
+    @Test("BadgeCount.compute excludes paid invoices' reminder fires")
+    @MainActor
+    func badgeCountExcludesPaid() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0100",
+            dueAt: Date().addingTimeInterval(-86400 * 4),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        try invoice.markPaid()  // Now status is .paid
+        let schedule = InvoiceReminderSchedule(
+            invoice: invoice,
+            fireDates: [Date().addingTimeInterval(-3600)],
+            firedDates: []
+        )
+        invoice.reminderSchedule = schedule
+        context.insert(invoice); context.insert(schedule)
+        try context.save()
+
+        let count = BadgeCount.compute(context: context, now: Date())
+        #expect(count == 0)  // Paid invoice's fires don't count
+
+        // Drain pending main-actor Tasks spawned by markSent/markPaid hooks set
+        // by parallel tests (see badgeCountCombines for the full explanation).
+        try? await Task.sleep(for: .milliseconds(50))
+        _ = container
+    }
+
+    @Test("BadgeCount.compute excludes already-fired reminder steps")
+    @MainActor
+    func badgeCountExcludesAlreadyFired() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let pastFire = Date().addingTimeInterval(-3600)
+        let invoice = Invoice(
+            number: "INV-0101",
+            dueAt: Date().addingTimeInterval(-86400 * 4),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        let schedule = InvoiceReminderSchedule(
+            invoice: invoice,
+            fireDates: [pastFire],
+            firedDates: [pastFire]  // Already acted on
+        )
+        invoice.reminderSchedule = schedule
+        context.insert(invoice); context.insert(schedule)
+        try context.save()
+
+        let count = BadgeCount.compute(context: context, now: Date())
+        #expect(count == 0)
+
+        // Drain pending main-actor Tasks spawned by markSent hooks set by
+        // parallel tests (see badgeCountCombines for the full explanation).
+        try? await Task.sleep(for: .milliseconds(50))
+        _ = container
+    }
+
+    // MARK: - RecurrenceScheduling tests
+
+    @Test("RecurrenceScheduling.scheduleNext registers iOS request for active template")
+    @MainActor
+    func recurrenceSchedulingScheduleNext() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: Date().addingTimeInterval(86400)  // tomorrow
+        )
+        context.insert(template)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        try await RecurrenceScheduling.scheduleNext(for: template, scheduler: scheduler)
+
+        #expect(center.addedRequests.count == 1)
+        let rows = try context.fetch(FetchDescriptor<ScheduledNotification>())
+        #expect(rows.count == 1)
+        #expect(rows.first?.payloadType == "recurrence")
+    }
+
+    @Test("RecurrenceScheduling.scheduleNext is a no-op for inactive template")
+    @MainActor
+    func recurrenceSchedulingInactive() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: Date().addingTimeInterval(86400),
+            isActive: false  // inactive
+        )
+        context.insert(template)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        try await RecurrenceScheduling.scheduleNext(for: template, scheduler: scheduler)
+
+        #expect(center.addedRequests.isEmpty)
+    }
+
+    @Test("RecurrenceScheduling.cancelAll removes pending iOS notifications + SwiftData rows")
+    @MainActor
+    func recurrenceSchedulingCancelAll() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: Date().addingTimeInterval(86400)
+        )
+        context.insert(template)
+        try context.save()
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        try await RecurrenceScheduling.scheduleNext(for: template, scheduler: scheduler)
+        #expect(center.addedRequests.count == 1)
+
+        RecurrenceScheduling.cancelAll(for: template, scheduler: scheduler, modelContext: context)
+
+        #expect(center.removedIdentifiers.count == 1)
+        let rows = try context.fetch(FetchDescriptor<ScheduledNotification>())
+        #expect(rows.isEmpty)
+    }
+
+    @Test("ClientsView cascade: deleting Client cancels + deletes its RecurrenceTemplates")
+    @MainActor
+    func clientCascadeDeletesTemplates() async throws {
+        // This test mirrors what ClientsView.deleteClient does (we can't call
+        // SwiftUI view methods from a unit test). It verifies the cascade logic
+        // is correct against real SwiftData state.
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: Date().addingTimeInterval(86400)
+        )
+        context.insert(template)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        try await RecurrenceScheduling.scheduleNext(for: template, scheduler: scheduler)
+
+        // Sanity: 1 template, 1 scheduled notification
+        #expect(try context.fetch(FetchDescriptor<RecurrenceTemplate>()).count == 1)
+        #expect(try context.fetch(FetchDescriptor<ScheduledNotification>()).count == 1)
+
+        // Simulate ClientsView.deleteClient cascade
+        let clientPID = client.persistentModelID
+        let templates = (try? context.fetch(FetchDescriptor<RecurrenceTemplate>())) ?? []
+        let owned = templates.filter { $0.client?.persistentModelID == clientPID }
+        for t in owned {
+            RecurrenceScheduling.cancelAll(for: t, scheduler: scheduler, modelContext: context)
+            context.delete(t)
+        }
+        context.delete(client)
+        try context.save()
+
+        // After: 0 templates, 0 scheduled notifications
+        #expect(try context.fetch(FetchDescriptor<RecurrenceTemplate>()).isEmpty)
+        #expect(try context.fetch(FetchDescriptor<ScheduledNotification>()).isEmpty)
+        #expect(center.removedIdentifiers.count == 1)
+    }
+
+
+    // MARK: - DST + year-boundary cadence math (v1.1.1 R3)
+
+    @Test("computeNextFireDate: DST spring-forward — monthly day=15 → 8am LOCAL on PDT side")
+    @MainActor
+    func nextFireDSTSpringForward() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        // March 9, 2026 is the spring-forward Sunday (PST → PDT)
+        // From Feb 20, the next Monthly day=15 should be March 15 at 8am LOCAL.
+        let from = cal.date(from: DateComponents(year: 2026, month: 2, day: 20, hour: 12))!
+        let next = RecurrenceService.computeNextFireDate(
+            cadence: .monthly(dayOfMonth: 15),
+            after: from,
+            calendar: cal
+        )
+        // After DST applied, 8am local on March 15 is PDT (UTC-7), not PST (UTC-8)
+        let expected = cal.date(from: DateComponents(year: 2026, month: 3, day: 15, hour: 8))!
+        #expect(next == expected)
+        // The crucial check: the local hour is 8, not 7 or 9
+        let comps = cal.dateComponents([.hour, .minute], from: next)
+        #expect(comps.hour == 8)
+        #expect(comps.minute == 0)
+    }
+
+    @Test("computeNextFireDate: DST fall-back — weekly Monday → 8am LOCAL on PST side")
+    @MainActor
+    func nextFireDSTFallBack() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 2
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        // November 1, 2026 is the fall-back Sunday (PDT → PST)
+        // From Oct 28 (Wed), the next Monday at 8am LOCAL is Nov 2 — already on PST side.
+        let from = cal.date(from: DateComponents(year: 2026, month: 10, day: 28, hour: 12))!
+        let next = RecurrenceService.computeNextFireDate(
+            cadence: .weekly(weekday: .monday),
+            after: from,
+            calendar: cal
+        )
+        let expected = cal.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 8))!
+        #expect(next == expected)
+        let comps = cal.dateComponents([.hour, .minute], from: next)
+        #expect(comps.hour == 8)
+        #expect(comps.minute == 0)
+    }
+
+    @Test("computeNextFireDate: year-boundary week math (ISO Dec 30 Tue → Jan 5 Mon)")
+    @MainActor
+    func nextFireYearBoundaryWeek() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 2
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        // Dec 30, 2025 is a Tuesday. Next weekly Monday is Jan 5, 2026.
+        let from = cal.date(from: DateComponents(year: 2025, month: 12, day: 30, hour: 12))!
+        let next = RecurrenceService.computeNextFireDate(
+            cadence: .weekly(weekday: .monday),
+            after: from,
+            calendar: cal
+        )
+        let expected = cal.date(from: DateComponents(year: 2026, month: 1, day: 5, hour: 8))!
+        #expect(next == expected)
+    }
+
+    // MARK: - CAS guard tests (v1.1.1 R4)
+
+    @Test("materializeDraft CAS guard: happy path is unaffected when lastFiredAt is stable")
+    @MainActor
+    func materializeDraftCASConflict() async throws {
+        // NOTE: Single-actor (@MainActor) tests cannot exercise the actual two-device
+        // CloudKit race the CAS guard protects against. That race requires two processes
+        // concurrently reading the same lastFiredAt == nil, both passing the entry-time
+        // snapshot, then one advancing the field before the other's check fires.
+        // This test verifies the HAPPY PATH: the guard does not interfere with a
+        // normal, uncontested materialization.
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(profile); context.insert(client)
+
+        let fireAt = cal.date(from: DateComponents(year: 2026, month: 6, day: 1, hour: 8))!
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: fireAt
+        )
+        context.insert(template)
+        try context.save()
+
+        let invoice = try RecurrenceService.materializeDraft(
+            template: template, now: fireAt, calendar: cal, context: context
+        )
+        #expect(invoice.status == .draft)
+        #expect(template.lastFiredAt == fireAt)
+    }
+
+    @Test("MaterializationError.conflict is part of the error type")
+    func materializationErrorConflictExists() {
+        let err: RecurrenceService.MaterializationError = .conflict
+        #expect(err == .conflict)
+        #expect(err != .ended)
+        #expect(err != .noClient)
+        #expect(err != .noBusinessProfile)
+    }
+
+    @Test("ReminderTemplateRenderer survives an empty template gracefully")
+    @MainActor
+    func renderEmptyTemplate() throws {
+        // Sanity check used by PaymentRemindersView's preview when user clears
+        // the field — renderer should produce empty string, not crash.
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+        let invoice = Invoice(
+            number: "INV-0001", dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+        _ = container  // keep alive
+
+        let rendered = ReminderTemplateRenderer.render(
+            template: "",
+            invoice: invoice,
+            senderName: "Me"
+        )
+        #expect(rendered.isEmpty)
+    }
+
+}
+
+// Small actor helper for capturing UUID(s) from a fire-and-forget hook Task.
+// Stores a set so parallel tests that share the same static hook don't lose IDs
+// via last-write-wins. Tests check containment, not equality.
+// We receive only the UUID (Sendable) to avoid sending a non-Sendable Invoice
+// value across isolation boundaries.
+actor HookCapture {
+    private(set) var invoiceIDs: Set<UUID> = []
+    func capture(id: UUID) {
+        invoiceIDs.insert(id)
+    }
 }
 
 // MARK: - Test helpers

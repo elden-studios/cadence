@@ -15,6 +15,11 @@ public final class Client {
     public var createdAt: Date
     public var updatedAt: Date
 
+    /// Optional override for global reminder offsets. When `nil`, the invoice
+    /// reminder schedule uses `ReminderConfig.enabledOffsets`. When non-nil,
+    /// these offsets are used for invoices belonging to this client.
+    public var reminderOffsets: [Int]?
+
     @Relationship(deleteRule: .cascade, inverse: \Project.client)
     public var projects: [Project] = []
 
@@ -27,7 +32,8 @@ public final class Client {
         notes: String? = nil,
         isArchived: Bool = false,
         createdAt: Date = .now,
-        updatedAt: Date = .now
+        updatedAt: Date = .now,
+        reminderOffsets: [Int]? = nil
     ) {
         self.name = name
         self.colorRaw = color.rawValue
@@ -38,6 +44,7 @@ public final class Client {
         self.isArchived = isArchived
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.reminderOffsets = reminderOffsets
     }
 
     public var color: ClientColor {

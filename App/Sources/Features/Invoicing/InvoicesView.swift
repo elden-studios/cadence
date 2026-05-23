@@ -26,13 +26,24 @@ struct InvoicesView: View {
         case recurrenceEditor(templateID: UUID)
     }
 
+    /// When set by `RootView` (e.g., after a reminder notification tap), the view
+    /// pushes this destination onto its navigation stack and clears the binding.
+    @Binding var pendingPushTarget: NavigationTarget?
+
+    @State private var path: [NavigationTarget] = []
     @State private var filter: Filter = .outstanding
     @State private var showingGenerator = false
     @State private var showingPaywall = false
     private var subscriptions = SubscriptionManager.shared
 
+    /// Convenience initialiser for call sites that don't supply an external push target
+    /// (e.g., direct tab renders, previews).
+    init(pendingPushTarget: Binding<NavigationTarget?> = .constant(nil)) {
+        self._pendingPushTarget = pendingPushTarget
+    }
+
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if invoices.isEmpty {
                     emptyState
@@ -66,6 +77,11 @@ struct InvoicesView: View {
                 case .recurrenceEditor(let templateID):
                     RecurrenceEditorDestinationLoader(templateID: templateID)
                 }
+            }
+            .onChange(of: pendingPushTarget) { _, newValue in
+                guard let target = newValue else { return }
+                path.append(target)
+                pendingPushTarget = nil  // consume so the binding resets for the next tap
             }
         }
     }
