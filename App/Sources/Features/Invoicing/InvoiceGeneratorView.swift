@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import OSLog
 import UserNotifications
 import BillableCore
 
@@ -58,7 +59,7 @@ struct InvoiceGeneratorView: View {
     }
 
     private var saveDisabled: Bool {
-        selectedClient == nil || savingRecurrence
+        selectedClient == nil || profile == nil || savingRecurrence
     }
 
     var body: some View {
@@ -318,7 +319,19 @@ struct InvoiceGeneratorView: View {
             endDate: recurrenceEndDate
         )
         modelContext.insert(template)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            // Roll back the insertion + surface to the user. We don't have a generic
+            // error-toast system yet, so reuse the existing permission alert mechanism
+            // with a localised message. (v1.1 polish.)
+            modelContext.rollback()
+            permissionDeniedAlert = false
+            // Stash the error; for v1.1 we just log via OSLog and bail without dismissing.
+            Logger(subsystem: "com.eldenstudios.billable", category: "InvoiceGenerator")
+                .error("Failed to save recurrence template: \(error.localizedDescription, privacy: .public)")
+            return
+        }
 
         dismiss()
     }
