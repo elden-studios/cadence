@@ -658,6 +658,88 @@ struct SchedulingTests {
         }
     }
 
+    @Test("pendingMaterializations returns templates with nextFireDate in the past")
+    @MainActor
+    func pendingMaterializationsReturnsOverdue() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+
+        let now = Date()
+        let pastFire = now.addingTimeInterval(-3600 * 24 * 3) // 3 days ago
+        let futureFire = now.addingTimeInterval(3600 * 24 * 5) // 5 days from now
+
+        let pending = RecurrenceTemplate(
+            client: client, cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry, nextFireDate: pastFire
+        )
+        let later = RecurrenceTemplate(
+            client: client, cadence: .monthly(dayOfMonth: 15),
+            grouping: .perEntry, nextFireDate: futureFire
+        )
+        context.insert(pending); context.insert(later)
+        try context.save()
+
+        let overdue = RecurrenceService.pendingMaterializations(now: now, context: context)
+        #expect(overdue.count == 1)
+        #expect(overdue.first?.id == pending.id)
+    }
+
+    @Test("pendingMaterializations excludes inactive and ended templates")
+    @MainActor
+    func pendingMaterializationsExcludesInactiveAndEnded() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+
+        let now = Date()
+        let past = now.addingTimeInterval(-3600 * 24 * 3)
+
+        let inactive = RecurrenceTemplate(
+            client: client, cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry, nextFireDate: past, isActive: false
+        )
+        let ended = RecurrenceTemplate(
+            client: client, cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry, nextFireDate: past,
+            endDate: now.addingTimeInterval(-3600 * 24 * 10)
+        )
+        context.insert(inactive); context.insert(ended)
+        try context.save()
+
+        let overdue = RecurrenceService.pendingMaterializations(now: now, context: context)
+        #expect(overdue.isEmpty)
+    }
+
+    @Test("pendingMaterializations sorts ascending by nextFireDate (oldest first)")
+    @MainActor
+    func pendingMaterializationsSorted() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+
+        let now = Date()
+        let earlier = now.addingTimeInterval(-3600 * 24 * 30) // 30 days ago
+        let middle  = now.addingTimeInterval(-3600 * 24 * 10) // 10 days ago
+        let recent  = now.addingTimeInterval(-3600 * 24 * 2)  // 2 days ago
+
+        let t1 = RecurrenceTemplate(client: client, cadence: .monthly(dayOfMonth: 1), grouping: .perEntry, nextFireDate: middle)
+        let t2 = RecurrenceTemplate(client: client, cadence: .monthly(dayOfMonth: 1), grouping: .perEntry, nextFireDate: earlier)
+        let t3 = RecurrenceTemplate(client: client, cadence: .monthly(dayOfMonth: 1), grouping: .perEntry, nextFireDate: recent)
+        context.insert(t1); context.insert(t2); context.insert(t3)
+        try context.save()
+
+        let overdue = RecurrenceService.pendingMaterializations(now: now, context: context)
+        #expect(overdue.count == 3)
+        #expect(overdue[0].nextFireDate == earlier)
+        #expect(overdue[1].nextFireDate == middle)
+        #expect(overdue[2].nextFireDate == recent)
+    }
+
 }
 
 // MARK: - Test helpers

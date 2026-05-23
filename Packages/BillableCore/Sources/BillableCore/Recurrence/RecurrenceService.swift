@@ -162,6 +162,27 @@ public enum RecurrenceService {
         return invoice
     }
 
+    /// Return templates whose `nextFireDate` is `<= now` and which are still
+    /// eligible to fire (active + not ended). Used by the Today screen's
+    /// Catch-up banner. Sorted ascending by `nextFireDate` (oldest first).
+    public static func pendingMaterializations(
+        now: Date = .now,
+        context: ModelContext
+    ) -> [RecurrenceTemplate] {
+        let descriptor = FetchDescriptor<RecurrenceTemplate>(
+            predicate: #Predicate { template in
+                template.isActive == true
+                && template.nextFireDate <= now
+            },
+            sortBy: [SortDescriptor(\.nextFireDate)]
+        )
+        let candidates = (try? context.fetch(descriptor)) ?? []
+        // The `isEnded(now:)` check requires reading `endDate`, which is an
+        // optional comparison that #Predicate doesn't handle uniformly across
+        // SwiftData versions. Apply the post-fetch filter for correctness.
+        return candidates.filter { !$0.isEnded(now: now) }
+    }
+
     /// Render notes template with `{month}` `{year}` `{clientName}` merge fields.
     /// `forDate` is the start of the billed range — we name the period by its
     /// start month/year (May 2026 even though the invoice fires June 1).
