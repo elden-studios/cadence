@@ -1470,6 +1470,14 @@ struct SchedulingTests {
 
         let count = BadgeCount.compute(context: context, now: Date())
         #expect(count == 2)  // 1 recurrence + 1 reminder
+
+        // markSent reads `Invoice.didMarkSentHook` (a `nonisolated(unsafe)` static)
+        // and may spawn a fire-and-forget Task capturing `invoice`. Under parallel
+        // tests the hook can point at *another* test's closure that outlives this
+        // function. Drain pending main-actor work while keeping `container` alive
+        // so the Task reads `invoice` before its container deinits.
+        try? await Task.sleep(for: .milliseconds(50))
+        _ = container
     }
 
     @Test("BadgeCount.compute excludes paid invoices' reminder fires")
@@ -1504,6 +1512,11 @@ struct SchedulingTests {
 
         let count = BadgeCount.compute(context: context, now: Date())
         #expect(count == 0)  // Paid invoice's fires don't count
+
+        // Drain pending main-actor Tasks spawned by markSent/markPaid hooks set
+        // by parallel tests (see badgeCountCombines for the full explanation).
+        try? await Task.sleep(for: .milliseconds(50))
+        _ = container
     }
 
     @Test("BadgeCount.compute excludes already-fired reminder steps")
@@ -1538,6 +1551,11 @@ struct SchedulingTests {
 
         let count = BadgeCount.compute(context: context, now: Date())
         #expect(count == 0)
+
+        // Drain pending main-actor Tasks spawned by markSent hooks set by
+        // parallel tests (see badgeCountCombines for the full explanation).
+        try? await Task.sleep(for: .milliseconds(50))
+        _ = container
     }
 
     // MARK: - RecurrenceScheduling tests
