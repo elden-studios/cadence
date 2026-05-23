@@ -19,6 +19,7 @@ public enum BillableModelContainer {
         Project.self,
         TimeEntry.self,
         Invoice.self,
+        RecurrenceTemplate.self,
     ]
 
     /// Single source of truth for local-only model types.

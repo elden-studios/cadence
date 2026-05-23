@@ -346,6 +346,80 @@ struct SchedulingTests {
         #expect(RangeRule.implied(from: .weekly(weekday: .monday)) == .previousWeek)
         #expect(RangeRule.implied(from: .biweekly(weekday: .friday)) == .previousBiweek)
     }
+
+    @Test("RecurrenceTemplate persists with cadence + client + nextFireDate")
+    @MainActor
+    func recurrenceTemplatePersists() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+
+        let cadence = RecurrenceCadence.monthly(dayOfMonth: 1)
+        let next = Date(timeIntervalSince1970: 1_900_000_000)
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: cadence,
+            grouping: .perEntry,
+            notesTemplate: "Services for {clientName} — {month} {year}",
+            nextFireDate: next
+        )
+        context.insert(template)
+        try context.save()
+
+        let fetched = try context.fetch(FetchDescriptor<RecurrenceTemplate>())
+        #expect(fetched.count == 1)
+        let t = try #require(fetched.first)
+        #expect(t.client?.name == "Acme")
+        #expect(t.cadenceValue == cadence)
+        #expect(t.rangeRuleValue == .previousMonth)
+        #expect(t.groupingValue == .perEntry)
+        #expect(t.notesTemplate == "Services for {clientName} — {month} {year}")
+        #expect(t.nextFireDate == next)
+        #expect(t.isActive == true)
+        #expect(t.lastFiredAt == nil)
+        #expect(t.endDate == nil)
+    }
+
+    @Test("RecurrenceTemplate.isEnded returns true once endDate has passed")
+    @MainActor
+    func recurrenceTemplateIsEnded() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+
+        let past = Date().addingTimeInterval(-3600)
+        let future = Date().addingTimeInterval(3600)
+
+        let endedTemplate = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: Date(),
+            endDate: past
+        )
+        let liveTemplate = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: Date(),
+            endDate: future
+        )
+        let openTemplate = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: Date()
+        )
+        context.insert(endedTemplate); context.insert(liveTemplate); context.insert(openTemplate)
+        try context.save()
+
+        #expect(endedTemplate.isEnded() == true)
+        #expect(liveTemplate.isEnded() == false)
+        #expect(openTemplate.isEnded() == false)
+    }
 }
 
 // MARK: - Test helpers
