@@ -1212,6 +1212,140 @@ struct SchedulingTests {
         #expect(center.addedRequests.isEmpty)
     }
 
+    // Helper that builds a fully-scheduled invoice fixture used by 4.6 tests.
+    @MainActor
+    func makeScheduledReminderFixture() async throws -> (ReminderService, Invoice, ModelContainer) {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let config = ReminderConfig.defaultConfig()
+        config.masterEnabled = true
+        context.insert(config)
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0014",
+            dueAt: cal.date(from: DateComponents(year: 2026, month: 6, day: 15))!,
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        let service = ReminderService(scheduler: scheduler, modelContext: context, calendar: cal)
+        try await service.scheduleForInvoice(invoice)
+        return (service, invoice, container)
+    }
+
+    @Test("cancelForInvoice removes all pending fires + deletes schedule")
+    @MainActor
+    func cancelForInvoiceClears() async throws {
+        let (service, invoice, container) = try await makeScheduledReminderFixture()
+        let scheduleID = try #require(invoice.reminderSchedule?.id)
+        let priorCount = try container.mainContext.fetch(FetchDescriptor<ScheduledNotification>()).count
+        #expect(priorCount > 0)
+
+        try await service.cancelForInvoice(invoice)
+
+        #expect(invoice.reminderSchedule == nil)
+        let after = try container.mainContext.fetch(FetchDescriptor<ScheduledNotification>())
+        #expect(after.isEmpty)
+        // Schedule row also gone
+        let scheduleRows = try container.mainContext.fetch(
+            FetchDescriptor<InvoiceReminderSchedule>(predicate: #Predicate { $0.id == scheduleID })
+        )
+        #expect(scheduleRows.isEmpty)
+    }
+
+    @Test("cancelForInvoice is idempotent (no-op when no schedule exists)")
+    @MainActor
+    func cancelForInvoiceIdempotent() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let center = FakeNotificationCenter()
+        center.authorized = true
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0015", dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        let service = ReminderService(scheduler: scheduler, modelContext: context)
+
+        // No schedule exists — should be no-op, no throw
+        try await service.cancelForInvoice(invoice)
+        #expect(invoice.reminderSchedule == nil)
+    }
+
+    @Test("recordFired appends to firedDates so the step doesn't repeat")
+    @MainActor
+    func recordFiredAppends() async throws {
+        let (service, invoice, _) = try await makeScheduledReminderFixture()
+        let schedule = try #require(invoice.reminderSchedule)
+        let firstFire = try #require(schedule.fireDates.first)
+
+        service.recordFired(invoice: invoice, at: firstFire)
+        #expect(invoice.reminderSchedule?.firedDates == [firstFire])
+
+        // Second call is idempotent — no duplicate
+        service.recordFired(invoice: invoice, at: firstFire)
+        #expect(invoice.reminderSchedule?.firedDates.count == 1)
+    }
+
+    @Test("recordFired is a no-op when invoice has no schedule")
+    @MainActor
+    func recordFiredNoSchedule() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+        let invoice = Invoice(
+            number: "INV-0016", dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        let service = ReminderService(scheduler: scheduler, modelContext: context)
+
+        // No throw, no crash
+        service.recordFired(invoice: invoice, at: Date())
+        #expect(invoice.reminderSchedule == nil)  // still nil
+    }
+
 }
 
 // MARK: - Test helpers

@@ -96,6 +96,51 @@ public final class ReminderService {
         log.info("scheduleForInvoice(): invoiceID=\(invoice.uuid.uuidString, privacy: .public) fires=\(fireDates.count, privacy: .public)")
     }
 
+    // MARK: - Cancel
+
+    /// Cancel all remaining iOS-side reminder fires for the invoice and delete
+    /// the `InvoiceReminderSchedule` row. Idempotent — calling on an invoice
+    /// without a schedule is a no-op (no throw, no side effect).
+    ///
+    /// Called from `Invoice.markPaid(at:)`'s `didMarkPaidHook` (Task 5.4 wires
+    /// this hook in `BillableApp.performStartupWiring()`).
+    public func cancelForInvoice(_ invoice: Invoice) async throws {
+        guard let schedule = invoice.reminderSchedule else { return }
+        let scheduleID = schedule.id
+
+        // Find every ScheduledNotification row whose payload is this schedule
+        // and cancel each via the Scheduler (which also removes the iOS-side
+        // pending request).
+        let descriptor = FetchDescriptor<ScheduledNotification>(
+            predicate: #Predicate { row in
+                row.payloadType == "reminder" && row.payloadID == scheduleID
+            }
+        )
+        if let rows = try? modelContext.fetch(descriptor) {
+            for row in rows {
+                scheduler.cancel(id: row.id)
+            }
+        }
+
+        invoice.reminderSchedule = nil
+        modelContext.delete(schedule)
+        try modelContext.save()
+        log.info("cancelForInvoice(): invoiceID=\(invoice.uuid.uuidString, privacy: .public)")
+    }
+
+    // MARK: - Record fired
+
+    /// Mark a single fire step as acted-on so it doesn't surface again in the
+    /// in-app reminder banner. Idempotent — calling twice with the same
+    /// `fireDate` is a no-op. No-op when invoice has no schedule.
+    public func recordFired(invoice: Invoice, at fireDate: Date) {
+        guard let schedule = invoice.reminderSchedule else { return }
+        if !schedule.firedDates.contains(fireDate) {
+            schedule.firedDates.append(fireDate)
+            try? modelContext.save()
+        }
+    }
+
     // MARK: - Notification copy
 
     /// Notification title text, escalating tone by offset bucket.
