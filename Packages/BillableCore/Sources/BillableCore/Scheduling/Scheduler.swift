@@ -78,4 +78,81 @@ public final class Scheduler {
     public func currentAuthorizationStatus() async -> UNAuthorizationStatus {
         await center.authorizationStatus()
     }
+
+    /// Register a local notification + persist its bookkeeping row.
+    /// Returns `.noPermission` if the user hasn't authorized; in that case
+    /// no iOS request is registered and no SwiftData row is created.
+    /// Returns `.capExceeded` when iOS pending count is at or above the
+    /// soft cap; a SwiftData row IS still created so `resyncOnLaunch` can
+    /// register it later when capacity frees up.
+    @discardableResult
+    public func schedule(
+        payload: SchedulerPayload,
+        fireAt: Date,
+        title: String,
+        body: String
+    ) async throws -> ScheduleResult {
+        guard await center.authorizationStatus() == .authorized else {
+            log.info("schedule(): no permission; skipping")
+            return .noPermission
+        }
+
+        let pending = await center.getPendingNotificationRequests().count
+        // type = payload discriminator string; payloadID = entity UUID (templateID or scheduleID),
+        // NOT the new ScheduledNotification.id that SwiftData will generate.
+        let (type, payloadID) = payload.encoded()
+
+        guard pending < Self.softCap else {
+            log.notice("schedule(): soft cap reached (\(pending, privacy: .public))")
+            // Persist the row so resync can register it later when capacity frees up.
+            let note = ScheduledNotification(
+                fireAt: fireAt, payloadType: type, payloadID: payloadID
+            )
+            modelContext.insert(note)
+            try modelContext.save()
+            return .capExceeded
+        }
+
+        let note = ScheduledNotification(
+            fireAt: fireAt, payloadType: type, payloadID: payloadID
+        )
+        modelContext.insert(note)
+        try modelContext.save()
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+
+        let trigger = UNCalendarNotificationTrigger(
+            dateMatching: Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: fireAt
+            ),
+            repeats: false
+        )
+        let request = UNNotificationRequest(
+            identifier: note.id.uuidString,
+            content: content,
+            trigger: trigger
+        )
+        try await center.add(request)
+        log.info("schedule(): id=\(note.id.uuidString, privacy: .public) fireAt=\(fireAt, privacy: .public)")
+        return .scheduled
+    }
+
+    /// Cancel a previously-registered notification by id. Removes both the
+    /// iOS pending request and the SwiftData bookkeeping row. Idempotent —
+    /// calling on a nonexistent id is a no-op (no throw, no side effect).
+    public func cancel(id: UUID) {
+        center.removePendingNotificationRequests(withIdentifiers: [id.uuidString])
+        let descriptor = FetchDescriptor<ScheduledNotification>(
+            predicate: #Predicate { $0.id == id }
+        )
+        if let rows = try? modelContext.fetch(descriptor) {
+            for row in rows { modelContext.delete(row) }
+            try? modelContext.save()
+        }
+        log.info("cancel(): id=\(id.uuidString, privacy: .public)")
+    }
 }

@@ -92,6 +92,81 @@ struct SchedulingTests {
         let granted = try await scheduler.requestAuthorization()
         #expect(granted == false)
     }
+
+    @Test("Scheduler.schedule registers iOS request + persists ScheduledNotification")
+    @MainActor
+    func scheduleRegistersBoth() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let scheduler = Scheduler(center: center, modelContext: container.mainContext)
+        _ = try await scheduler.requestAuthorization()
+
+        let payloadID = UUID()
+        let fireAt = Date().addingTimeInterval(3600)
+        let result = try await scheduler.schedule(
+            payload: .recurrence(templateID: payloadID),
+            fireAt: fireAt,
+            title: "Test",
+            body: "Body"
+        )
+
+        #expect(result == .scheduled)
+        #expect(center.addedRequests.count == 1)
+        let fetched = try container.mainContext.fetch(FetchDescriptor<ScheduledNotification>())
+        #expect(fetched.count == 1)
+        #expect(fetched.first?.payloadType == "recurrence")
+        #expect(fetched.first?.payloadID == payloadID)
+        #expect(fetched.first?.fireAt == fireAt)
+    }
+
+    @Test("Scheduler.schedule returns .noPermission when unauthorized")
+    @MainActor
+    func scheduleNoPermission() async throws {
+        let center = FakeNotificationCenter()
+        // Note: authorized stays false
+        let container = try BillableModelContainer.inMemory()
+        let scheduler = Scheduler(center: center, modelContext: container.mainContext)
+
+        let result = try await scheduler.schedule(
+            payload: .reminder(scheduleID: UUID()),
+            fireAt: Date().addingTimeInterval(3600),
+            title: "T",
+            body: "B"
+        )
+
+        #expect(result == .noPermission)
+        #expect(center.addedRequests.isEmpty)
+        let fetched = try container.mainContext.fetch(FetchDescriptor<ScheduledNotification>())
+        #expect(fetched.isEmpty)
+    }
+
+    @Test("Scheduler.cancel removes iOS request + SwiftData row")
+    @MainActor
+    func cancelRemovesBoth() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let scheduler = Scheduler(center: center, modelContext: container.mainContext)
+        _ = try await scheduler.requestAuthorization()
+
+        let payloadID = UUID()
+        _ = try await scheduler.schedule(
+            payload: .reminder(scheduleID: payloadID),
+            fireAt: Date().addingTimeInterval(3600),
+            title: "T",
+            body: "B"
+        )
+        let id = try #require(
+            container.mainContext.fetch(FetchDescriptor<ScheduledNotification>()).first?.id
+        )
+
+        scheduler.cancel(id: id)
+
+        #expect(center.removedIdentifiers.contains(id.uuidString))
+        let remaining = try container.mainContext.fetch(FetchDescriptor<ScheduledNotification>())
+        #expect(remaining.isEmpty)
+    }
 }
 
 // MARK: - Test helpers
