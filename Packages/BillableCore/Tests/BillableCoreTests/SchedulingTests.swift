@@ -1051,6 +1051,167 @@ struct SchedulingTests {
         #expect(rendered == "0")
     }
 
+    @Test("scheduleForInvoice resolves offsets and creates fire dates at 8am local")
+    @MainActor
+    func scheduleForInvoiceCreatesFires() async throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let config = ReminderConfig.defaultConfig()
+        config.masterEnabled = true
+        context.insert(config)
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let due = cal.date(from: DateComponents(year: 2026, month: 6, day: 15))!
+        let invoice = Invoice(
+            number: "INV-0010", dueAt: due,
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent(at: due.addingTimeInterval(-86400)) // Sent yesterday
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        let reminderService = ReminderService(scheduler: scheduler, modelContext: context, calendar: cal)
+
+        try await reminderService.scheduleForInvoice(invoice)
+
+        let schedule = try #require(invoice.reminderSchedule)
+        let expected3  = cal.date(from: DateComponents(year: 2026, month: 6, day: 18, hour: 8))!
+        let expected7  = cal.date(from: DateComponents(year: 2026, month: 6, day: 22, hour: 8))!
+        let expected14 = cal.date(from: DateComponents(year: 2026, month: 6, day: 29, hour: 8))!
+        #expect(schedule.fireDates == [expected3, expected7, expected14])
+        #expect(center.addedRequests.count == 3)
+    }
+
+    @Test("scheduleForInvoice no-ops when masterEnabled is false")
+    @MainActor
+    func scheduleForInvoiceMasterDisabled() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let config = ReminderConfig.defaultConfig()
+        config.masterEnabled = false
+        context.insert(config)
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0011", dueAt: Date().addingTimeInterval(86400),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        let service = ReminderService(scheduler: scheduler, modelContext: context)
+
+        try await service.scheduleForInvoice(invoice)
+        #expect(invoice.reminderSchedule == nil)
+        #expect(center.addedRequests.isEmpty)
+    }
+
+    @Test("scheduleForInvoice respects per-client override")
+    @MainActor
+    func scheduleForInvoiceClientOverride() async throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let config = ReminderConfig.defaultConfig()
+        config.masterEnabled = true
+        config.enabledOffsets = [3, 7]
+        context.insert(config)
+
+        let client = Client(name: "Acme", color: .blue, reminderOffsets: [5])
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let due = cal.date(from: DateComponents(year: 2026, month: 6, day: 15))!
+        let invoice = Invoice(
+            number: "INV-0012", dueAt: due,
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        let service = ReminderService(scheduler: scheduler, modelContext: context, calendar: cal)
+        try await service.scheduleForInvoice(invoice)
+
+        let schedule = try #require(invoice.reminderSchedule)
+        #expect(schedule.fireDates.count == 1)
+        let expected5 = cal.date(from: DateComponents(year: 2026, month: 6, day: 20, hour: 8))!
+        #expect(schedule.fireDates.first == expected5)
+    }
+
+    @Test("scheduleForInvoice no-ops when no ReminderConfig exists")
+    @MainActor
+    func scheduleForInvoiceNoConfig() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        // NO ReminderConfig inserted
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0013", dueAt: Date().addingTimeInterval(86400),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        context.insert(invoice)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        let service = ReminderService(scheduler: scheduler, modelContext: context)
+        try await service.scheduleForInvoice(invoice)
+
+        #expect(invoice.reminderSchedule == nil)
+        #expect(center.addedRequests.isEmpty)
+    }
+
 }
 
 // MARK: - Test helpers
