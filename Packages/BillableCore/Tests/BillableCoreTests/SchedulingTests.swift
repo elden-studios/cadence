@@ -503,11 +503,48 @@ struct SchedulingTests {
         cal.firstWeekday = 2
         cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
 
-        // 2026-06-03 is a Wednesday. The next Friday is 2026-06-05. Biweekly = 2 Fridays out = 2026-06-19.
+        // 2026-06-03 is a Wednesday. Next Friday is 2026-06-05; biweekly nudges +7d
+        // so the first fire is the second Friday = 2026-06-12 (one-week grace UX).
         let from = cal.date(from: DateComponents(year: 2026, month: 6, day: 3, hour: 12))!
         let next = RecurrenceService.computeNextFireDate(
             cadence: .biweekly(weekday: .friday),
             after: from,
+            calendar: cal
+        )
+        let expected = cal.date(from: DateComponents(year: 2026, month: 6, day: 12, hour: 8))!
+        #expect(next == expected)
+    }
+
+    @Test("computeNextFireDate: biweekly Fri after a fire → 14 days later")
+    @MainActor
+    func nextFireBiweeklyAfterMaterialize() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 2
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        // Simulate: we just fired on Fri Jun 5 at 8am. Next fire should be Fri Jun 19.
+        let prevFire = cal.date(from: DateComponents(year: 2026, month: 6, day: 5, hour: 8))!
+        let next = RecurrenceService.computeNextFireDate(
+            cadence: .biweekly(weekday: .friday),
+            after: prevFire,
+            calendar: cal
+        )
+        let expected = cal.date(from: DateComponents(year: 2026, month: 6, day: 19, hour: 8))!
+        #expect(next == expected)
+    }
+
+    @Test("computeNextFireDate: biweekly Fri after delayed tap → still every 14 days")
+    @MainActor
+    func nextFireBiweeklyDelayedMaterialize() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 2
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        // User taps the notification at Fri Jun 5 10:30am (2.5h after 8am fire).
+        let tapTime = cal.date(from: DateComponents(year: 2026, month: 6, day: 5, hour: 10, minute: 30))!
+        let next = RecurrenceService.computeNextFireDate(
+            cadence: .biweekly(weekday: .friday),
+            after: tapTime,
             calendar: cal
         )
         let expected = cal.date(from: DateComponents(year: 2026, month: 6, day: 19, hour: 8))!

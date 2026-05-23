@@ -57,25 +57,22 @@ public enum RecurrenceService {
         weekday: RecurrenceCadence.Weekday,
         after from: Date,
         calendar: Calendar,
-        weeksOffset: Int
+        weeksOffset: Int  // 1 = weekly, 2 = biweekly
     ) -> Date {
-        let targetWeekday = weekday.calendarComponent
         var components = DateComponents()
-        components.weekday = targetWeekday
+        components.weekday = weekday.calendarComponent
         components.hour = fireHour
         components.minute = 0
-        // For biweekly (weeksOffset == 2): search from a point 14 days out so we land
-        // on the first target weekday that is at least two full weeks away.
-        // weeksOffset=1 → no shift (weekly), weeksOffset=2 → shift 14 days (biweekly).
-        let searchBase: Date
-        if weeksOffset > 1 {
-            searchBase = calendar.date(byAdding: .day, value: weeksOffset * 7, to: from)!
-        } else {
-            searchBase = from
-        }
-        // Find the next occurrence of the target weekday at 8am STRICTLY after searchBase.
-        return calendar.nextDate(
-            after: searchBase, matching: components, matchingPolicy: .nextTime
+        // Find next target weekday strictly after `from`.
+        let firstNext = calendar.nextDate(
+            after: from, matching: components, matchingPolicy: .nextTime
         )!
+        // For biweekly: nudge +7d. This makes both call sites correct:
+        // - Creation (Wed Jun 3 → first Fri = Jun 5 → +7 = Jun 12) gives the user
+        //   a one-week grace before the first invoice.
+        // - Materialization (Fri Jun 5 8am tap → next Fri = Jun 12 → +7 = Jun 19)
+        //   correctly produces every-14-days cadence with no drift.
+        guard weeksOffset > 1 else { return firstNext }
+        return calendar.date(byAdding: .day, value: 7, to: firstNext)!
     }
 }
