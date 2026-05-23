@@ -1,14 +1,21 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+import UIKit
 import BillableCore
 
 struct RecurringRulesView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \RecurrenceTemplate.nextFireDate) private var templates: [RecurrenceTemplate]
+
+    @State private var notificationPermissionDenied: Bool = false
 
     var body: some View {
         Group {
+            if notificationPermissionDenied {
+                permissionBanner
+            }
             if templates.isEmpty {
                 ContentUnavailableView(
                     "No recurring schedules",
@@ -35,6 +42,46 @@ struct RecurringRulesView: View {
                 }
             }
         }
+        .task(id: scenePhase) {
+            await refreshPermissionStatus()
+        }
+    }
+
+    // MARK: - Permission Banner
+
+    private var permissionBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "bell.slash.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Notifications are off")
+                    .font(.subheadline.weight(.semibold))
+                Text("Schedules won't fire until you re-enable notifications.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.12), in: .rect(cornerRadius: 12))
+        .padding(.horizontal)
+    }
+
+    @MainActor
+    private func refreshPermissionStatus() async {
+        let scheduler = Scheduler(
+            center: UNUserNotificationCenter.current(),
+            modelContext: modelContext
+        )
+        let status = await scheduler.currentAuthorizationStatus()
+        notificationPermissionDenied = (status == .denied)
     }
 
     // MARK: - Row
