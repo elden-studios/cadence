@@ -1689,6 +1689,72 @@ struct SchedulingTests {
         #expect(center.removedIdentifiers.count == 1)
     }
 
+
+    // MARK: - DST + year-boundary cadence math (v1.1.1 R3)
+
+    @Test("computeNextFireDate: DST spring-forward — monthly day=15 → 8am LOCAL on PDT side")
+    @MainActor
+    func nextFireDSTSpringForward() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        // March 9, 2026 is the spring-forward Sunday (PST → PDT)
+        // From Feb 20, the next Monthly day=15 should be March 15 at 8am LOCAL.
+        let from = cal.date(from: DateComponents(year: 2026, month: 2, day: 20, hour: 12))!
+        let next = RecurrenceService.computeNextFireDate(
+            cadence: .monthly(dayOfMonth: 15),
+            after: from,
+            calendar: cal
+        )
+        // After DST applied, 8am local on March 15 is PDT (UTC-7), not PST (UTC-8)
+        let expected = cal.date(from: DateComponents(year: 2026, month: 3, day: 15, hour: 8))!
+        #expect(next == expected)
+        // The crucial check: the local hour is 8, not 7 or 9
+        let comps = cal.dateComponents([.hour, .minute], from: next)
+        #expect(comps.hour == 8)
+        #expect(comps.minute == 0)
+    }
+
+    @Test("computeNextFireDate: DST fall-back — weekly Monday → 8am LOCAL on PST side")
+    @MainActor
+    func nextFireDSTFallBack() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 2
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        // November 1, 2026 is the fall-back Sunday (PDT → PST)
+        // From Oct 28 (Wed), the next Monday at 8am LOCAL is Nov 2 — already on PST side.
+        let from = cal.date(from: DateComponents(year: 2026, month: 10, day: 28, hour: 12))!
+        let next = RecurrenceService.computeNextFireDate(
+            cadence: .weekly(weekday: .monday),
+            after: from,
+            calendar: cal
+        )
+        let expected = cal.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 8))!
+        #expect(next == expected)
+        let comps = cal.dateComponents([.hour, .minute], from: next)
+        #expect(comps.hour == 8)
+        #expect(comps.minute == 0)
+    }
+
+    @Test("computeNextFireDate: year-boundary week math (ISO Dec 30 Tue → Jan 5 Mon)")
+    @MainActor
+    func nextFireYearBoundaryWeek() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 2
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        // Dec 30, 2025 is a Tuesday. Next weekly Monday is Jan 5, 2026.
+        let from = cal.date(from: DateComponents(year: 2025, month: 12, day: 30, hour: 12))!
+        let next = RecurrenceService.computeNextFireDate(
+            cadence: .weekly(weekday: .monday),
+            after: from,
+            calendar: cal
+        )
+        let expected = cal.date(from: DateComponents(year: 2026, month: 1, day: 5, hour: 8))!
+        #expect(next == expected)
+    }
+
 }
 
 // Small actor helper for capturing UUID(s) from a fire-and-forget hook Task.
