@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
+import UserNotifications
 @testable import BillableCore
 
 @Suite("Scheduling")
@@ -54,5 +55,69 @@ struct SchedulingTests {
 
         // Unknown discriminator → nil
         #expect(SchedulerPayload.decode(payloadType: "garbage", payloadID: UUID()) == nil)
+    }
+
+    @Test("Scheduler.requestAuthorization caches granted state")
+    @MainActor
+    func authorizationGrantsAndCaches() async throws {
+        let center = FakeNotificationCenter()
+        let container = try BillableModelContainer.inMemory()
+        let scheduler = Scheduler(
+            center: center,
+            modelContext: container.mainContext
+        )
+
+        let granted = try await scheduler.requestAuthorization()
+        #expect(granted == true)
+        #expect(center.authorized == true)
+    }
+
+    @Test("Scheduler.requestAuthorization returns false when user declines (simulated)")
+    @MainActor
+    func authorizationDeclined() async throws {
+        final class DeclineCenter: NotificationCenterProtocol, @unchecked Sendable {
+            func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool { false }
+            func authorizationStatus() async -> UNAuthorizationStatus { .denied }
+            func add(_ request: UNNotificationRequest) async throws {}
+            func getPendingNotificationRequests() async -> [UNNotificationRequest] { [] }
+            func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {}
+        }
+        let center = DeclineCenter()
+        let container = try BillableModelContainer.inMemory()
+        let scheduler = Scheduler(
+            center: center,
+            modelContext: container.mainContext
+        )
+
+        let granted = try await scheduler.requestAuthorization()
+        #expect(granted == false)
+    }
+}
+
+// MARK: - Test helpers
+
+final class FakeNotificationCenter: NotificationCenterProtocol, @unchecked Sendable {
+    var authorized = false
+    var pendingRequests: [UNNotificationRequest] = []
+    var addedRequests: [UNNotificationRequest] = []
+    var removedIdentifiers: [String] = []
+
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool {
+        authorized = true
+        return true
+    }
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        authorized ? .authorized : .notDetermined
+    }
+    func add(_ request: UNNotificationRequest) async throws {
+        addedRequests.append(request)
+        pendingRequests.append(request)
+    }
+    func getPendingNotificationRequests() async -> [UNNotificationRequest] {
+        pendingRequests
+    }
+    func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {
+        removedIdentifiers.append(contentsOf: identifiers)
+        pendingRequests.removeAll { identifiers.contains($0.identifier) }
     }
 }
