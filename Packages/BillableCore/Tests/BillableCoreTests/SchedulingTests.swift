@@ -31,4 +31,28 @@ struct SchedulingTests {
         #expect(fetched.first?.payloadType == "recurrence")
         #expect(fetched.first?.payloadID == payloadID)
     }
+
+    @Test("SchedulerPayload encodes and decodes via String round-trip")
+    func payloadRoundTrip() throws {
+        let recurrencePayloadID = UUID()
+        let recurrence = SchedulerPayload.recurrence(templateID: recurrencePayloadID)
+        let recEncoded = recurrence.encoded()
+        let recDecoded = try #require(SchedulerPayload.decode(
+            payloadType: recEncoded.type,
+            payloadID: recEncoded.id
+        ))
+        #expect(recDecoded == .recurrence(templateID: recurrencePayloadID))
+
+        let reminderScheduleID = UUID()
+        let reminder = SchedulerPayload.reminder(scheduleID: reminderScheduleID)
+        let remEncoded = reminder.encoded()
+        let remDecoded = try #require(SchedulerPayload.decode(
+            payloadType: remEncoded.type,
+            payloadID: remEncoded.id
+        ))
+        #expect(remDecoded == .reminder(scheduleID: reminderScheduleID))
+
+        // Unknown discriminator → nil
+        #expect(SchedulerPayload.decode(payloadType: "garbage", payloadID: UUID()) == nil)
+    }
 }
