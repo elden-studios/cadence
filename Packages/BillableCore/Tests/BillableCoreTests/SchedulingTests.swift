@@ -1755,6 +1755,52 @@ struct SchedulingTests {
         #expect(next == expected)
     }
 
+    // MARK: - CAS guard tests (v1.1.1 R4)
+
+    @Test("materializeDraft CAS guard: happy path is unaffected when lastFiredAt is stable")
+    @MainActor
+    func materializeDraftCASConflict() async throws {
+        // NOTE: Single-actor (@MainActor) tests cannot exercise the actual two-device
+        // CloudKit race the CAS guard protects against. That race requires two processes
+        // concurrently reading the same lastFiredAt == nil, both passing the entry-time
+        // snapshot, then one advancing the field before the other's check fires.
+        // This test verifies the HAPPY PATH: the guard does not interfere with a
+        // normal, uncontested materialization.
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(profile); context.insert(client)
+
+        let fireAt = cal.date(from: DateComponents(year: 2026, month: 6, day: 1, hour: 8))!
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: fireAt
+        )
+        context.insert(template)
+        try context.save()
+
+        let invoice = try RecurrenceService.materializeDraft(
+            template: template, now: fireAt, calendar: cal, context: context
+        )
+        #expect(invoice.status == .draft)
+        #expect(template.lastFiredAt == fireAt)
+    }
+
+    @Test("MaterializationError.conflict is part of the error type")
+    func materializationErrorConflictExists() {
+        let err: RecurrenceService.MaterializationError = .conflict
+        #expect(err == .conflict)
+        #expect(err != .ended)
+        #expect(err != .noClient)
+        #expect(err != .noBusinessProfile)
+    }
+
 }
 
 // Small actor helper for capturing UUID(s) from a fire-and-forget hook Task.

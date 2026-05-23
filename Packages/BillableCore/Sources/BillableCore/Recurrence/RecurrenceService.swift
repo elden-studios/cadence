@@ -82,6 +82,7 @@ public enum RecurrenceService {
         case noBusinessProfile
         case noClient
         case ended
+        case conflict   // CAS: another caller materialized this template first
     }
 
     /// Resolve the prior period, build line items from eligible entries, and
@@ -108,6 +109,12 @@ public enum RecurrenceService {
         guard let profile = profiles.first else {
             throw MaterializationError.noBusinessProfile
         }
+
+        // CAS guard: stash the lastFiredAt we observed at function entry.
+        // If another caller materialized this template mid-flight (e.g., a second
+        // device via CloudKit Mirror), the cached lastFiredAt won't match the
+        // current value at mutation time — we bail without inserting a duplicate Draft.
+        let observedLastFiredAt = template.lastFiredAt
 
         let range = template.rangeRuleValue.resolve(from: now, calendar: calendar)
 
@@ -150,6 +157,14 @@ public enum RecurrenceService {
         // actually billed — skip the synthesized placeholder case).
         if !lineItems.isEmpty {
             for entry in entries { entry.invoiceID = invoice.uuid }
+        }
+
+        // CAS check: bail if another caller already advanced lastFiredAt.
+        guard template.lastFiredAt == observedLastFiredAt else {
+            log.notice("materializeDraft(): CAS conflict — another caller materialized first; templateID=\(template.id.uuidString, privacy: .public)")
+            // Rollback any context changes the body made (line items, draft, stamping).
+            context.rollback()
+            throw MaterializationError.conflict
         }
 
         // Advance template state.
