@@ -80,6 +80,16 @@ struct SettingsView: View {
                     }
                 } header: { Text("Reminders") }
 
+                if CommandLine.arguments.contains("--debug-scheduler") {
+                    Section {
+                        NavigationLink {
+                            DiagnosticsView()
+                        } label: {
+                            Label("Diagnostics", systemImage: "stethoscope")
+                        }
+                    } header: { Text("Debug") }
+                }
+
                 Section("About") {
                     LabeledContent("Version", value: appVersionString)
                 }
