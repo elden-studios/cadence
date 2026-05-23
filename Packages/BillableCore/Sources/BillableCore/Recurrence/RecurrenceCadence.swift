@@ -53,3 +53,29 @@ public enum RecurrenceCadence: Equatable, Hashable, Sendable {
         }
     }
 }
+
+/// UI-state taxonomy paralleling `RecurrenceCadence`'s case shape, for use
+/// in segmented pickers that don't yet hold a day-of-month or weekday value.
+/// Maps to `RecurrenceCadence` once the picker fields resolve.
+public enum RecurrenceCadenceKind: String, CaseIterable, Identifiable, Sendable {
+    case weekly, biweekly, monthly
+
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .weekly:   "Weekly"
+        case .biweekly: "Biweekly"
+        case .monthly:  "Monthly"
+        }
+    }
+
+    /// Derive the picker kind from an existing typed cadence.
+    public init(_ cadence: RecurrenceCadence) {
+        switch cadence {
+        case .monthly:  self = .monthly
+        case .weekly:   self = .weekly
+        case .biweekly: self = .biweekly
+        }
+    }
+}

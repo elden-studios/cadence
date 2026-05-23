@@ -729,6 +729,13 @@ struct SchedulingTests {
         #expect(overdue.isEmpty)
     }
 
+    @Test("RecurrenceCadenceKind derives correctly from RecurrenceCadence")
+    func cadenceKindMapping() {
+        #expect(RecurrenceCadenceKind(.monthly(dayOfMonth: 15)) == .monthly)
+        #expect(RecurrenceCadenceKind(.weekly(weekday: .friday)) == .weekly)
+        #expect(RecurrenceCadenceKind(.biweekly(weekday: .monday)) == .biweekly)
+    }
+
     @Test("pendingMaterializations sorts ascending by nextFireDate (oldest first)")
     @MainActor
     func pendingMaterializationsSorted() throws {

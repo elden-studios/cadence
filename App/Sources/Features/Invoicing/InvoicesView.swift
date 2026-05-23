@@ -24,7 +24,6 @@ struct InvoicesView: View {
         case detail(invoiceID: UUID)
         case preview(invoiceID: UUID)
         case recurrenceEditor(templateID: UUID)
-        case pendingMaterializations
     }
 
     @State private var filter: Filter = .outstanding
@@ -66,9 +65,6 @@ struct InvoicesView: View {
                     InvoicePreviewDestinationLoader(invoiceID: invoiceID)
                 case .recurrenceEditor(let templateID):
                     RecurrenceEditorDestinationLoader(templateID: templateID)
-                case .pendingMaterializations:
-                    // Placeholder — Task 3.6 will replace with a list view.
-                    Text("Pending materializations (Task 3.6)")
                 }
             }
         }

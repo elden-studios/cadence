@@ -337,16 +337,3 @@ struct InvoiceGeneratorView: View {
     }
 }
 
-// MARK: – RecurrenceCadenceKind
-
-private enum RecurrenceCadenceKind: String, CaseIterable, Identifiable {
-    case weekly, biweekly, monthly
-    var id: String { rawValue }
-    var label: String {
-        switch self {
-        case .weekly:   "Weekly"
-        case .biweekly: "Biweekly"
-        case .monthly:  "Monthly"
-        }
-    }
-}

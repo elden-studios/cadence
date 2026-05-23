@@ -56,8 +56,9 @@ struct RootView: View {
             .onChange(of: router.pendingDestination) { _, newValue in
                 guard let destination = newValue else { return }
                 // For Task 3.2 we have only one routing strategy: switch to the Invoices tab.
-                // Task 3.4 will add per-destination handling (e.g., open InvoiceDetail).
-                _ = destination  // suppress unused warning; full handling in 3.4
+                // Full per-destination push (e.g., navigate to InvoiceDetail with the specific
+                // invoiceID) is deferred to Task 5.4 when ReminderService is wired in.
+                _ = destination  // suppress unused warning; full handling in Task 5.4
                 selectedTab = 2  // Invoices tab
                 router.pendingDestination = nil
             }

@@ -8,7 +8,7 @@ struct RecurrenceEditorView: View {
 
     let template: RecurrenceTemplate
 
-    @State private var cadenceKind: EditorCadenceKind
+    @State private var cadenceKind: RecurrenceCadenceKind
     @State private var dayOfMonth: Int
     @State private var weekday: RecurrenceCadence.Weekday
     @State private var endDate: Date?
@@ -21,19 +21,17 @@ struct RecurrenceEditorView: View {
     init(template: RecurrenceTemplate) {
         self.template = template
         let initialCadence = template.cadenceValue
+        _cadenceKind = State(initialValue: RecurrenceCadenceKind(initialCadence))
         switch initialCadence {
         case .monthly(let d):
-            _cadenceKind = State(initialValue: .monthly)
-            _dayOfMonth  = State(initialValue: d)
-            _weekday     = State(initialValue: .monday)
+            _dayOfMonth = State(initialValue: d)
+            _weekday    = State(initialValue: .monday)
         case .weekly(let w):
-            _cadenceKind = State(initialValue: .weekly)
-            _dayOfMonth  = State(initialValue: 1)
-            _weekday     = State(initialValue: w)
+            _dayOfMonth = State(initialValue: 1)
+            _weekday    = State(initialValue: w)
         case .biweekly(let w):
-            _cadenceKind = State(initialValue: .biweekly)
-            _dayOfMonth  = State(initialValue: 1)
-            _weekday     = State(initialValue: w)
+            _dayOfMonth = State(initialValue: 1)
+            _weekday    = State(initialValue: w)
         }
         _endDate       = State(initialValue: template.endDate)
         _hasEndDate    = State(initialValue: template.endDate != nil)
@@ -49,7 +47,7 @@ struct RecurrenceEditorView: View {
 
             Section("Cadence") {
                 Picker("Frequency", selection: $cadenceKind) {
-                    ForEach(EditorCadenceKind.allCases) { kind in
+                    ForEach(RecurrenceCadenceKind.allCases) { kind in
                         Text(kind.label).tag(kind)
                     }
                 }
@@ -140,6 +138,9 @@ struct RecurrenceEditorView: View {
         template.nextFireDate = RecurrenceService.computeNextFireDate(
             cadence: cadence, after: Date()
         )
+        // TODO(Task 5.4): JIT permission ask when Scheduler.schedule is wired in here.
+        // Today this saves the template; the actual notification scheduling happens
+        // when Phase 4/5 hooks Scheduler.schedule into the save path.
         do {
             try modelContext.save()
             dismiss()
@@ -169,15 +170,3 @@ struct RecurrenceEditorView: View {
     }
 }
 
-// File-scope helper mirroring InvoiceGeneratorView's RecurrenceCadenceKind.
-private enum EditorCadenceKind: String, CaseIterable, Identifiable {
-    case weekly, biweekly, monthly
-    var id: String { rawValue }
-    var label: String {
-        switch self {
-        case .weekly:   "Weekly"
-        case .biweekly: "Biweekly"
-        case .monthly:  "Monthly"
-        }
-    }
-}
