@@ -72,6 +72,14 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    NavigationLink {
+                        PaymentRemindersView()
+                    } label: {
+                        Label("Payment reminders", systemImage: "bell.badge")
+                    }
+                } header: { Text("Reminders") }
+
                 Section("About") {
                     LabeledContent("Version", value: appVersionString)
                 }
