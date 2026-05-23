@@ -36,3 +36,6 @@ secrets.xcconfig
 
 # Git worktrees (for parallel feature work)
 .worktrees/
+
+# Xcode SPM cache (auto-managed by Xcode, no need to track)
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
