@@ -102,5 +102,16 @@ struct RecurringRulesView: View {
     private func togglePause(_ template: RecurrenceTemplate) {
         template.isActive.toggle()
         try? modelContext.save()
+        let scheduler = Scheduler(
+            center: UNUserNotificationCenter.current(),
+            modelContext: modelContext
+        )
+        if template.isActive {
+            Task {
+                try? await RecurrenceScheduling.scheduleNext(for: template, scheduler: scheduler)
+            }
+        } else {
+            RecurrenceScheduling.cancelAll(for: template, scheduler: scheduler, modelContext: modelContext)
+        }
     }
 }

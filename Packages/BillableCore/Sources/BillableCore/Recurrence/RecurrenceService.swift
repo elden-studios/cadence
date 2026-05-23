@@ -95,7 +95,8 @@ public enum RecurrenceService {
         template: RecurrenceTemplate,
         now: Date = .now,
         calendar: Calendar = .current,
-        context: ModelContext
+        context: ModelContext,
+        scheduler: Scheduler? = nil
     ) throws -> Invoice {
         guard !template.isEnded(now: now) else {
             throw MaterializationError.ended
@@ -157,6 +158,15 @@ public enum RecurrenceService {
             cadence: template.cadenceValue, after: now, calendar: calendar
         )
         try context.save()
+
+        // Schedule the next-cycle notification if a scheduler was supplied.
+        if let scheduler {
+            Task {
+                try? await RecurrenceScheduling.scheduleNext(
+                    for: template, scheduler: scheduler, calendar: calendar
+                )
+            }
+        }
 
         log.info("materializeDraft(): templateID=\(template.id.uuidString, privacy: .public) lineItems=\(lineItems.count, privacy: .public)")
         return invoice

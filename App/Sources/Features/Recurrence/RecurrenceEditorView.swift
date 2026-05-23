@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 import BillableCore
 
 struct RecurrenceEditorView: View {
@@ -138,6 +139,15 @@ struct RecurrenceEditorView: View {
         template.nextFireDate = RecurrenceService.computeNextFireDate(
             cadence: cadence, after: Date()
         )
+
+        // Cancel any existing pending notification (cadence may have changed,
+        // nextFireDate is now different) and schedule the new one.
+        let scheduler = Scheduler(
+            center: UNUserNotificationCenter.current(),
+            modelContext: modelContext
+        )
+        RecurrenceScheduling.cancelAll(for: template, scheduler: scheduler, modelContext: modelContext)
+
         // Note: Recurrence schedules don't need a separate JIT permission ask
         // here — by the time the user reaches the editor, they've already granted
         // notification permission via InvoiceGeneratorView.saveRecurrence. If
@@ -145,6 +155,9 @@ struct RecurrenceEditorView: View {
         // banner in RecurringRulesView surfaces the permission state.
         do {
             try modelContext.save()
+            Task {
+                try? await RecurrenceScheduling.scheduleNext(for: template, scheduler: scheduler)
+            }
             dismiss()
         } catch {
             errorMessage = "Couldn't save: \(error.localizedDescription)"
@@ -156,8 +169,12 @@ struct RecurrenceEditorView: View {
         generatingNow = true
         defer { generatingNow = false }
         do {
+            let scheduler = Scheduler(
+                center: UNUserNotificationCenter.current(),
+                modelContext: modelContext
+            )
             _ = try RecurrenceService.materializeDraft(
-                template: template, now: .now, context: modelContext
+                template: template, now: .now, context: modelContext, scheduler: scheduler
             )
             dismiss()
         } catch RecurrenceService.MaterializationError.noBusinessProfile {

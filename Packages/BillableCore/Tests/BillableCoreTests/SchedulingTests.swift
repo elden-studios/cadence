@@ -1540,6 +1540,91 @@ struct SchedulingTests {
         #expect(count == 0)
     }
 
+    // MARK: - RecurrenceScheduling tests
+
+    @Test("RecurrenceScheduling.scheduleNext registers iOS request for active template")
+    @MainActor
+    func recurrenceSchedulingScheduleNext() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: Date().addingTimeInterval(86400)  // tomorrow
+        )
+        context.insert(template)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        try await RecurrenceScheduling.scheduleNext(for: template, scheduler: scheduler)
+
+        #expect(center.addedRequests.count == 1)
+        let rows = try context.fetch(FetchDescriptor<ScheduledNotification>())
+        #expect(rows.count == 1)
+        #expect(rows.first?.payloadType == "recurrence")
+    }
+
+    @Test("RecurrenceScheduling.scheduleNext is a no-op for inactive template")
+    @MainActor
+    func recurrenceSchedulingInactive() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: Date().addingTimeInterval(86400),
+            isActive: false  // inactive
+        )
+        context.insert(template)
+        try context.save()
+
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        try await RecurrenceScheduling.scheduleNext(for: template, scheduler: scheduler)
+
+        #expect(center.addedRequests.isEmpty)
+    }
+
+    @Test("RecurrenceScheduling.cancelAll removes pending iOS notifications + SwiftData rows")
+    @MainActor
+    func recurrenceSchedulingCancelAll() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: Date().addingTimeInterval(86400)
+        )
+        context.insert(template)
+        try context.save()
+        let scheduler = Scheduler(center: center, modelContext: context)
+        _ = try await scheduler.requestAuthorization()
+        try await RecurrenceScheduling.scheduleNext(for: template, scheduler: scheduler)
+        #expect(center.addedRequests.count == 1)
+
+        RecurrenceScheduling.cancelAll(for: template, scheduler: scheduler, modelContext: context)
+
+        #expect(center.removedIdentifiers.count == 1)
+        let rows = try context.fetch(FetchDescriptor<ScheduledNotification>())
+        #expect(rows.isEmpty)
+    }
+
 }
 
 // Small actor helper for capturing UUID(s) from a fire-and-forget hook Task.

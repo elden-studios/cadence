@@ -333,6 +333,9 @@ struct InvoiceGeneratorView: View {
             return
         }
 
+        // Schedule the first iOS notification for this template.
+        try? await RecurrenceScheduling.scheduleNext(for: template, scheduler: scheduler)
+
         dismiss()
     }
 }

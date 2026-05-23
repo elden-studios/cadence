@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 import BillableCore
 
 /// List of templates whose `nextFireDate` is in the past. Tapping a row
@@ -78,8 +79,12 @@ struct PendingMaterializationsView: View {
         materializingID = template.id
         defer { materializingID = nil }
         do {
+            let scheduler = Scheduler(
+                center: UNUserNotificationCenter.current(),
+                modelContext: modelContext
+            )
             _ = try RecurrenceService.materializeDraft(
-                template: template, now: .now, context: modelContext
+                template: template, now: .now, context: modelContext, scheduler: scheduler
             )
             errorMessage = nil
         } catch RecurrenceService.MaterializationError.noBusinessProfile {
