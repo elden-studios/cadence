@@ -1,10 +1,12 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 import BillableCore
 
 /// Tab-bar shell. Today is the home; Clients/Invoices/Reports/Settings are siblings.
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(NotificationRouter.self) private var router
     @State private var showingReportsPaywall = false
     @State private var needsOnboarding: Bool = false
@@ -71,6 +73,16 @@ struct RootView: View {
                     selectedTab = 2
                 }
                 router.pendingDestination = nil
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active else { return }
+                Task {
+                    let scheduler = Scheduler(
+                        center: UNUserNotificationCenter.current(),
+                        modelContext: modelContext
+                    )
+                    _ = await scheduler.resyncOnLaunch()
+                }
             }
         }
     }
