@@ -82,6 +82,8 @@ struct RootView: View {
                         modelContext: modelContext
                     )
                     _ = await scheduler.resyncOnLaunch()
+                    let count = BadgeCount.compute(context: modelContext)
+                    try? await UNUserNotificationCenter.current().setBadgeCount(count)
                 }
             }
         }

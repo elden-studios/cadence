@@ -1431,6 +1431,115 @@ struct SchedulingTests {
         #expect(await captured.invoiceIDs.contains(invoice.uuid))
     }
 
+    @Test("BadgeCount.compute counts pending recurrence materializations + pending reminder fires")
+    @MainActor
+    func badgeCountCombines() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        // 1 pending recurrence: nextFireDate in the past, active, not ended
+        let past = Date().addingTimeInterval(-3600)
+        context.insert(RecurrenceTemplate(
+            client: client, cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry, nextFireDate: past
+        ))
+
+        // 1 sent invoice with an unfired past reminder step
+        let invoice = Invoice(
+            number: "INV-0099",
+            dueAt: Date().addingTimeInterval(-86400 * 4),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        let schedule = InvoiceReminderSchedule(
+            invoice: invoice,
+            fireDates: [Date().addingTimeInterval(-3600)],  // 1 fire in the past
+            firedDates: []                                    // not acted on
+        )
+        invoice.reminderSchedule = schedule
+        context.insert(invoice); context.insert(schedule)
+        try context.save()
+
+        let count = BadgeCount.compute(context: context, now: Date())
+        #expect(count == 2)  // 1 recurrence + 1 reminder
+    }
+
+    @Test("BadgeCount.compute excludes paid invoices' reminder fires")
+    @MainActor
+    func badgeCountExcludesPaid() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0100",
+            dueAt: Date().addingTimeInterval(-86400 * 4),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        try invoice.markPaid()  // Now status is .paid
+        let schedule = InvoiceReminderSchedule(
+            invoice: invoice,
+            fireDates: [Date().addingTimeInterval(-3600)],
+            firedDates: []
+        )
+        invoice.reminderSchedule = schedule
+        context.insert(invoice); context.insert(schedule)
+        try context.save()
+
+        let count = BadgeCount.compute(context: context, now: Date())
+        #expect(count == 0)  // Paid invoice's fires don't count
+    }
+
+    @Test("BadgeCount.compute excludes already-fired reminder steps")
+    @MainActor
+    func badgeCountExcludesAlreadyFired() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let pastFire = Date().addingTimeInterval(-3600)
+        let invoice = Invoice(
+            number: "INV-0101",
+            dueAt: Date().addingTimeInterval(-86400 * 4),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        try invoice.markSent()
+        let schedule = InvoiceReminderSchedule(
+            invoice: invoice,
+            fireDates: [pastFire],
+            firedDates: [pastFire]  // Already acted on
+        )
+        invoice.reminderSchedule = schedule
+        context.insert(invoice); context.insert(schedule)
+        try context.save()
+
+        let count = BadgeCount.compute(context: context, now: Date())
+        #expect(count == 0)
+    }
+
 }
 
 // Small actor helper for capturing UUID(s) from a fire-and-forget hook Task.
