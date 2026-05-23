@@ -18,6 +18,9 @@ struct TodayView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     headerSection
+                    CatchUpBanner()
+                        .padding(.horizontal)
+                        .padding(.top, 4)
                     TodayActiveTimerSection(
                         onStop: stopRunning,
                         onSwitch: { showingSwitchSheet = true }
@@ -30,6 +33,9 @@ struct TodayView: View {
                 .padding()
             }
             .scrollIndicators(.hidden)
+            .navigationDestination(for: PendingMaterializationsLink.self) { _ in
+                PendingMaterializationsView()
+            }
             .navigationTitle("Today")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
