@@ -887,6 +887,170 @@ struct SchedulingTests {
         #expect(refetched.reminderSchedule?.fireDates.count == 1)
     }
 
+    @Test("ReminderTemplateRenderer resolves all merge fields")
+    @MainActor
+    func renderResolvesAllFields() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let client = Client(
+            name: "Acme Corp",
+            color: .blue,
+            contactName: "Jane Doe"
+        )
+        context.insert(client)
+
+        let profile = BusinessProfile(name: "Louay Bazerbashi", currencyCode: "USD")
+        context.insert(profile)
+
+        let due = Date(timeIntervalSince1970: 1_900_000_000)
+        let invoice = Invoice(
+            number: "INV-0042",
+            dueAt: due,
+            clientNameSnapshot: "Acme Corp",
+            issuerNameSnapshot: "Louay Bazerbashi",
+            issuerAddressSnapshot: "",
+            issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "Net 14",
+            taxLabelSnapshot: "Tax",
+            taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            lineItems: [InvoiceLineItem(description: "Work", hours: 10, hourlyRate: 100, sourceTimeEntryRef: nil)],
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let template = "Hi {clientFirstName}, {invoiceNumber} for {amount} was due {dueDate}. — {senderName}"
+        let now = due.addingTimeInterval(3 * 86400)
+        let rendered = ReminderTemplateRenderer.render(
+            template: template,
+            invoice: invoice,
+            senderName: "Louay Bazerbashi",
+            now: now
+        )
+
+        #expect(rendered.contains("Hi Jane"))
+        #expect(rendered.contains("INV-0042"))
+        #expect(rendered.contains("1,000"))      // 10h * $100 = $1,000 — formatter detail varies by locale, just check digits
+        #expect(rendered.contains("Louay Bazerbashi"))
+        // {dueDate} resolves to a localized date; we just check it's substituted
+        #expect(rendered.contains("{dueDate}") == false)
+    }
+
+    @Test("ReminderTemplateRenderer computes daysOverdue from now and dueAt")
+    @MainActor
+    func renderDaysOverdue() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let due = Date(timeIntervalSince1970: 1_900_000_000)
+        let invoice = Invoice(
+            number: "INV-0007", dueAt: due,
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let now = due.addingTimeInterval(7 * 86400)
+        let rendered = ReminderTemplateRenderer.render(
+            template: "{daysOverdue} days overdue",
+            invoice: invoice, senderName: "Me", now: now
+        )
+        #expect(rendered == "7 days overdue")
+    }
+
+    @Test("ReminderTemplateRenderer falls back to clientName when no contactName")
+    @MainActor
+    func renderFirstNameFallback() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Solo Acme", color: .blue)  // No contactName
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0001", dueAt: Date(),
+            clientNameSnapshot: "Solo Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let rendered = ReminderTemplateRenderer.render(
+            template: "Hi {clientFirstName}",
+            invoice: invoice, senderName: "Me"
+        )
+        #expect(rendered == "Hi Solo")  // First word of clientName when contactName is nil
+    }
+
+    @Test("ReminderTemplateRenderer leaves unknown tokens untouched")
+    @MainActor
+    func renderUnknownTokenUntouched() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let invoice = Invoice(
+            number: "INV-0001", dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let rendered = ReminderTemplateRenderer.render(
+            template: "Hello {unknownToken}",
+            invoice: invoice, senderName: "Me"
+        )
+        #expect(rendered == "Hello {unknownToken}")  // unchanged
+    }
+
+    @Test("ReminderTemplateRenderer daysOverdue clamps to 0 when now is before dueAt")
+    @MainActor
+    func renderDaysOverdueClampNonNegative() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+
+        let due = Date(timeIntervalSince1970: 1_900_000_000)
+        let invoice = Invoice(
+            number: "INV-0001", dueAt: due,
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        // Now is 5 days BEFORE due — daysOverdue must clamp to 0, not -5
+        let now = due.addingTimeInterval(-5 * 86400)
+        let rendered = ReminderTemplateRenderer.render(
+            template: "{daysOverdue}",
+            invoice: invoice, senderName: "Me", now: now
+        )
+        #expect(rendered == "0")
+    }
+
 }
 
 // MARK: - Test helpers
