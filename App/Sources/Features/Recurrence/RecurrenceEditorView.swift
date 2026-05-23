@@ -138,9 +138,11 @@ struct RecurrenceEditorView: View {
         template.nextFireDate = RecurrenceService.computeNextFireDate(
             cadence: cadence, after: Date()
         )
-        // TODO(Task 5.4): JIT permission ask when Scheduler.schedule is wired in here.
-        // Today this saves the template; the actual notification scheduling happens
-        // when Phase 4/5 hooks Scheduler.schedule into the save path.
+        // Note: Recurrence schedules don't need a separate JIT permission ask
+        // here — by the time the user reaches the editor, they've already granted
+        // notification permission via InvoiceGeneratorView.saveRecurrence. If
+        // permission was revoked later, Scheduler.schedule silently no-ops and the
+        // banner in RecurringRulesView surfaces the permission state.
         do {
             try modelContext.save()
             dismiss()

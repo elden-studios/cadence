@@ -62,15 +62,24 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         }
     }
 
-    /// Map a `SchedulerPayload` to a `NotificationRouter.Destination`. For v1.1 we
-    /// route both .recurrence and .reminder taps to the Recurring list — Task 5.4
-    /// will refine .reminder to .invoiceDetail(invoiceID:) by looking up the
-    /// owning invoice from `InvoiceReminderSchedule`.
+    /// Map a `SchedulerPayload` to a `NotificationRouter.Destination`.
     @MainActor
     private static func destination(for payload: SchedulerPayload) -> NotificationRouter.Destination {
         switch payload {
-        case .recurrence: .recurringList
-        case .reminder:   .recurringList
+        case .recurrence:
+            return .recurringList
+        case .reminder(let scheduleID):
+            // Look up the InvoiceReminderSchedule by id and route to the owning
+            // invoice's detail view.
+            guard let context = sharedModelContext else { return .recurringList }
+            let descriptor = FetchDescriptor<InvoiceReminderSchedule>(
+                predicate: #Predicate { $0.id == scheduleID }
+            )
+            if let schedule = try? context.fetch(descriptor).first,
+               let invoice = schedule.invoice {
+                return .invoiceDetail(invoiceID: invoice.uuid)
+            }
+            return .recurringList  // Fallback if schedule was deleted (e.g., invoice was paid between fire and tap)
         }
     }
 }

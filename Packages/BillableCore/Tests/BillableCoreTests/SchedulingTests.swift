@@ -1347,6 +1347,102 @@ struct SchedulingTests {
         #expect(invoice.reminderSchedule == nil)  // still nil
     }
 
+    @Test("Invoice.markSent fires didMarkSentHook")
+    @MainActor
+    func markSentFiresHook() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+        let invoice = Invoice(
+            number: "INV-0050", dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+
+        // Capture the invoice the hook receives. We extract uuid (Sendable) inside
+        // the @MainActor hook closure before crossing into the actor, which avoids
+        // sending a non-Sendable Invoice value across isolation boundaries.
+        //
+        // We save+restore the hook around the test so that parallel tests that also
+        // call markSent() don't stomp on this test's `captured` actor.
+        let previousSentHook = Invoice.didMarkSentHook
+        let captured = HookCapture()
+        Invoice.didMarkSentHook = { @MainActor inv in
+            let id = inv.uuid
+            await captured.capture(id: id)
+        }
+        defer { Invoice.didMarkSentHook = previousSentHook }
+
+        try invoice.markSent()
+        // Wait for the fire-and-forget Task to run. The Task is enqueued on the
+        // main actor; we yield here so the scheduler can execute it. The explicit
+        // wait-loop (up to 500ms) makes the test robust under parallel test load.
+        let targetID = invoice.uuid
+        var waited = 0
+        while await !captured.invoiceIDs.contains(targetID), waited < 500 {
+            try await Task.sleep(for: .milliseconds(10))
+            waited += 10
+        }
+        #expect(await captured.invoiceIDs.contains(invoice.uuid))
+    }
+
+    @Test("Invoice.markPaid fires didMarkPaidHook")
+    @MainActor
+    func markPaidFiresHook() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        context.insert(client); context.insert(profile)
+        let invoice = Invoice(
+            number: "INV-0051", dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me", issuerAddressSnapshot: "", issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "", taxLabelSnapshot: "Tax", taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD",
+            client: client
+        )
+        context.insert(invoice)
+        try context.save()
+        try invoice.markSent()
+
+        let previousPaidHook = Invoice.didMarkPaidHook
+        let captured = HookCapture()
+        Invoice.didMarkPaidHook = { @MainActor inv in
+            let id = inv.uuid
+            await captured.capture(id: id)
+        }
+        defer { Invoice.didMarkPaidHook = previousPaidHook }
+
+        try invoice.markPaid()
+        let targetIDPaid = invoice.uuid
+        var waitedPaid = 0
+        while await !captured.invoiceIDs.contains(targetIDPaid), waitedPaid < 500 {
+            try await Task.sleep(for: .milliseconds(10))
+            waitedPaid += 10
+        }
+        #expect(await captured.invoiceIDs.contains(invoice.uuid))
+    }
+
+}
+
+// Small actor helper for capturing UUID(s) from a fire-and-forget hook Task.
+// Stores a set so parallel tests that share the same static hook don't lose IDs
+// via last-write-wins. Tests check containment, not equality.
+// We receive only the UUID (Sendable) to avoid sending a non-Sendable Invoice
+// value across isolation boundaries.
+actor HookCapture {
+    private(set) var invoiceIDs: Set<UUID> = []
+    func capture(id: UUID) {
+        invoiceIDs.insert(id)
+    }
 }
 
 // MARK: - Test helpers
