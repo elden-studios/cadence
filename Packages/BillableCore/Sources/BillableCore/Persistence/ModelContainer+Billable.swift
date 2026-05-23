@@ -7,9 +7,13 @@ import SwiftData
 /// - `inMemory()` — ephemeral, used by tests and SwiftUI previews
 /// - `local()` — on-disk only, no CloudKit (useful in TestFlight builds with iCloud disabled)
 /// - `cloudKit()` — on-disk + private CloudKit mirror (production default)
+///
+/// The container is built from two configurations so that local-only bookkeeping
+/// models (e.g., `ScheduledNotification`) never sync to iCloud while user data
+/// (clients, invoices, time entries) does.
 public enum BillableModelContainer {
-    /// All `@Model` types the container must know about.
-    public static let schema = Schema([
+    /// Mirrored models (sync to CloudKit private DB when enabled).
+    public static let mirroredSchema = Schema([
         BusinessProfile.self,
         Client.self,
         Project.self,
@@ -17,29 +21,68 @@ public enum BillableModelContainer {
         Invoice.self,
     ])
 
+    /// Local-only models (never sync to CloudKit).
+    public static let localOnlySchema = Schema([
+        ScheduledNotification.self,
+    ])
+
+    /// Convenience for SwiftData previews and tests that want a single schema.
+    public static let schema = Schema([
+        BusinessProfile.self,
+        Client.self,
+        Project.self,
+        TimeEntry.self,
+        Invoice.self,
+        ScheduledNotification.self,
+    ])
+
     public static func inMemory() throws -> ModelContainer {
-        let config = ModelConfiguration(
-            schema: schema,
+        let mirrored = ModelConfiguration(
+            "mirrored",
+            schema: mirroredSchema,
             isStoredInMemoryOnly: true,
             cloudKitDatabase: .none
         )
-        return try ModelContainer(for: schema, configurations: config)
+        let local = ModelConfiguration(
+            "local",
+            schema: localOnlySchema,
+            isStoredInMemoryOnly: true,
+            cloudKitDatabase: .none
+        )
+        return try ModelContainer(
+            for: schema,
+            configurations: mirrored, local
+        )
     }
 
     public static func local(url: URL? = nil) throws -> ModelContainer {
-        let config = ModelConfiguration(
-            schema: schema,
-            url: url ?? defaultStoreURL(),
+        let mirroredURL = url ?? defaultStoreURL()
+        let localURL = localStoreURL(siblingTo: mirroredURL)
+        let mirrored = ModelConfiguration(
+            "mirrored",
+            schema: mirroredSchema,
+            url: mirroredURL,
             cloudKitDatabase: .none
         )
-        return try ModelContainer(for: schema, configurations: config)
+        let local = ModelConfiguration(
+            "local",
+            schema: localOnlySchema,
+            url: localURL,
+            cloudKitDatabase: .none
+        )
+        return try ModelContainer(
+            for: schema,
+            configurations: mirrored, local
+        )
     }
 
     /// Build a container backed by a store inside an App Group container so
     /// both the main app and the widget extension can read/write it.
-    /// When `cloudKitContainerID` is supplied, the store is mirrored to that
-    /// CloudKit private database. Falls back to local-only on entitlement
-    /// failures so dev runs without a provisioning profile stay unblocked.
+    /// When `cloudKitContainerID` is supplied, the mirrored store is mirrored
+    /// to that CloudKit private database. Falls back to local-only on
+    /// entitlement failures so dev runs without a provisioning profile stay
+    /// unblocked. The local-only store (e.g., ScheduledNotification) is
+    /// always device-local.
     public static func appGroup(
         _ groupID: String,
         cloudKitContainerID: String? = nil
@@ -48,25 +91,53 @@ public enum BillableModelContainer {
                 .containerURL(forSecurityApplicationGroupIdentifier: groupID) else {
             return try local()
         }
-        let storeURL = groupURL.appendingPathComponent("Billable.store")
+        let mirroredStoreURL = groupURL.appendingPathComponent("Billable.store")
+        let localStoreURL = groupURL.appendingPathComponent("Billable-local.store")
 
+        let mirroredConfig: ModelConfiguration
         if let cloudKitContainerID {
-            let config = ModelConfiguration(
-                schema: schema,
-                url: storeURL,
+            mirroredConfig = ModelConfiguration(
+                "mirrored",
+                schema: mirroredSchema,
+                url: mirroredStoreURL,
                 cloudKitDatabase: .private(cloudKitContainerID)
             )
-            do {
-                return try ModelContainer(for: schema, configurations: config)
-            } catch {
-                // CloudKit setup commonly fails when there's no provisioning
-                // team configured (simulator dev, CI). Drop to local-only so
-                // the app still launches; the user will see no sync but won't
-                // lose data.
-                return try local(url: storeURL)
-            }
+        } else {
+            mirroredConfig = ModelConfiguration(
+                "mirrored",
+                schema: mirroredSchema,
+                url: mirroredStoreURL,
+                cloudKitDatabase: .none
+            )
         }
-        return try local(url: storeURL)
+
+        let localConfig = ModelConfiguration(
+            "local",
+            schema: localOnlySchema,
+            url: localStoreURL,
+            cloudKitDatabase: .none
+        )
+
+        do {
+            return try ModelContainer(
+                for: schema,
+                configurations: mirroredConfig, localConfig
+            )
+        } catch {
+            // CloudKit setup commonly fails when there's no provisioning team
+            // (simulator dev, CI). Drop the mirrored config to local-only so
+            // the app still launches; the user will see no sync but won't lose data.
+            let fallback = ModelConfiguration(
+                "mirrored-fallback",
+                schema: mirroredSchema,
+                url: mirroredStoreURL,
+                cloudKitDatabase: .none
+            )
+            return try ModelContainer(
+                for: schema,
+                configurations: fallback, localConfig
+            )
+        }
     }
 
     /// The CloudKit container ID used by the production app. Kept here so the
@@ -74,11 +145,20 @@ public enum BillableModelContainer {
     public static let defaultCloudKitContainerID = "iCloud.com.eldenstudios.billable"
 
     public static func cloudKit(containerIdentifier: String) throws -> ModelContainer {
-        let config = ModelConfiguration(
-            schema: schema,
+        let mirrored = ModelConfiguration(
+            "mirrored",
+            schema: mirroredSchema,
             cloudKitDatabase: .private(containerIdentifier)
         )
-        return try ModelContainer(for: schema, configurations: config)
+        let local = ModelConfiguration(
+            "local",
+            schema: localOnlySchema,
+            cloudKitDatabase: .none
+        )
+        return try ModelContainer(
+            for: schema,
+            configurations: mirrored, local
+        )
     }
 
     private static func defaultStoreURL() -> URL {
@@ -86,5 +166,11 @@ public enum BillableModelContainer {
             for: .applicationSupportDirectory, in: .userDomainMask
         ).first!
         return appSupport.appendingPathComponent("Billable.store")
+    }
+
+    private static func localStoreURL(siblingTo mirroredURL: URL) -> URL {
+        mirroredURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("Billable-local.store")
     }
 }
