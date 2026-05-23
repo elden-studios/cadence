@@ -762,6 +762,39 @@ struct SchedulingTests {
         #expect(overdue[2].nextFireDate == recent)
     }
 
+    @Test("ReminderConfig persists with default offsets and templates")
+    @MainActor
+    func reminderConfigPersists() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let config = ReminderConfig.defaultConfig()
+        context.insert(config)
+        try context.save()
+
+        let fetched = try context.fetch(FetchDescriptor<ReminderConfig>())
+        #expect(fetched.count == 1)
+        let c = try #require(fetched.first)
+        #expect(c.enabledOffsets == [3, 7, 14])
+        #expect(c.subjectTemplate.contains("{invoiceNumber}"))
+        #expect(c.bodyTemplate.contains("{clientFirstName}"))
+        #expect(c.masterEnabled == false)  // off until user enables explicitly
+    }
+
+    @Test("ReminderConfig default templates contain all expected merge fields")
+    @MainActor
+    func reminderConfigDefaultTemplatesMergeFields() {
+        let config = ReminderConfig.defaultConfig()
+        // Subject: at minimum invoiceNumber
+        #expect(config.subjectTemplate.contains("{invoiceNumber}"))
+        // Body: clientFirstName, invoiceNumber, amount, dueDate, senderName
+        #expect(config.bodyTemplate.contains("{clientFirstName}"))
+        #expect(config.bodyTemplate.contains("{invoiceNumber}"))
+        #expect(config.bodyTemplate.contains("{amount}"))
+        #expect(config.bodyTemplate.contains("{dueDate}"))
+        #expect(config.bodyTemplate.contains("{senderName}"))
+    }
+
 }
 
 // MARK: - Test helpers
