@@ -340,6 +340,20 @@ struct SchedulingTests {
         #expect(range.end == expectedEnd)
     }
 
+    @Test("RangeRule.previousBiweek resolves to the two prior weeks")
+    func rangeRulePreviousBiweek() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 2 // Monday-first
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let fireAt = cal.date(from: DateComponents(year: 2026, month: 6, day: 19, hour: 8))! // Friday
+        let range = RangeRule.previousBiweek.resolve(from: fireAt, calendar: cal)
+        // startOfFireWeek = Mon 2026-06-15; -14d = Mon 2026-06-01
+        let expectedStart = cal.date(from: DateComponents(year: 2026, month: 6, day: 1))!
+        let expectedEnd   = cal.date(from: DateComponents(year: 2026, month: 6, day: 15))!
+        #expect(range.start == expectedStart)
+        #expect(range.end == expectedEnd)
+    }
+
     @Test("RangeRule.implied maps cadence to range rule")
     func rangeRuleImplied() {
         #expect(RangeRule.implied(from: .monthly(dayOfMonth: 1)) == .previousMonth)
@@ -595,6 +609,7 @@ struct SchedulingTests {
         #expect(template.lastFiredAt == fireAt)
         let expectedNext = cal.date(from: DateComponents(year: 2026, month: 7, day: 1, hour: 8))!
         #expect(template.nextFireDate == expectedNext)
+        #expect(entry.invoiceID == draft.uuid)
     }
 
     @Test("materializeDraft creates zero-amount draft when no eligible entries")
