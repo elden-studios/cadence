@@ -54,6 +54,11 @@ public final class Invoice {
     /// but cached so the user can share without recomputation.
     public var pdfDataCached: Data?
 
+    /// Per-invoice reminder schedule. Set by `ReminderService.scheduleForInvoice`
+    /// at `markSent` transition; cleared by `cancelForInvoice` at `markPaid`.
+    @Relationship(deleteRule: .cascade, inverse: \InvoiceReminderSchedule.invoice)
+    public var reminderSchedule: InvoiceReminderSchedule?
+
     public var createdAt: Date
     public var updatedAt: Date
 

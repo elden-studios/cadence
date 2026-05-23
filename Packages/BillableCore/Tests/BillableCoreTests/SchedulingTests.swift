@@ -829,6 +829,64 @@ struct SchedulingTests {
         #expect(fetched.firedDates == [fireA])
     }
 
+    @Test("Client.reminderOffsets defaults to nil")
+    @MainActor
+    func clientReminderOffsetsDefaultsNil() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+        try context.save()
+        let fetched = try #require(context.fetch(FetchDescriptor<Client>()).first)
+        #expect(fetched.reminderOffsets == nil)
+    }
+
+    @Test("Client.reminderOffsets can be set and persisted")
+    @MainActor
+    func clientReminderOffsetsSet() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue, reminderOffsets: [5, 10])
+        context.insert(client)
+        try context.save()
+        let fetched = try #require(context.fetch(FetchDescriptor<Client>()).first)
+        #expect(fetched.reminderOffsets == [5, 10])
+    }
+
+    @Test("Invoice.reminderSchedule starts nil and can be set")
+    @MainActor
+    func invoiceReminderScheduleField() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let invoice = Invoice(
+            number: "INV-0001",
+            dueAt: Date(),
+            clientNameSnapshot: "Acme",
+            issuerNameSnapshot: "Me",
+            issuerAddressSnapshot: "",
+            issuerEmailSnapshot: "",
+            paymentTermsSnapshot: "Net 14",
+            taxLabelSnapshot: "Tax",
+            taxRateSnapshot: 0,
+            currencyCodeSnapshot: "USD"
+        )
+        context.insert(invoice)
+        try context.save()
+
+        let fetched = try #require(context.fetch(FetchDescriptor<Invoice>()).first)
+        #expect(fetched.reminderSchedule == nil)
+
+        let schedule = InvoiceReminderSchedule(fireDates: [Date()])
+        schedule.invoice = invoice
+        invoice.reminderSchedule = schedule
+        context.insert(schedule)
+        try context.save()
+
+        let refetched = try #require(context.fetch(FetchDescriptor<Invoice>()).first)
+        #expect(refetched.reminderSchedule?.fireDates.count == 1)
+    }
+
 }
 
 // MARK: - Test helpers
