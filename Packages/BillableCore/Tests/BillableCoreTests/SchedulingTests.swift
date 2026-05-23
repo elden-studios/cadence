@@ -625,6 +625,8 @@ struct SchedulingTests {
 
         #expect(draft.status == .draft)
         #expect(draft.subtotal == 0)
+        #expect(draft.lineItems.count == 1)
+        #expect(draft.lineItems.first?.description == "No tracked time for this period")
     }
 
     @Test("materializeDraft throws .ended when template's endDate has passed")
