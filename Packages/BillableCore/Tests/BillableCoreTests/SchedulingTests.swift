@@ -421,6 +421,30 @@ struct SchedulingTests {
         #expect(openTemplate.isEnded() == false)
     }
 
+    @Test("RecurrenceTemplate explicit rangeRule overrides implied value")
+    @MainActor
+    func recurrenceTemplateExplicitRangeRule() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+
+        // monthly cadence would normally imply .previousMonth; override with .previousWeek
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            rangeRule: .previousWeek,
+            grouping: .perEntry,
+            nextFireDate: Date()
+        )
+        context.insert(template)
+        try context.save()
+
+        let fetched = try context.fetch(FetchDescriptor<RecurrenceTemplate>())
+        let t = try #require(fetched.first)
+        #expect(t.rangeRuleValue == .previousWeek)
+    }
+
     @Test("computeNextFireDate: monthly day=1 → first of next month at 8am local")
     @MainActor
     func nextFireMonthlyDayOne() throws {
