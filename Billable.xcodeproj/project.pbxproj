@@ -25,6 +25,7 @@
 		6AD7D08A875EEB4A6FD4B25A /* ClientsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 724FB2203374655998BDFC2A /* ClientsView.swift */; };
 		6E9C293E357F95914B8A0C56 /* BillableWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BFD0B16A9AEBF1189186DEE /* BillableWidgetBundle.swift */; };
 		7C2B1CE0D231A176669A8CAD /* TimelineGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56AC735AE9894CA166F3F644 /* TimelineGeometry.swift */; };
+		93ACAA836A659BAFF84EC508 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881EC5A08A9EBDAF0F6E586A /* AppDelegate.swift */; };
 		97FBEA7B10420B0ED0942886 /* InvoiceGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A6E72016CCD549BFCBEBE2E /* InvoiceGeneratorView.swift */; };
 		AC7E0D1860B0B7ACEB0A1F14 /* DayTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40BA4466AFACC0C783C06598 /* DayTimelineView.swift */; };
 		AC9498FDD4C99CCA94517C37 /* IntentRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2886369E15E77C0BF85347CE /* IntentRegistration.swift */; };
@@ -87,6 +88,7 @@
 		7A6E72016CCD549BFCBEBE2E /* InvoiceGeneratorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoiceGeneratorView.swift; sourceTree = "<group>"; };
 		803928EB045F3BBE7B115C1D /* BillableCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = BillableCore; path = Packages/BillableCore; sourceTree = SOURCE_ROOT; };
 		834A2DF7B192A8F0EC56E4F7 /* ManualEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualEntrySheet.swift; sourceTree = "<group>"; };
+		881EC5A08A9EBDAF0F6E586A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		91FB284DA23487FF50AD7AFF /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
 		95E9742504A11D397C6528B9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		9EF35F789A0B7D626AECE892 /* ClientEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientEditorView.swift; sourceTree = "<group>"; };
@@ -137,6 +139,7 @@
 		1B0D5A143C4A2B07733013DA /* App */ = {
 			isa = PBXGroup;
 			children = (
+				881EC5A08A9EBDAF0F6E586A /* AppDelegate.swift */,
 				5120185E61165F6EB9DFFB00 /* BillableApp.swift */,
 				BD3AC7ABEFEA2F890535AE82 /* RootView.swift */,
 			);
@@ -250,13 +253,6 @@
 			path = LiveActivity;
 			sourceTree = "<group>";
 		};
-		89FBA775878A23F16FB91A27 /* Theme */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Theme;
-			sourceTree = "<group>";
-		};
 		92E9171082D2E347A1015AA8 /* Invoicing */ = {
 			isa = PBXGroup;
 			children = (
@@ -305,7 +301,6 @@
 				F910066D040878FE8AA41098 /* Features */,
 				0662F4701E06673016644274 /* Intents */,
 				89CC7F5CEA7630E592D7B62C /* LiveActivity */,
-				89FBA775878A23F16FB91A27 /* Theme */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -464,6 +459,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				93ACAA836A659BAFF84EC508 /* AppDelegate.swift in Sources */,
 				5B3E36C7C4F81A453DD76FB0 /* BillableApp.swift in Sources */,
 				2D0A1664F829479F98BCF429 /* BusinessProfileEditorView.swift in Sources */,
 				CB24424A092E9FB3F14CCB6E /* ClientDetailView.swift in Sources */,

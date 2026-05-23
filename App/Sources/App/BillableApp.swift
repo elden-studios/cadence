@@ -1,10 +1,13 @@
 import SwiftUI
 import SwiftData
 import AppIntents
+import UserNotifications
 import BillableCore
 
 @main
 struct BillableApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @MainActor private let notificationRouter = NotificationRouter()
     private let container: ModelContainer
 
     init() {
@@ -45,9 +48,24 @@ struct BillableApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environment(notificationRouter)
                 .task { await reconcileLiveActivity() }
+                .task { performStartupWiring() }
         }
         .modelContainer(container)
+    }
+
+    @MainActor
+    private func performStartupWiring() {
+        AppDelegate.sharedRouter = notificationRouter
+        AppDelegate.sharedModelContext = container.mainContext
+        AppDelegate.sharedSchedulerFactory = { [container] in
+            Scheduler(
+                center: UNUserNotificationCenter.current(),
+                modelContext: container.mainContext
+            )
+        }
+        // Invoice state-machine hooks (ReminderService) installed in Task 5.4.
     }
 
     @MainActor
