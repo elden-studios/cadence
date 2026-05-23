@@ -795,6 +795,40 @@ struct SchedulingTests {
         #expect(config.bodyTemplate.contains("{senderName}"))
     }
 
+    @Test("InvoiceReminderSchedule stores fireDates and tracks firedDates")
+    @MainActor
+    func reminderSchedulePersists() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let dueAt = Date(timeIntervalSince1970: 1_900_000_000)
+        let fires = [3, 7, 14].map { Calendar.current.date(byAdding: .day, value: $0, to: dueAt)! }
+        let schedule = InvoiceReminderSchedule(fireDates: fires)
+        context.insert(schedule)
+        try context.save()
+
+        let fetched = try context.fetch(FetchDescriptor<InvoiceReminderSchedule>())
+        #expect(fetched.first?.fireDates == fires)
+        #expect(fetched.first?.firedDates.isEmpty == true)
+    }
+
+    @Test("InvoiceReminderSchedule appends to firedDates without duplicates via mutation")
+    @MainActor
+    func reminderScheduleFiredDatesAppend() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let schedule = InvoiceReminderSchedule(fireDates: [], firedDates: [])
+        context.insert(schedule)
+        try context.save()
+
+        let fireA = Date(timeIntervalSince1970: 1_900_000_000)
+        schedule.firedDates.append(fireA)
+        try context.save()
+
+        let fetched = try #require(context.fetch(FetchDescriptor<InvoiceReminderSchedule>()).first)
+        #expect(fetched.firedDates == [fireA])
+    }
+
 }
 
 // MARK: - Test helpers
