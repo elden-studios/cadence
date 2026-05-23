@@ -9,14 +9,21 @@ struct InvoicesView: View {
     private var invoices: [Invoice]
 
     enum Filter: String, CaseIterable {
-        case outstanding, paid, drafts
+        case outstanding, paid, drafts, recurring
         var label: String {
             switch self {
             case .outstanding: "Outstanding"
             case .paid:        "Paid"
             case .drafts:      "Drafts"
+            case .recurring:   "Recurring"
             }
         }
+    }
+
+    enum NavigationTarget: Hashable {
+        case detail(invoiceID: UUID)
+        case preview(invoiceID: UUID)
+        case recurrenceEditor(templateID: UUID)
     }
 
     @State private var filter: Filter = .outstanding
@@ -49,6 +56,16 @@ struct InvoicesView: View {
             }
             .sheet(isPresented: $showingPaywall) {
                 PaywallView(trigger: .createInvoice)
+            }
+            .navigationDestination(for: NavigationTarget.self) { target in
+                switch target {
+                case .detail(let invoiceID):
+                    InvoiceDetailDestinationLoader(invoiceID: invoiceID)
+                case .preview(let invoiceID):
+                    InvoicePreviewDestinationLoader(invoiceID: invoiceID)
+                case .recurrenceEditor(let templateID):
+                    RecurrenceEditorDestinationLoader(templateID: templateID)
+                }
             }
         }
     }
@@ -87,11 +104,15 @@ struct InvoicesView: View {
             .padding(.horizontal)
             .padding(.bottom, 8)
 
-            List(filteredInvoices) { invoice in
-                NavigationLink {
-                    InvoiceDetailView(invoice: invoice)
-                } label: {
-                    InvoiceRow(invoice: invoice)
+            if filter == .recurring {
+                RecurringRulesView()
+            } else {
+                List(filteredInvoices) { invoice in
+                    NavigationLink {
+                        InvoiceDetailView(invoice: invoice)
+                    } label: {
+                        InvoiceRow(invoice: invoice)
+                    }
                 }
             }
         }
@@ -105,7 +126,59 @@ struct InvoicesView: View {
             return invoices.filter { $0.status == .paid }
         case .drafts:
             return invoices.filter { $0.status == .draft }
+        case .recurring:
+            return []
         }
+    }
+}
+
+private struct InvoiceDetailDestinationLoader: View {
+    @Environment(\.modelContext) private var modelContext
+    let invoiceID: UUID
+    var body: some View {
+        if let invoice = fetch() {
+            InvoiceDetailView(invoice: invoice)
+        } else {
+            ContentUnavailableView("Invoice not found", systemImage: "questionmark.folder")
+        }
+    }
+    private func fetch() -> Invoice? {
+        let descriptor = FetchDescriptor<Invoice>(predicate: #Predicate { $0.uuid == invoiceID })
+        return try? modelContext.fetch(descriptor).first
+    }
+}
+
+private struct InvoicePreviewDestinationLoader: View {
+    @Environment(\.modelContext) private var modelContext
+    let invoiceID: UUID
+    var body: some View {
+        if let invoice = fetch() {
+            // InvoicePreviewView is only available during invoice generation;
+            // for persisted invoices, show the detail view instead.
+            InvoiceDetailView(invoice: invoice)
+        } else {
+            ContentUnavailableView("Invoice not found", systemImage: "questionmark.folder")
+        }
+    }
+    private func fetch() -> Invoice? {
+        let descriptor = FetchDescriptor<Invoice>(predicate: #Predicate { $0.uuid == invoiceID })
+        return try? modelContext.fetch(descriptor).first
+    }
+}
+
+private struct RecurrenceEditorDestinationLoader: View {
+    @Environment(\.modelContext) private var modelContext
+    let templateID: UUID
+    var body: some View {
+        if let template = fetch() {
+            RecurrenceEditorView(template: template)
+        } else {
+            ContentUnavailableView("Schedule not found", systemImage: "questionmark.folder")
+        }
+    }
+    private func fetch() -> RecurrenceTemplate? {
+        let descriptor = FetchDescriptor<RecurrenceTemplate>(predicate: #Predicate { $0.id == templateID })
+        return try? modelContext.fetch(descriptor).first
     }
 }
 

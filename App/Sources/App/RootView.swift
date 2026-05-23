@@ -5,8 +5,10 @@ import BillableCore
 /// Tab-bar shell. Today is the home; Clients/Invoices/Reports/Settings are siblings.
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(NotificationRouter.self) private var router
     @State private var showingReportsPaywall = false
     @State private var needsOnboarding: Bool = false
+    @State private var selectedTab: Int = 0
     private var subscriptions = SubscriptionManager.shared
 
     var body: some View {
@@ -27,24 +29,38 @@ struct RootView: View {
         if CommandLine.arguments.contains("--show-timeline") {
             NavigationStack { TimelineScreen() }
         } else {
-            TabView {
+            TabView(selection: $selectedTab) {
                 TodayView()
                     .tabItem { Label("Today", systemImage: "timer") }
+                    .tag(0)
 
                 ClientsView()
                     .tabItem { Label("Clients", systemImage: "person.2") }
+                    .tag(1)
 
                 InvoicesView()
                     .tabItem { Label("Invoices", systemImage: "doc.text") }
+                    .tag(2)
 
                 reportsTab
                     .tabItem { Label("Reports", systemImage: "chart.bar") }
+                    .tag(3)
 
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gearshape") }
+                    .tag(4)
             }
             .sheet(isPresented: $showingReportsPaywall) {
                 PaywallView(trigger: .reports)
+            }
+            .onChange(of: router.pendingDestination) { _, newValue in
+                guard let destination = newValue else { return }
+                // For Task 3.2 we have only one routing strategy: switch to the Invoices tab.
+                // Full per-destination push (e.g., navigate to InvoiceDetail with the specific
+                // invoiceID) is deferred to Task 5.4 when ReminderService is wired in.
+                _ = destination  // suppress unused warning; full handling in Task 5.4
+                selectedTab = 2  // Invoices tab
+                router.pendingDestination = nil
             }
         }
     }
@@ -96,6 +112,7 @@ private struct ReportsLockedView: View {
 #Preview {
     RootView()
         .modelContainer(previewContainer)
+        .environment(NotificationRouter())
 }
 
 @MainActor

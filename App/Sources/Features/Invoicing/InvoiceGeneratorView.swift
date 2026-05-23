@@ -1,5 +1,7 @@
 import SwiftUI
 import SwiftData
+import OSLog
+import UserNotifications
 import BillableCore
 
 /// Multi-step invoice generation: pick a client, choose a date range, choose
@@ -19,6 +21,15 @@ struct InvoiceGeneratorView: View {
     @State private var grouping: LineItemGrouping = .perEntry
     @State private var notes: String = ""
     @State private var showingPreview = false
+
+    // MARK: – Recurring
+    @State private var makeRecurring: Bool = false
+    @State private var recurrenceCadenceKind: RecurrenceCadenceKind = .monthly
+    @State private var recurrenceDayOfMonth: Int = 1
+    @State private var recurrenceWeekday: RecurrenceCadence.Weekday = .monday
+    @State private var recurrenceEndDate: Date? = nil
+    @State private var savingRecurrence = false
+    @State private var permissionDeniedAlert = false
 
     init(defaultClient: Client? = nil) {
         _selectedClient = State(initialValue: defaultClient)
@@ -45,6 +56,10 @@ struct InvoiceGeneratorView: View {
 
     private var canPreview: Bool {
         selectedClient != nil && profile != nil && !lineItems.isEmpty
+    }
+
+    private var saveDisabled: Bool {
+        selectedClient == nil || profile == nil || savingRecurrence
     }
 
     var body: some View {
@@ -95,6 +110,48 @@ struct InvoiceGeneratorView: View {
                         .lineLimit(2...8)
                 }
 
+                // MARK: Recurring section
+                Section {
+                    Toggle(isOn: $makeRecurring) {
+                        Label("Make this recurring", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    if makeRecurring {
+                        Picker("Cadence", selection: $recurrenceCadenceKind) {
+                            ForEach(RecurrenceCadenceKind.allCases) { kind in
+                                Text(kind.label).tag(kind)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        switch recurrenceCadenceKind {
+                        case .monthly:
+                            Picker("Day of month", selection: $recurrenceDayOfMonth) {
+                                ForEach(1...31, id: \.self) { day in
+                                    Text("\(day)").tag(day)
+                                }
+                            }
+                        case .weekly, .biweekly:
+                            Picker("Day of week", selection: $recurrenceWeekday) {
+                                ForEach([RecurrenceCadence.Weekday.monday, .tuesday, .wednesday,
+                                         .thursday, .friday, .saturday, .sunday], id: \.rawValue) { w in
+                                    Text(w.rawValue.capitalized).tag(w)
+                                }
+                            }
+                        }
+
+                        DatePicker(
+                            "Until (optional)",
+                            selection: Binding(
+                                get: { recurrenceEndDate ?? Date.distantFuture },
+                                set: { recurrenceEndDate = ($0 == Date.distantFuture) ? nil : $0 }
+                            ),
+                            displayedComponents: [.date]
+                        )
+                    }
+                } header: {
+                    Text("Recurring")
+                }
+
                 if profile == nil {
                     Section {
                         Label("Set up your business profile first.", systemImage: "exclamationmark.triangle")
@@ -109,9 +166,23 @@ struct InvoiceGeneratorView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Preview") { showingPreview = true }
+                    if makeRecurring {
+                        Button {
+                            Task { await saveRecurrence() }
+                        } label: {
+                            if savingRecurrence {
+                                ProgressView()
+                            } else {
+                                Text("Save schedule")
+                            }
+                        }
                         .bold()
-                        .disabled(!canPreview)
+                        .disabled(saveDisabled)
+                    } else {
+                        Button("Preview") { showingPreview = true }
+                            .bold()
+                            .disabled(!canPreview)
+                    }
                 }
             }
             .sheet(isPresented: $showingPreview) {
@@ -125,6 +196,16 @@ struct InvoiceGeneratorView: View {
                         onDone: { dismiss() }
                     )
                 }
+            }
+            .alert("Notifications are off", isPresented: $permissionDeniedAlert) {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Cadence needs notifications to remind you when invoices are due. Open Settings to enable.")
             }
         }
     }
@@ -191,4 +272,68 @@ struct InvoiceGeneratorView: View {
         let code = profile?.currencyCode ?? "USD"
         return subtotal.formatted(.currency(code: code))
     }
+
+    // MARK: – Save recurrence
+
+    @MainActor
+    private func saveRecurrence() async {
+        guard let client = selectedClient else { return }
+        savingRecurrence = true
+        defer { savingRecurrence = false }
+
+        // Just-in-time permission ask
+        let scheduler = Scheduler(
+            center: UNUserNotificationCenter.current(),
+            modelContext: modelContext
+        )
+        let status = await scheduler.currentAuthorizationStatus()
+        switch status {
+        case .notDetermined:
+            let granted = (try? await scheduler.requestAuthorization()) ?? false
+            if !granted {
+                permissionDeniedAlert = true
+                return
+            }
+        case .denied:
+            permissionDeniedAlert = true
+            return
+        default:
+            break
+        }
+
+        let cadence: RecurrenceCadence = switch recurrenceCadenceKind {
+        case .monthly:  .monthly(dayOfMonth: recurrenceDayOfMonth)
+        case .weekly:   .weekly(weekday: recurrenceWeekday)
+        case .biweekly: .biweekly(weekday: recurrenceWeekday)
+        }
+        let nextFire = RecurrenceService.computeNextFireDate(
+            cadence: cadence,
+            after: Date()
+        )
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: cadence,
+            grouping: grouping,
+            notesTemplate: (notes.isEmpty ? nil : notes),
+            nextFireDate: nextFire,
+            endDate: recurrenceEndDate
+        )
+        modelContext.insert(template)
+        do {
+            try modelContext.save()
+        } catch {
+            // Roll back the insertion + surface to the user. We don't have a generic
+            // error-toast system yet, so reuse the existing permission alert mechanism
+            // with a localised message. (v1.1 polish.)
+            modelContext.rollback()
+            permissionDeniedAlert = false
+            // Stash the error; for v1.1 we just log via OSLog and bail without dismissing.
+            Logger(subsystem: "com.eldenstudios.billable", category: "InvoiceGenerator")
+                .error("Failed to save recurrence template: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+
+        dismiss()
+    }
 }
+
