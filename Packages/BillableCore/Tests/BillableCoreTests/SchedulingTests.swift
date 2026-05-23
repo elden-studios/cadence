@@ -141,6 +141,34 @@ struct SchedulingTests {
         #expect(fetched.isEmpty)
     }
 
+    @Test("Scheduler.schedule returns .capExceeded when pending count is at soft cap, persists row anyway")
+    @MainActor
+    func scheduleCapExceededPersistsRow() async throws {
+        let center = FakeNotificationCenter()
+        center.authorized = true
+        // Pre-fill pending to the soft cap so the next schedule() must refuse iOS-side.
+        for i in 0..<Scheduler.softCap {
+            center.pendingRequests.append(UNNotificationRequest(
+                identifier: "dummy-\(i)",
+                content: UNMutableNotificationContent(),
+                trigger: nil
+            ))
+        }
+        let container = try BillableModelContainer.inMemory()
+        let scheduler = Scheduler(center: center, modelContext: container.mainContext)
+        _ = try await scheduler.requestAuthorization()
+
+        let result = try await scheduler.schedule(
+            payload: .reminder(scheduleID: UUID()),
+            fireAt: Date().addingTimeInterval(3600),
+            title: "T", body: "B"
+        )
+        #expect(result == .capExceeded)
+        #expect(center.addedRequests.isEmpty)
+        let rows = try container.mainContext.fetch(FetchDescriptor<ScheduledNotification>())
+        #expect(rows.count == 1)
+    }
+
     @Test("Scheduler.cancel removes iOS request + SwiftData row")
     @MainActor
     func cancelRemovesBoth() async throws {
