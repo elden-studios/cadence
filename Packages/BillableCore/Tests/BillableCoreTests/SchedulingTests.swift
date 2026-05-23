@@ -550,6 +550,112 @@ struct SchedulingTests {
         let expected = cal.date(from: DateComponents(year: 2026, month: 6, day: 19, hour: 8))!
         #expect(next == expected)
     }
+
+    @Test("materializeDraft creates a Draft Invoice from prior-month entries and advances lastFiredAt")
+    @MainActor
+    func materializeDraftHappyPath() async throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        let client = Client(name: "Acme", color: .blue)
+        let project = Project(name: "Web", hourlyRate: 100, isBillable: true, client: client)
+        let entry = TimeEntry(
+            startedAt: cal.date(from: DateComponents(year: 2026, month: 5, day: 15, hour: 10))!,
+            endedAt: cal.date(from: DateComponents(year: 2026, month: 5, day: 15, hour: 12))!,
+            project: project
+        )
+        context.insert(profile); context.insert(client); context.insert(project); context.insert(entry)
+
+        let fireAt = cal.date(from: DateComponents(year: 2026, month: 6, day: 1, hour: 8))!
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            notesTemplate: "Services — {month} {year}",
+            nextFireDate: fireAt
+        )
+        context.insert(template)
+        try context.save()
+
+        let draft = try RecurrenceService.materializeDraft(
+            template: template,
+            now: fireAt,
+            calendar: cal,
+            context: context
+        )
+
+        #expect(draft.status == .draft)
+        #expect(draft.clientNameSnapshot == "Acme")
+        #expect(draft.lineItems.count == 1)
+        #expect(draft.notes == "Services — May 2026")
+        #expect(template.lastFiredAt == fireAt)
+        let expectedNext = cal.date(from: DateComponents(year: 2026, month: 7, day: 1, hour: 8))!
+        #expect(template.nextFireDate == expectedNext)
+    }
+
+    @Test("materializeDraft creates zero-amount draft when no eligible entries")
+    @MainActor
+    func materializeDraftZeroEntries() async throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(profile); context.insert(client)
+
+        let fireAt = cal.date(from: DateComponents(year: 2026, month: 6, day: 1, hour: 8))!
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: fireAt
+        )
+        context.insert(template)
+        try context.save()
+
+        let draft = try RecurrenceService.materializeDraft(
+            template: template, now: fireAt, calendar: cal, context: context
+        )
+
+        #expect(draft.status == .draft)
+        #expect(draft.subtotal == 0)
+    }
+
+    @Test("materializeDraft throws .ended when template's endDate has passed")
+    @MainActor
+    func materializeDraftEndedTemplate() async throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = container.mainContext
+        let profile = BusinessProfile(name: "Me", currencyCode: "USD")
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(profile); context.insert(client)
+
+        let template = RecurrenceTemplate(
+            client: client,
+            cadence: .monthly(dayOfMonth: 1),
+            grouping: .perEntry,
+            nextFireDate: Date(),
+            endDate: Date().addingTimeInterval(-3600)
+        )
+        context.insert(template)
+        try context.save()
+
+        do {
+            _ = try RecurrenceService.materializeDraft(
+                template: template, now: Date(), context: context
+            )
+            Issue.record("Expected .ended to throw")
+        } catch RecurrenceService.MaterializationError.ended {
+            // expected
+        }
+    }
+
 }
 
 // MARK: - Test helpers

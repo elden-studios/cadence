@@ -75,4 +75,113 @@ public enum RecurrenceService {
         guard weeksOffset > 1 else { return firstNext }
         return calendar.date(byAdding: .day, value: 7, to: firstNext)!
     }
+
+    // MARK: - materializeDraft
+
+    public enum MaterializationError: Error, Equatable {
+        case noBusinessProfile
+        case noClient
+        case ended
+    }
+
+    /// Resolve the prior period, build line items from eligible entries, and
+    /// insert a Draft `Invoice`. Updates `lastFiredAt` and `nextFireDate` on
+    /// the template. Returns the inserted Invoice.
+    ///
+    /// Zero-entry case is allowed — produces an empty draft so the user sees
+    /// "nothing to bill this period" rather than silently swallowing the fire.
+    @discardableResult
+    public static func materializeDraft(
+        template: RecurrenceTemplate,
+        now: Date = .now,
+        calendar: Calendar = .current,
+        context: ModelContext
+    ) throws -> Invoice {
+        guard !template.isEnded(now: now) else {
+            throw MaterializationError.ended
+        }
+        guard let client = template.client else {
+            throw MaterializationError.noClient
+        }
+        let profiles = try context.fetch(FetchDescriptor<BusinessProfile>())
+        guard let profile = profiles.first else {
+            throw MaterializationError.noBusinessProfile
+        }
+
+        let range = template.rangeRuleValue.resolve(from: now, calendar: calendar)
+
+        let entries = InvoiceBuilder.eligibleEntries(
+            for: client, in: range, context: context
+        )
+        let lineItems = InvoiceBuilder.buildLineItems(
+            from: entries, grouping: template.groupingValue
+        )
+
+        let resolvedNotes = renderNotes(
+            template.notesTemplate,
+            client: client,
+            forDate: range.start,
+            calendar: calendar
+        )
+
+        // For zero-entry materialization we still want an Invoice row to show
+        // up in Drafts. `InvoiceBuilder.createDraft` throws on empty line items,
+        // so we synthesize a placeholder line at zero hours.
+        let effectiveLineItems = lineItems.isEmpty
+            ? [InvoiceLineItem(
+                description: "No tracked time for this period",
+                hours: 0,
+                hourlyRate: 0,
+                sourceTimeEntryRef: nil
+              )]
+            : lineItems
+
+        let invoice = try InvoiceBuilder.createDraft(
+            for: client,
+            lineItems: effectiveLineItems,
+            notes: resolvedNotes,
+            issuedAt: now,
+            profile: profile,
+            context: context
+        )
+
+        // Stamp source entries as invoiced (only for the entries that were
+        // actually billed — skip the synthesized placeholder case).
+        if !lineItems.isEmpty {
+            for entry in entries { entry.invoiceID = invoice.uuid }
+        }
+
+        // Advance template state.
+        template.lastFiredAt = now
+        template.nextFireDate = computeNextFireDate(
+            cadence: template.cadenceValue, after: now, calendar: calendar
+        )
+        try context.save()
+
+        log.info("materializeDraft(): templateID=\(template.id.uuidString, privacy: .public) lineItems=\(lineItems.count, privacy: .public)")
+        return invoice
+    }
+
+    /// Render notes template with `{month}` `{year}` `{clientName}` merge fields.
+    /// `forDate` is the start of the billed range — we name the period by its
+    /// start month/year (May 2026 even though the invoice fires June 1).
+    public static func renderNotes(
+        _ template: String?,
+        client: Client,
+        forDate: Date,
+        calendar: Calendar
+    ) -> String? {
+        guard let template, !template.isEmpty else { return nil }
+        let monthFormatter = DateFormatter()
+        monthFormatter.calendar = calendar
+        monthFormatter.dateFormat = "LLLL"
+        let yearFormatter = DateFormatter()
+        yearFormatter.calendar = calendar
+        yearFormatter.dateFormat = "yyyy"
+
+        return template
+            .replacingOccurrences(of: "{month}", with: monthFormatter.string(from: forDate))
+            .replacingOccurrences(of: "{year}", with: yearFormatter.string(from: forDate))
+            .replacingOccurrences(of: "{clientName}", with: client.name)
+    }
 }
