@@ -453,19 +453,21 @@ export default app;
 
 - [ ] **Step 5: Create `vitest.config.ts`**
 
+> **API note:** Older versions of `@cloudflare/vitest-pool-workers` exported `defineWorkersConfig` from the `/config` subpath. That subpath was removed in newer versions (confirmed missing in 0.16.9, the version installed by Step 2). The replacement is `cloudflareTest`, a Vite plugin exported from the package root and passed to `plugins:` in a standard `defineConfig` from `vitest/config`. If you see `defineWorkersConfig` referenced in older docs or blog posts, ignore it — use the snippet below.
+
 ```typescript
 // vitest.config.ts — runs tests inside the Workers runtime
 
-import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+import { defineConfig } from "vitest/config";
+import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 
-export default defineWorkersConfig({
-  test: {
-    poolOptions: {
-      workers: {
-        wrangler: { configPath: "./wrangler.toml" },
-      },
-    },
-  },
+export default defineConfig({
+  plugins: [
+    cloudflareTest({
+      wrangler: { configPath: "./wrangler.toml" },
+    }),
+  ],
+  test: {},
 });
 ```
 
