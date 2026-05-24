@@ -987,8 +987,8 @@ Handler logic (per spec §6, endpoint 1):
 3. Then `stripe.accountLinks.create({ account, refresh_url, return_url, type: 'account_onboarding' })`
 4. Return `{ url, acct_id }`
 
-Return URL: `cadence://stripe-connect/return?account=<acct_id>` (the iOS app handles this).
-Refresh URL: same (Stripe shows this if user expired the link).
+Return URL: `cadence://stripe-connect/return` (the iOS app handles this; `acct_id` is round-tripped via local state set just before opening Stripe's hosted form, NOT via URL query parameters).
+Refresh URL: same (Stripe shows this if the user's Account Link expires).
 
 - [ ] **Step 1: Write the failing test**
 
