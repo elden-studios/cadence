@@ -43,7 +43,8 @@ struct TodayView: View {
                     TodayActiveTimerSection(
                         currencyCode: currencyCode,
                         onStop: stopRunning,
-                        onSwitch: { showingSwitchSheet = true }
+                        onSwitch: { showingSwitchSheet = true },
+                        onResume: resumeLastTimer
                     )
                     if !hasRunningTimer {
                         startActions
@@ -156,6 +157,21 @@ struct TodayView: View {
         Task { await TimerActivityController.shared.endActivity() }
         Task { try? await StopTimerIntent().donate() }
     }
+
+    private func resumeLastTimer(project: Project) {
+        do {
+            let entry = try TimerService.start(project: project, in: modelContext)
+            Task { await TimerActivityController.shared.startActivity(for: entry, currencyCode: currencyCode) }
+            if let entity = ProjectEntity(from: project) {
+                Task { try? await StartTimerIntent(project: entity).donate() }
+            }
+        } catch TimerService.TimerError.projectIsArchived {
+            // The project was archived since the last stop. Silently fail —
+            // the pill will disappear on next refresh once the state settles.
+        } catch {
+            // Other errors are no-ops. The pill remains; user can tap again.
+        }
+    }
 }
 
 // MARK: - Active timer card
@@ -164,9 +180,24 @@ private struct TodayActiveTimerSection: View {
     @Query(filter: #Predicate<TimeEntry> { $0.endedAt == nil })
     private var runningEntries: [TimeEntry]
 
+    @Query(Self.lastStoppedDescriptor)
+    private var stoppedEntries: [TimeEntry]
+
+    private static var lastStoppedDescriptor: FetchDescriptor<TimeEntry> {
+        var descriptor = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate<TimeEntry> { $0.endedAt != nil },
+            sortBy: [SortDescriptor(\.endedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return descriptor
+    }
+
     let currencyCode: String
     let onStop: () -> Void
     let onSwitch: () -> Void
+    let onResume: (Project) -> Void
+
+    private var lastStopped: TimeEntry? { stoppedEntries.first }
 
     var body: some View {
         if let running = runningEntries.first {
@@ -174,8 +205,47 @@ private struct TodayActiveTimerSection: View {
                 RunningTimerCard(entry: running, asOf: context.date, currencyCode: currencyCode, onStop: onStop, onSwitch: onSwitch)
             }
         } else {
-            EmptyView()
+            // No running timer — maybe show the Resume pill.
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                if TimeEntry.shouldShowResumePill(lastStopped: lastStopped, now: context.date),
+                   let last = lastStopped,
+                   let project = last.project {
+                    ResumePill(project: project, onTap: { onResume(project) })
+                } else {
+                    EmptyView()
+                }
+            }
         }
+    }
+}
+
+private struct ResumePill: View {
+    let project: Project
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 8) {
+                Image(systemName: "play.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.tint)
+                Circle()
+                    .fill(project.client?.color.swiftUIColor ?? .gray)
+                    .frame(width: 8, height: 8)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Resume \(project.client?.name ?? "—") · \(project.name)")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                    Text("Continue tracking where you left off")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(12)
+            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
 }
 
