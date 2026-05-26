@@ -13,11 +13,7 @@ struct ClientsView: View {
     private var archivedClients: [Client]
 
     @State private var showingNew = false
-    @State private var showingPaywall = false
     @State private var deletionCandidate: Client?
-    private var subscriptions = SubscriptionManager.shared
-
-    private static let freeClientCap = 2
 
     var body: some View {
         NavigationStack {
@@ -54,9 +50,6 @@ struct ClientsView: View {
                 NavigationStack {
                     ClientEditorView(client: nil)
                 }
-            }
-            .sheet(isPresented: $showingPaywall) {
-                PaywallView(trigger: .extraClient)
             }
             .confirmationDialog(
                 deletionCandidate.map { "Delete \($0.name)?" } ?? "Delete?",
@@ -99,11 +92,7 @@ struct ClientsView: View {
     }
 
     private func startAddClient() {
-        if subscriptions.isPro || activeClients.count < Self.freeClientCap {
-            showingNew = true
-        } else {
-            showingPaywall = true
-        }
+        showingNew = true
     }
 
     private var listContent: some View {

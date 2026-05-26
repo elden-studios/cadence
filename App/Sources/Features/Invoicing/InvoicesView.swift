@@ -33,7 +33,6 @@ struct InvoicesView: View {
     @State private var path: [NavigationTarget] = []
     @State private var filter: Filter = .outstanding
     @State private var showingGenerator = false
-    @State private var showingPaywall = false
     private var subscriptions = SubscriptionManager.shared
 
     /// Convenience initialiser for call sites that don't supply an external push target
@@ -65,9 +64,6 @@ struct InvoicesView: View {
             .sheet(isPresented: $showingGenerator) {
                 InvoiceGeneratorView()
             }
-            .sheet(isPresented: $showingPaywall) {
-                PaywallView(trigger: .createInvoice)
-            }
             .navigationDestination(for: NavigationTarget.self) { target in
                 switch target {
                 case .detail(let invoiceID):
@@ -87,11 +83,7 @@ struct InvoicesView: View {
     }
 
     private func startNewInvoice() {
-        if subscriptions.isPro {
-            showingGenerator = true
-        } else {
-            showingPaywall = true
-        }
+        showingGenerator = true
     }
 
     private var emptyState: some View {

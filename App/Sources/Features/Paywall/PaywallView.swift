@@ -12,25 +12,19 @@ struct PaywallView: View {
     /// What action the user was trying to take when the paywall fired —
     /// shapes the headline so the value prop matches the context.
     enum Trigger {
-        case createInvoice
-        case extraClient
         case reports
         case settings
 
         var headline: String {
             switch self {
-            case .createInvoice: "Send your first invoice."
-            case .extraClient:   "Track unlimited clients."
-            case .reports:       "See your full picture."
-            case .settings:      "Go Pro."
+            case .reports:  "See your full picture."
+            case .settings: "Go Pro."
             }
         }
         var subhead: String {
             switch self {
-            case .createInvoice: "Pro turns the time you tracked into a branded PDF invoice — in under 60 seconds."
-            case .extraClient:   "Free is great for one or two clients. Pro fits the rest of your roster."
-            case .reports:       "Hours by client, billable vs. non-billable, earnings trends — all in one screen."
-            case .settings:      "Unlimited invoicing, clients, reports, and exports."
+            case .reports:  "Hours by client, billable vs. non-billable, earnings trends — all in one screen."
+            case .settings: "Unlimited invoicing, clients, reports, and exports."
             }
         }
     }
