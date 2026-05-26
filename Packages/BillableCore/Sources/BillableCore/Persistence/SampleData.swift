@@ -17,7 +17,7 @@ public enum SampleData {
             nextInvoiceNumber: 1,
             taxLabel: "Tax",
             taxRate: Decimal(string: "0.0875")!,
-            currencyCode: "USD"
+            currencyCode: Locale.current.currency?.identifier ?? "USD"
         )
         context.insert(profile)
 

@@ -150,7 +150,9 @@ private struct ProjectRow: View {
     @Query private var profiles: [BusinessProfile]
 
     private var currencyCode: String {
-        profiles.first?.currencyCode ?? "USD"
+        profiles.first?.currencyCode
+            ?? Locale.current.currency?.identifier
+            ?? "USD"
     }
 
     var body: some View {
