@@ -157,11 +157,18 @@ public final class SubscriptionManager {
             // both products and store the result synchronously for the UI.
             let mEligible = await monthly?.subscription?.isEligibleForIntroOffer ?? false
             let yEligible = await yearly?.subscription?.isEligibleForIntroOffer ?? false
-            eligibleForIntroOffer = mEligible || yEligible
+            eligibleForIntroOffer = Self.computeIntroEligibility(monthly: mEligible, yearly: yEligible)
             loadState = .ready
         } catch {
             loadState = .failed("Couldn't load products: \(error.localizedDescription)")
         }
+    }
+
+    /// Policy: user is eligible for the 7-day intro offer if EITHER product
+    /// (monthly OR yearly) reports eligibility. Pure helper so the OR-logic is
+    /// unit-testable independently of StoreKit (Product has no public init).
+    static func computeIntroEligibility(monthly: Bool, yearly: Bool) -> Bool {
+        monthly || yearly
     }
 
     /// Race the operation against a sleep task. First to finish wins.
