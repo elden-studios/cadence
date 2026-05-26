@@ -61,12 +61,7 @@
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "YEARLY_ID",
-          "introductoryOffer" : {
-            "internalID" : "YEARLY_INTRO",
-            "paymentMode" : "free",
-            "subscriptionPeriod" : "P1W",
-            "numberOfPeriods" : 1
-          },
+          "introductoryOffer" : null,
           "localizations" : [
             {
               "description" : "Unlimited invoicing, reports, exports — best value.",

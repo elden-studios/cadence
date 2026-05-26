@@ -18,6 +18,17 @@ public final class SubscriptionManager {
     public static let monthlyProductID = "com.eldenstudios.billable.pro.monthly"
     public static let yearlyProductID  = "com.eldenstudios.billable.pro.yearly"
 
+    // MARK: - Load state
+
+    public enum LoadState: Sendable, Equatable {
+        case idle
+        case loading
+        case ready
+        case failed(String)
+    }
+
+    public private(set) var loadState: LoadState = .idle
+
     public private(set) var monthly: Product?
     public private(set) var yearly: Product?
     public private(set) var isPro: Bool = false
@@ -57,19 +68,51 @@ public final class SubscriptionManager {
 
     // MARK: - Products
 
+    /// Public alias so views can call `await manager.reloadProducts()` on retry.
+    public func reloadProducts() async {
+        await refreshProducts()
+    }
+
     public func refreshProducts() async {
+        loadState = .loading
         isLoadingProducts = true
         defer { isLoadingProducts = false }
         do {
-            let products = try await Product.products(for: [
-                Self.monthlyProductID,
-                Self.yearlyProductID,
-            ])
+            let products = try await withTimeout(seconds: 5) {
+                try await Product.products(for: [
+                    Self.monthlyProductID,
+                    Self.yearlyProductID,
+                ])
+            }
+            if products.isEmpty {
+                loadState = .failed("Pricing unavailable. Pull to retry.")
+                lastError = "Pricing unavailable. Pull to retry."
+                return
+            }
             monthly = products.first { $0.id == Self.monthlyProductID }
             yearly  = products.first { $0.id == Self.yearlyProductID  }
             lastError = nil
+            loadState = .ready
         } catch {
-            lastError = "Couldn't load products: \(error.localizedDescription)"
+            let message = "Couldn't load products: \(error.localizedDescription)"
+            lastError = message
+            loadState = .failed(message)
+        }
+    }
+
+    private func withTimeout<T: Sendable>(
+        seconds: TimeInterval,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await operation() }
+            group.addTask {
+                try await Task.sleep(for: .seconds(seconds))
+                throw CancellationError()
+            }
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
         }
     }
 

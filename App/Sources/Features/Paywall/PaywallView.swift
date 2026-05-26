@@ -114,10 +114,30 @@ struct PaywallView: View {
         }
     }
 
+    @ViewBuilder
     private var pricePicker: some View {
-        VStack(spacing: 10) {
-            planRow(.yearly)
-            planRow(.monthly)
+        switch manager.loadState {
+        case .idle, .loading:
+            ProgressView()
+                .controlSize(.large)
+                .frame(maxWidth: .infinity, minHeight: 100)
+        case .ready:
+            VStack(spacing: 10) {
+                planRow(.yearly)
+                planRow(.monthly)
+            }
+        case .failed(let message):
+            VStack(spacing: 12) {
+                Text(message)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Retry") {
+                    Task { await manager.reloadProducts() }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
         }
     }
 
