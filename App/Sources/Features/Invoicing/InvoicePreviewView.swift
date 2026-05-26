@@ -82,7 +82,7 @@ struct InvoicePreviewView: View {
                         Button {
                             showingRemoveWatermarkPaywall = true
                         } label: {
-                            HStack(spacing: 10) {
+                            HStack(spacing: 8) {
                                 Image(systemName: "exclamationmark.triangle.fill")
                                     .foregroundStyle(.orange)
                                 VStack(alignment: .leading, spacing: 2) {
@@ -96,7 +96,7 @@ struct InvoicePreviewView: View {
                                 Spacer()
                             }
                             .padding(12)
-                            .background(.orange.opacity(0.10), in: .rect(cornerRadius: 12))
+                            .background(.orange.opacity(0.12), in: .rect(cornerRadius: 12))
                         }
                         .buttonStyle(.plain)
                         .padding(.horizontal)
