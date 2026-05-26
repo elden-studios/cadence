@@ -339,7 +339,9 @@ struct InvoiceDetailView: View {
 
     private func ensurePDFOnDisk() -> URL? {
         let bytes: Data
-        if let cached = invoice.pdfDataCached {
+        let shouldHaveWatermark = !subscriptions.canRemoveWatermark
+        if let cached = invoice.pdfDataCached,
+           !Self.cacheIsStale(cached, shouldHaveWatermark: shouldHaveWatermark) {
             bytes = cached
         } else {
             var templateData = InvoiceTemplateData.from(invoice)
@@ -355,6 +357,14 @@ struct InvoiceDetailView: View {
             .appendingPathComponent("\(invoice.number).pdf")
         try? bytes.write(to: url, options: .atomic)
         return url
+    }
+
+    /// Returns `true` when the cached PDF bytes' watermark state no longer matches
+    /// the current entitlement, meaning the cache must be discarded and re-rendered.
+    private static func cacheIsStale(_ data: Data, shouldHaveWatermark: Bool) -> Bool {
+        guard let text = PDFDocument(data: data)?.string else { return false }
+        let hasWatermark = text.contains("Sent with Cadence")
+        return hasWatermark != shouldHaveWatermark
     }
 }
 
