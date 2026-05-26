@@ -20,6 +20,9 @@ struct InvoicePreviewView: View {
     @State private var pdfData: Data?
     @State private var showingShare = false
     @State private var finalized: Invoice?
+    @State private var showingRemoveWatermarkPaywall = false
+
+    private var subscriptions: SubscriptionManager { SubscriptionManager.shared }
 
     init(
         client: Client,
@@ -66,7 +69,8 @@ struct InvoicePreviewView: View {
             taxRate: profile.taxRate,
             taxAmount: taxAmount,
             total: total,
-            currencyCode: profile.currencyCode
+            currencyCode: profile.currencyCode,
+            watermark: subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
         )
     }
 
@@ -74,6 +78,29 @@ struct InvoicePreviewView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if !subscriptions.canRemoveWatermark {
+                        Button {
+                            showingRemoveWatermarkPaywall = true
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("This invoice has a watermark.")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                    Text("Remove watermark with Pro →")
+                                        .font(.caption)
+                                        .foregroundStyle(.tint)
+                                }
+                                Spacer()
+                            }
+                            .padding(12)
+                            .background(.orange.opacity(0.12), in: .rect(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal)
+                    }
                     pdfPreviewCard
                     notesEditor
                 }
@@ -105,6 +132,9 @@ struct InvoicePreviewView: View {
                             onDone()
                         }
                 }
+            }
+            .sheet(isPresented: $showingRemoveWatermarkPaywall) {
+                PaywallView(trigger: .removeWatermark)
             }
         }
     }

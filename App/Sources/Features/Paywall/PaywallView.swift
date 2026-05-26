@@ -12,25 +12,22 @@ struct PaywallView: View {
     /// What action the user was trying to take when the paywall fired —
     /// shapes the headline so the value prop matches the context.
     enum Trigger {
-        case createInvoice
-        case extraClient
         case reports
         case settings
+        case removeWatermark  // NEW
 
         var headline: String {
             switch self {
-            case .createInvoice: "Send your first invoice."
-            case .extraClient:   "Track unlimited clients."
-            case .reports:       "See your full picture."
-            case .settings:      "Go Pro."
+            case .reports:         "See your full picture."
+            case .settings:        "Go Pro."
+            case .removeWatermark: "Remove the watermark."
             }
         }
         var subhead: String {
             switch self {
-            case .createInvoice: "Pro turns the time you tracked into a branded PDF invoice — in under 60 seconds."
-            case .extraClient:   "Free is great for one or two clients. Pro fits the rest of your roster."
-            case .reports:       "Hours by client, billable vs. non-billable, earnings trends — all in one screen."
-            case .settings:      "Unlimited invoicing, clients, reports, and exports."
+            case .reports:         "Hours by client, billable vs. non-billable, earnings trends — all in one screen."
+            case .settings:        "Watermark-free invoices, full Reports, CSV exports."
+            case .removeWatermark: "Pro removes 'Sent with Cadence' from your invoice PDFs and unlocks Reports + CSV export."
             }
         }
     }
@@ -95,9 +92,12 @@ struct PaywallView: View {
 
     private var valueBullets: some View {
         VStack(alignment: .leading, spacing: 12) {
-            bullet("doc.text", "Branded PDF invoices", "Send polished invoices in under 60 seconds.")
-            bullet("person.2", "Unlimited clients & projects", "Free includes 2 active clients; Pro removes the cap.")
-            bullet("chart.bar", "Reports & CSV export", "Hours, earnings, uninvoiced totals — and clean exports for your accountant.")
+            bullet("doc.text", "Watermark-free PDF invoices",
+                   "Send polished invoices without 'Sent with Cadence' in the footer.")
+            bullet("chart.bar", "Reports & insights",
+                   "Hours by client, billable vs. non-billable, earnings trends.")
+            bullet("square.and.arrow.up", "CSV export",
+                   "Clean exports for your accountant.")
         }
     }
 
@@ -223,7 +223,7 @@ struct PaywallView: View {
     }
 
     private var purchaseButtonTitle: String {
-        "Subscribe"
+        manager.eligibleForIntroOffer ? "Start 7-day free trial" : "Subscribe"
     }
 
     private var secondaryActions: some View {
@@ -233,9 +233,9 @@ struct PaywallView: View {
             }
             .font(.subheadline)
             Spacer()
-            Link("Terms", destination: URL(string: "https://example.com/terms")!)
+            Link("Terms", destination: URL(string: "https://elden-studios.github.io/cadence/legal/terms")!)
                 .font(.subheadline)
-            Link("Privacy", destination: URL(string: "https://example.com/privacy")!)
+            Link("Privacy", destination: URL(string: "https://elden-studios.github.io/cadence/legal/privacy")!)
                 .font(.subheadline)
         }
         .foregroundStyle(.secondary)

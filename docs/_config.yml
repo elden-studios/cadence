@@ -1,0 +1,18 @@
+# Minimal Jekyll config for GitHub Pages.
+# Exposes /legal/{terms,privacy}.md as HTML pages.
+
+title: Cadence
+description: Native iOS time tracking + invoicing for freelancers and consultants.
+
+# Use the default Cayman theme — clean, App-Store-acceptable readability.
+theme: jekyll-theme-cayman
+
+# Markdown engine.
+markdown: kramdown
+
+# Files / dirs to exclude from the published site (internal planning docs
+# don't need to be public).
+exclude:
+  - superpowers/
+  - README.md
+  - "*.swift"

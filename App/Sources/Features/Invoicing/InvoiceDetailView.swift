@@ -19,6 +19,8 @@ struct InvoiceDetailView: View {
     @State private var pendingMailRecipients: [String] = []
     @State private var pendingMailFireDate: Date?
 
+    private var subscriptions: SubscriptionManager { SubscriptionManager.shared }
+
     private static let hasPromptedReviewKey = "billable.hasPromptedReview"
 
     // MARK: - Pending reminder step
@@ -172,6 +174,13 @@ struct InvoiceDetailView: View {
 
     // MARK: - PDF preview
 
+    /// Template data for the live-render fallback (used when pdfDataCached is nil).
+    private var liveTemplateData: InvoiceTemplateData {
+        var data = InvoiceTemplateData.from(invoice)
+        data.watermark = subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
+        return data
+    }
+
     private var pdfPreview: some View {
         Group {
             if let data = invoice.pdfDataCached, let doc = PDFDocument(data: data) {
@@ -181,7 +190,7 @@ struct InvoiceDetailView: View {
                     .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
             } else {
                 // Fallback to a live SwiftUI render if the cache is empty (older invoices).
-                let templateData = InvoiceTemplateData.from(invoice)
+                let templateData = liveTemplateData
                 let scale = 0.6
                 InvoiceTemplate(data: templateData, accent: invoice.clientColor.swiftUIColor)
                     .scaleEffect(scale, anchor: .topLeading)
@@ -330,11 +339,15 @@ struct InvoiceDetailView: View {
 
     private func ensurePDFOnDisk() -> URL? {
         let bytes: Data
-        if let cached = invoice.pdfDataCached {
+        let shouldHaveWatermark = !subscriptions.canRemoveWatermark
+        if let cached = invoice.pdfDataCached,
+           !Self.cacheIsStale(cached, shouldHaveWatermark: shouldHaveWatermark) {
             bytes = cached
         } else {
+            var templateData = InvoiceTemplateData.from(invoice)
+            templateData.watermark = subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
             bytes = InvoicePDFRenderer.renderPDFData(
-                for: InvoiceTemplateData.from(invoice),
+                for: templateData,
                 accent: invoice.clientColor.swiftUIColor
             )
             invoice.pdfDataCached = bytes
@@ -344,6 +357,14 @@ struct InvoiceDetailView: View {
             .appendingPathComponent("\(invoice.number).pdf")
         try? bytes.write(to: url, options: .atomic)
         return url
+    }
+
+    /// Returns `true` when the cached PDF bytes' watermark state no longer matches
+    /// the current entitlement, meaning the cache must be discarded and re-rendered.
+    private static func cacheIsStale(_ data: Data, shouldHaveWatermark: Bool) -> Bool {
+        guard let text = PDFDocument(data: data)?.string else { return false }
+        let hasWatermark = text.contains("Sent with Cadence")
+        return hasWatermark != shouldHaveWatermark
     }
 }
 
