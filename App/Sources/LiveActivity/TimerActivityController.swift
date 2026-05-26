@@ -27,7 +27,9 @@ final class TimerActivityController {
     /// Start (or replace) the Live Activity for a freshly-started TimeEntry.
     /// Safe to call from any timer flow (start, switch). If a previous activity
     /// is still live, it's ended first to avoid duplicates.
-    func startActivity(for entry: TimeEntry) async {
+    /// Pass `currencyCode` from the active BusinessProfile so the Live Activity
+    /// displays the correct currency symbol for the user's locale.
+    func startActivity(for entry: TimeEntry, currencyCode: String) async {
         guard isPermitted else { return }
         guard let project = entry.project else { return }
 
@@ -36,7 +38,7 @@ final class TimerActivityController {
             projectName: project.name,
             clientColorRaw: project.client?.colorRaw ?? ClientColor.blue.rawValue,
             hourlyRateString: NSDecimalNumber(decimal: project.hourlyRate).stringValue,
-            currencyCode: "USD"
+            currencyCode: currencyCode
         )
         let state = TimerActivityAttributes.ContentState(startedAt: entry.startedAt)
 
@@ -82,7 +84,8 @@ final class TimerActivityController {
 
         // No live activity, but a running entry exists in the store → restart it.
         if let running = TimerService.currentRunningEntry(in: context) {
-            await startActivity(for: running)
+            let profileCode = (try? context.fetch(FetchDescriptor<BusinessProfile>()))?.first?.currencyCode ?? "USD"
+            await startActivity(for: running, currencyCode: profileCode)
         }
     }
 }

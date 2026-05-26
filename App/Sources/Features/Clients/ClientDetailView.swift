@@ -147,6 +147,12 @@ struct ClientDetailView: View {
 private struct ProjectRow: View {
     let project: Project
 
+    @Query private var profiles: [BusinessProfile]
+
+    private var currencyCode: String {
+        profiles.first?.currencyCode ?? "USD"
+    }
+
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
@@ -159,15 +165,9 @@ private struct ProjectRow: View {
             }
             Spacer()
             if project.isBillable {
-                Text(project.hourlyRate, format: .currency(code: project.client?.currencyCodeFallback ?? "USD"))
+                Text(project.hourlyRate, format: .currency(code: currencyCode))
                     .foregroundStyle(.secondary)
             }
         }
     }
-}
-
-private extension Client {
-    /// Currency to display per-project. Until we tie a per-client currency, falls back to "USD".
-    /// Step 6 will resolve this through the BusinessProfile.
-    var currencyCodeFallback: String { "USD" }
 }

@@ -21,7 +21,27 @@ struct TodayView: View {
                     CatchUpBanner()
                         .padding(.horizontal)
                         .padding(.top, 4)
+                    if showEmptyBusinessBanner {
+                        NavigationLink(destination: BusinessProfileEditorView()) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                                Text("Add your business name to send invoices")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(12)
+                            .background(.orange.opacity(0.12), in: .rect(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal)
+                    }
                     TodayActiveTimerSection(
+                        currencyCode: currencyCode,
                         onStop: stopRunning,
                         onSwitch: { showingSwitchSheet = true }
                     )
@@ -95,6 +115,11 @@ struct TodayView: View {
         profiles.first?.currencyCode ?? "USD"
     }
 
+    private var showEmptyBusinessBanner: Bool {
+        let trimmed = (profiles.first?.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty
+    }
+
     @ViewBuilder
     private var startActions: some View {
         Button {
@@ -112,7 +137,7 @@ struct TodayView: View {
         QuickStartRow { project in
             do {
                 let entry = try TimerService.start(project: project, in: modelContext)
-                Task { await TimerActivityController.shared.startActivity(for: entry) }
+                Task { await TimerActivityController.shared.startActivity(for: entry, currencyCode: currencyCode) }
                 if let entity = ProjectEntity(from: project) {
                     Task { try? await StartTimerIntent(project: entity).donate() }
                 }
@@ -139,13 +164,14 @@ private struct TodayActiveTimerSection: View {
     @Query(filter: #Predicate<TimeEntry> { $0.endedAt == nil })
     private var runningEntries: [TimeEntry]
 
+    let currencyCode: String
     let onStop: () -> Void
     let onSwitch: () -> Void
 
     var body: some View {
         if let running = runningEntries.first {
             TimelineView(.periodic(from: .now, by: 1)) { context in
-                RunningTimerCard(entry: running, asOf: context.date, onStop: onStop, onSwitch: onSwitch)
+                RunningTimerCard(entry: running, asOf: context.date, currencyCode: currencyCode, onStop: onStop, onSwitch: onSwitch)
             }
         } else {
             EmptyView()
@@ -156,6 +182,7 @@ private struct TodayActiveTimerSection: View {
 private struct RunningTimerCard: View {
     let entry: TimeEntry
     let asOf: Date
+    let currencyCode: String
     let onStop: () -> Void
     let onSwitch: () -> Void
 
@@ -213,7 +240,7 @@ private struct RunningTimerCard: View {
     }
 
     private var amountString: String {
-        entry.amount(asOf: asOf).formatted(.currency(code: "USD"))
+        entry.amount(asOf: asOf).formatted(.currency(code: currencyCode))
     }
 }
 

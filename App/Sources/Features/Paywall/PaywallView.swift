@@ -27,7 +27,7 @@ struct PaywallView: View {
         }
         var subhead: String {
             switch self {
-            case .createInvoice: "Pro turns the time you tracked into a branded PDF invoice — paid in days, not weeks."
+            case .createInvoice: "Pro turns the time you tracked into a branded PDF invoice — in under 60 seconds."
             case .extraClient:   "Free is great for one or two clients. Pro fits the rest of your roster."
             case .reports:       "Hours by client, billable vs. non-billable, earnings trends — all in one screen."
             case .settings:      "Unlimited invoicing, clients, reports, and exports."
@@ -114,10 +114,30 @@ struct PaywallView: View {
         }
     }
 
+    @ViewBuilder
     private var pricePicker: some View {
-        VStack(spacing: 10) {
-            planRow(.yearly)
-            planRow(.monthly)
+        switch manager.loadState {
+        case .idle, .loading:
+            ProgressView()
+                .controlSize(.large)
+                .frame(maxWidth: .infinity, minHeight: 100)
+        case .ready:
+            VStack(spacing: 10) {
+                planRow(.yearly)
+                planRow(.monthly)
+            }
+        case .failed(let message):
+            VStack(spacing: 12) {
+                Text(message)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Retry") {
+                    Task { await manager.reloadProducts() }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -134,13 +154,6 @@ struct PaywallView: View {
                     HStack(spacing: 6) {
                         Text(plan == .yearly ? "Yearly" : "Monthly")
                             .font(.headline)
-                        if plan == .yearly, let label = manager.yearlyTrialPeriodLabel {
-                            Text(label.uppercased())
-                                .font(.caption2.weight(.bold))
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Color.green.opacity(0.18), in: .capsule)
-                                .foregroundStyle(.green)
-                        }
                         if plan == .yearly {
                             Text("BEST VALUE")
                                 .font(.caption2.weight(.bold))
@@ -210,10 +223,7 @@ struct PaywallView: View {
     }
 
     private var purchaseButtonTitle: String {
-        if selection == .yearly, manager.yearlyHasFreeTrial {
-            return "Start free trial"
-        }
-        return "Subscribe"
+        "Subscribe"
     }
 
     private var secondaryActions: some View {

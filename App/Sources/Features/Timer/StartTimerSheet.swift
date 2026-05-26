@@ -10,6 +10,11 @@ struct StartTimerSheet: View {
 
     @Query(filter: #Predicate<Client> { !$0.isArchived }, sort: \Client.name)
     private var clients: [Client]
+    @Query private var profiles: [BusinessProfile]
+
+    private var currencyCode: String {
+        profiles.first?.currencyCode ?? "USD"
+    }
 
     @State private var search: String = ""
 
@@ -69,7 +74,7 @@ struct StartTimerSheet: View {
                 }
                 Spacer()
                 if project.isBillable {
-                    Text(project.hourlyRate, format: .currency(code: "USD"))
+                    Text(project.hourlyRate, format: .currency(code: currencyCode))
                         .foregroundStyle(.secondary)
                         .font(.subheadline.monospacedDigit())
                 } else {
@@ -125,7 +130,7 @@ struct StartTimerSheet: View {
             } else {
                 entry = try TimerService.start(project: project, in: modelContext)
             }
-            Task { await TimerActivityController.shared.startActivity(for: entry) }
+            Task { await TimerActivityController.shared.startActivity(for: entry, currencyCode: currencyCode) }
             if let entity = ProjectEntity(from: project) {
                 if isSwitching {
                     Task { try? await SwitchTimerIntent(project: entity).donate() }
