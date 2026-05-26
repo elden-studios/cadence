@@ -44,10 +44,7 @@ struct TodayView: View {
                         currencyCode: currencyCode,
                         onStop: stopRunning,
                         onSwitch: { showingSwitchSheet = true },
-                        onResume: { project in
-                            // Placeholder — Task 3 wires TimerService.start
-                            print("Resume tapped for project: \(project.name)")
-                        }
+                        onResume: resumeLastTimer
                     )
                     if !hasRunningTimer {
                         startActions
@@ -159,6 +156,21 @@ struct TodayView: View {
         _ = try? TimerService.stop(in: modelContext)
         Task { await TimerActivityController.shared.endActivity() }
         Task { try? await StopTimerIntent().donate() }
+    }
+
+    private func resumeLastTimer(project: Project) {
+        do {
+            let entry = try TimerService.start(project: project, in: modelContext)
+            Task { await TimerActivityController.shared.startActivity(for: entry, currencyCode: currencyCode) }
+            if let entity = ProjectEntity(from: project) {
+                Task { try? await StartTimerIntent(project: entity).donate() }
+            }
+        } catch TimerService.TimerError.projectIsArchived {
+            // The project was archived since the last stop. Silently fail —
+            // the pill will disappear on next refresh once the state settles.
+        } catch {
+            // Other errors are no-ops. The pill remains; user can tap again.
+        }
     }
 }
 
