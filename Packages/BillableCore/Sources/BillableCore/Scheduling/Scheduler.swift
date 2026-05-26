@@ -159,7 +159,7 @@ public final class Scheduler {
         )
         if let rows = try? modelContext.fetch(descriptor) {
             for row in rows { modelContext.delete(row) }
-            try? modelContext.save()
+            modelContext.saveOrLog("scheduler cancel")
         }
         log.info("cancel(): id=\(id.uuidString, privacy: .public)")
     }
@@ -227,7 +227,7 @@ public final class Scheduler {
             }
         }
 
-        try? modelContext.save()
+        modelContext.saveOrLog("scheduler resync")
         log.info("resyncOnLaunch(): reregistered=\(reregistered, privacy: .public) pruned=\(pruned, privacy: .public)")
         return ResyncResult(reregistered: reregistered, pruned: pruned)
     }

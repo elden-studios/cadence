@@ -117,8 +117,7 @@ struct TodayView: View {
     }
 
     private var showEmptyBusinessBanner: Bool {
-        let trimmed = (profiles.first?.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty
+        !BusinessProfile.canSendInvoice(profile: profiles.first)
     }
 
     @ViewBuilder

@@ -19,7 +19,7 @@ struct PaymentRemindersView: View {
         if let existing = configs.first { return existing }
         let new = ReminderConfig.defaultConfig()
         modelContext.insert(new)
-        try? modelContext.save()
+        modelContext.saveOrLog("create reminder config")
         return new
     }
 

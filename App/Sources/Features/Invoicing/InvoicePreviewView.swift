@@ -199,7 +199,7 @@ struct InvoicePreviewView: View {
                 accent: draft.clientColor.swiftUIColor
             )
             draft.pdfDataCached = data
-            try? modelContext.save()
+            modelContext.saveOrLog("cache invoice pdf")
             finalized = draft
             pdfData = data
             showingShare = true

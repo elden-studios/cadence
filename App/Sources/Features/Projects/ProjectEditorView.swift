@@ -95,7 +95,7 @@ struct ProjectEditorView: View {
             )
             modelContext.insert(new)
         }
-        try? modelContext.save()
+        modelContext.saveOrLog("save project")
         dismiss()
     }
 }

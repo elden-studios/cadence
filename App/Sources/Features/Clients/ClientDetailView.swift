@@ -68,7 +68,7 @@ struct ClientDetailView: View {
                             Button {
                                 project.isArchived = true
                                 project.updatedAt = .now
-                                try? modelContext.save()
+                                modelContext.saveOrLog("archive project")
                             } label: {
                                 Label("Archive", systemImage: "archivebox")
                             }
@@ -95,7 +95,7 @@ struct ClientDetailView: View {
                                 Button {
                                     project.isArchived = false
                                     project.updatedAt = .now
-                                    try? modelContext.save()
+                                    modelContext.saveOrLog("restore project")
                                 } label: {
                                     Label("Restore", systemImage: "tray.and.arrow.up")
                                 }
@@ -133,7 +133,7 @@ struct ClientDetailView: View {
             Button("Delete project and time entries", role: .destructive) {
                 if let project = deletionCandidate {
                     modelContext.delete(project)
-                    try? modelContext.save()
+                    modelContext.saveOrLog("delete project")
                 }
                 deletionCandidate = nil
             }
@@ -150,7 +150,9 @@ private struct ProjectRow: View {
     @Query private var profiles: [BusinessProfile]
 
     private var currencyCode: String {
-        profiles.first?.currencyCode ?? "USD"
+        profiles.first?.currencyCode
+            ?? Locale.current.currency?.identifier
+            ?? "USD"
     }
 
     var body: some View {

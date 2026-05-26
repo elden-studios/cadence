@@ -15,6 +15,7 @@
 		17683A63578279729D6FFD5D /* TimeBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB4F85B38816D91407DAFA7 /* TimeBlockView.swift */; };
 		215B980EDB0C94CB3C43BDDE /* BillableCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3267A35D1AD7CEA36846D498 /* BillableCore */; };
 		220427E9DC4EDF77A52184D4 /* NotificationTapFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 591084DA183D854DBB380551 /* NotificationTapFlowUITests.swift */; };
+		C1D38ACDEBC042098A182421 /* LaunchTaglineUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB13E92EE6D4FCD8317FA86 /* LaunchTaglineUITests.swift */; };
 		2D0A1664F829479F98BCF429 /* BusinessProfileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2EF767AE53DA0B1D6D7CB4 /* BusinessProfileEditorView.swift */; };
 		2E4E0201847ECA7967521565 /* TimerLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1CF2FCD917839FB1C1B0961 /* TimerLiveActivity.swift */; };
 		37C6C0308B1818FF8998144D /* RecurrenceEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43745976E9C74DF7790C99F6 /* RecurrenceEditorView.swift */; };
@@ -96,6 +97,7 @@
 		5120185E61165F6EB9DFFB00 /* BillableApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillableApp.swift; sourceTree = "<group>"; };
 		56AC735AE9894CA166F3F644 /* TimelineGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineGeometry.swift; sourceTree = "<group>"; };
 		591084DA183D854DBB380551 /* NotificationTapFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationTapFlowUITests.swift; sourceTree = "<group>"; };
+		3AB13E92EE6D4FCD8317FA86 /* LaunchTaglineUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchTaglineUITests.swift; sourceTree = "<group>"; };
 		5BFD0B16A9AEBF1189186DEE /* BillableWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillableWidgetBundle.swift; sourceTree = "<group>"; };
 		67186A12889E18CA99C96468 /* ProjectEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectEditorView.swift; sourceTree = "<group>"; };
 		6B4CE4F3496BC81EE3278AA8 /* Billable.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Billable.entitlements; sourceTree = "<group>"; };
@@ -248,6 +250,7 @@
 			isa = PBXGroup;
 			children = (
 				591084DA183D854DBB380551 /* NotificationTapFlowUITests.swift */,
+				3AB13E92EE6D4FCD8317FA86 /* LaunchTaglineUITests.swift */,
 			);
 			path = BillableUITests;
 			sourceTree = "<group>";
@@ -579,6 +582,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				220427E9DC4EDF77A52184D4 /* NotificationTapFlowUITests.swift in Sources */,
+				C1D38ACDEBC042098A182421 /* LaunchTaglineUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

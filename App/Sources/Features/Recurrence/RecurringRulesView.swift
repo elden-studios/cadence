@@ -143,12 +143,12 @@ struct RecurringRulesView: View {
         )
         RecurrenceScheduling.cancelAll(for: template, scheduler: scheduler, modelContext: modelContext)
         modelContext.delete(template)
-        try? modelContext.save()
+        modelContext.saveOrLog("delete recurrence template")
     }
 
     private func togglePause(_ template: RecurrenceTemplate) {
         template.isActive.toggle()
-        try? modelContext.save()
+        modelContext.saveOrLog("toggle recurrence pause")
         let scheduler = Scheduler(
             center: UNUserNotificationCenter.current(),
             modelContext: modelContext

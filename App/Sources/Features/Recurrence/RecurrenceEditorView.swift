@@ -153,7 +153,6 @@ struct RecurrenceEditorView: View {
         // notification permission via InvoiceGeneratorView.saveRecurrence. If
         // permission was revoked later, Scheduler.schedule silently no-ops (returns
         // .noPermission); the user discovers this when no notification arrives.
-        // TODO(v1.1.1): Add a permission banner on RecurringRulesView (sweep P3).
         do {
             try modelContext.save()
             Task {

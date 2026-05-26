@@ -17,7 +17,7 @@ public enum SampleData {
             nextInvoiceNumber: 1,
             taxLabel: "Tax",
             taxRate: Decimal(string: "0.0875")!,
-            currencyCode: "USD"
+            currencyCode: Locale.current.currency?.identifier ?? "USD"
         )
         context.insert(profile)
 
@@ -49,6 +49,6 @@ public enum SampleData {
             context.insert(TimeEntry(startedAt: y9, endedAt: y12, notes: "Brand audit", project: acmeBrand))
         }
 
-        try? context.save()
+        context.saveOrLog("seed sample data")
     }
 }

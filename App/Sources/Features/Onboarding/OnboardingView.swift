@@ -313,7 +313,7 @@ struct OnboardingView: View {
         )
         modelContext.insert(client)
         modelContext.insert(project)
-        try? modelContext.save()
+        modelContext.saveOrLog("complete onboarding")
         if let entry = try? TimerService.start(project: project, in: modelContext) {
             let profileCode = (try? modelContext.fetch(FetchDescriptor<BusinessProfile>()))?.first?.currencyCode ?? "USD"
             Task { await TimerActivityController.shared.startActivity(for: entry, currencyCode: profileCode) }
