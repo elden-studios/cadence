@@ -69,7 +69,7 @@ struct ClientEditorView: View {
                         }
                         client?.reminderOffsets = clientCustomOffsets.sorted()
                     }
-                    try? modelContext.save()
+                    modelContext.saveOrLog("change reminder mode")
                 }
 
                 if reminderMode == .custom {
@@ -79,7 +79,7 @@ struct ClientEditorView: View {
                             set: { isOn in
                                 if isOn { clientCustomOffsets.insert(offset) } else { clientCustomOffsets.remove(offset) }
                                 client?.reminderOffsets = clientCustomOffsets.sorted()
-                                try? modelContext.save()
+                                modelContext.saveOrLog("toggle reminder offset")
                             }
                         ))
                     }
@@ -166,7 +166,7 @@ struct ClientEditorView: View {
             )
             modelContext.insert(new)
         }
-        try? modelContext.save()
+        modelContext.saveOrLog("save client")
         dismiss()
     }
 

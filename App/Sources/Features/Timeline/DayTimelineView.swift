@@ -255,7 +255,7 @@ struct DayTimelineView: View {
             }
         }
         entry.updatedAt = .now
-        try? modelContext.save()
+        modelContext.saveOrLog("drag/resize entry")
     }
 
     // MARK: - Context menu actions
@@ -277,7 +277,7 @@ struct DayTimelineView: View {
         entry.endedAt = snapped
         entry.updatedAt = .now
         modelContext.insert(second)
-        try? modelContext.save()
+        modelContext.saveOrLog("split entry")
     }
 
     private func duplicate(_ entry: TimeEntry) {
@@ -293,12 +293,12 @@ struct DayTimelineView: View {
             project: entry.project
         )
         modelContext.insert(copy)
-        try? modelContext.save()
+        modelContext.saveOrLog("duplicate entry")
     }
 
     private func delete(_ entry: TimeEntry) {
         modelContext.delete(entry)
-        try? modelContext.save()
+        modelContext.saveOrLog("delete entry")
     }
 }
 

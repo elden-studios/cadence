@@ -139,7 +139,7 @@ struct ManualEntrySheet: View {
             editing.notes = storedNotes
             editing.isManual = true
             editing.updatedAt = .now
-            try? modelContext.save()
+            modelContext.saveOrLog("edit manual entry")
         } else {
             _ = try? TimerService.logCompletedEntry(
                 project: project,

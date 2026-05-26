@@ -88,7 +88,7 @@ struct ClientsView: View {
         }
         // Then delete the client (cascades to Project via existing @Relationship).
         modelContext.delete(client)
-        try? modelContext.save()
+        modelContext.saveOrLog("delete client")
     }
 
     private func startAddClient() {
@@ -113,7 +113,7 @@ struct ClientsView: View {
                         Button {
                             client.isArchived = true
                             client.updatedAt = .now
-                            try? modelContext.save()
+                            modelContext.saveOrLog("archive client")
                         } label: {
                             Label("Archive", systemImage: "archivebox")
                         }
@@ -133,7 +133,7 @@ struct ClientsView: View {
                                 Button {
                                     client.isArchived = false
                                     client.updatedAt = .now
-                                    try? modelContext.save()
+                                    modelContext.saveOrLog("restore client")
                                 } label: {
                                     Label("Restore", systemImage: "tray.and.arrow.up")
                                 }

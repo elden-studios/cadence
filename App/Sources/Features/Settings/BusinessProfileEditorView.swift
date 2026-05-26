@@ -122,7 +122,7 @@ struct BusinessProfileEditorView: View {
         profile.taxRate = Decimal(taxRatePercent / 100)
         profile.currencyCode = currencyCode
         profile.updatedAt = .now
-        try? modelContext.save()
+        modelContext.saveOrLog("save business profile")
         dismiss()
     }
 

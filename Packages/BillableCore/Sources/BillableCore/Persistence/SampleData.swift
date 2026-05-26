@@ -49,6 +49,6 @@ public enum SampleData {
             context.insert(TimeEntry(startedAt: y9, endedAt: y12, notes: "Brand audit", project: acmeBrand))
         }
 
-        try? context.save()
+        context.saveOrLog("seed sample data")
     }
 }

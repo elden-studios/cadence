@@ -137,7 +137,7 @@ public final class ReminderService {
         guard let schedule = invoice.reminderSchedule else { return }
         if !schedule.firedDates.contains(fireDate) {
             schedule.firedDates.append(fireDate)
-            try? modelContext.save()
+            modelContext.saveOrLog("reminder recordFired")
         }
     }
 

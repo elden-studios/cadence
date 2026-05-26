@@ -95,7 +95,7 @@ struct InvoiceDetailView: View {
         ) {
             Button("Delete", role: .destructive) {
                 modelContext.delete(invoice)
-                try? modelContext.save()
+                modelContext.saveOrLog("delete invoice draft")
                 dismiss()
             }
             Button("Cancel", role: .cancel) {}
@@ -260,7 +260,7 @@ struct InvoiceDetailView: View {
 
     private func markPaid() {
         try? invoice.markPaid()
-        try? modelContext.save()
+        modelContext.saveOrLog("mark invoice paid")
         promptReviewIfFirstTime()
     }
 
@@ -351,7 +351,7 @@ struct InvoiceDetailView: View {
                 accent: invoice.clientColor.swiftUIColor
             )
             invoice.pdfDataCached = bytes
-            try? modelContext.save()
+            modelContext.saveOrLog("cache invoice pdf")
         }
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(invoice.number).pdf")
