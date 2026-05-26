@@ -180,12 +180,17 @@ private struct TodayActiveTimerSection: View {
     @Query(filter: #Predicate<TimeEntry> { $0.endedAt == nil })
     private var runningEntries: [TimeEntry]
 
-    @Query(
-        filter: #Predicate<TimeEntry> { $0.endedAt != nil },
-        sort: \TimeEntry.endedAt,
-        order: .reverse
-    )
+    @Query(Self.lastStoppedDescriptor)
     private var stoppedEntries: [TimeEntry]
+
+    private static var lastStoppedDescriptor: FetchDescriptor<TimeEntry> {
+        var descriptor = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate<TimeEntry> { $0.endedAt != nil },
+            sortBy: [SortDescriptor(\.endedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return descriptor
+    }
 
     let currencyCode: String
     let onStop: () -> Void
