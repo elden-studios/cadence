@@ -26,7 +26,7 @@ struct PaywallView: View {
         var subhead: String {
             switch self {
             case .reports:         "Hours by client, billable vs. non-billable, earnings trends — all in one screen."
-            case .settings:        "Unlimited invoicing, clients, reports, and exports."
+            case .settings:        "Watermark-free invoices, full Reports, CSV exports."
             case .removeWatermark: "Pro removes 'Sent with Cadence' from your invoice PDFs and unlocks Reports + CSV export."
             }
         }
@@ -92,9 +92,12 @@ struct PaywallView: View {
 
     private var valueBullets: some View {
         VStack(alignment: .leading, spacing: 12) {
-            bullet("doc.text", "Branded PDF invoices", "Send polished invoices in under 60 seconds.")
-            bullet("person.2", "Unlimited clients & projects", "Free includes 2 active clients; Pro removes the cap.")
-            bullet("chart.bar", "Reports & CSV export", "Hours, earnings, uninvoiced totals — and clean exports for your accountant.")
+            bullet("doc.text", "Watermark-free PDF invoices",
+                   "Send polished invoices without 'Sent with Cadence' in the footer.")
+            bullet("chart.bar", "Reports & insights",
+                   "Hours by client, billable vs. non-billable, earnings trends.")
+            bullet("square.and.arrow.up", "CSV export",
+                   "Clean exports for your accountant.")
         }
     }
 
@@ -220,7 +223,7 @@ struct PaywallView: View {
     }
 
     private var purchaseButtonTitle: String {
-        "Subscribe"
+        manager.eligibleForIntroOffer ? "Start 7-day free trial" : "Subscribe"
     }
 
     private var secondaryActions: some View {

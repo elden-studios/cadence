@@ -60,6 +60,12 @@ public final class SubscriptionManager {
     /// Free users can't open Reports or export CSV.
     public var canAccessReports: Bool { isPro }
 
+    /// Whether the user is eligible for the 7-day intro offer.
+    /// Populated asynchronously in `refreshProducts()` after products load.
+    /// Defaults to false until products are ready — button falls back to
+    /// "Subscribe" until the eligibility check completes, which is correct UX.
+    public private(set) var eligibleForIntroOffer: Bool = false
+
     private var transactionListener: Task<Void, Never>?
 
     // MARK: - Testability hooks
@@ -146,6 +152,12 @@ public final class SubscriptionManager {
             }
             monthly = products.first { $0.id == Self.monthlyProductID }
             yearly  = products.first { $0.id == Self.yearlyProductID  }
+            // Cache intro-offer eligibility. `isEligibleForIntroOffer` is async
+            // (Apple checks per-Apple-ID, per subscription group), so we query
+            // both products and store the result synchronously for the UI.
+            let mEligible = await monthly?.subscription?.isEligibleForIntroOffer ?? false
+            let yEligible = await yearly?.subscription?.isEligibleForIntroOffer ?? false
+            eligibleForIntroOffer = mEligible || yEligible
             loadState = .ready
         } catch {
             loadState = .failed("Couldn't load products: \(error.localizedDescription)")
