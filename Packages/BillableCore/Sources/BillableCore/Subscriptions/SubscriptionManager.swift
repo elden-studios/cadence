@@ -27,13 +27,38 @@ public final class SubscriptionManager {
         case failed(String)
     }
 
+    /// User's current subscription state. Derived from StoreKit transactions.
+    public enum Entitlement: Equatable, Sendable {
+        case free
+        case trial(daysRemaining: Int)
+        case pro
+    }
+
     public private(set) var loadState: LoadState = .idle {
         didSet { _onLoadStateChange?(loadState) }
     }
 
     public private(set) var monthly: Product?
     public private(set) var yearly: Product?
-    public private(set) var isPro: Bool = false
+
+    /// The user's current entitlement. Drives all feature gates.
+    public private(set) var entitlement: Entitlement = .free
+
+    /// Back-compat: existing callers (RootView, SettingsView, etc.) still read
+    /// this boolean. Derived from `entitlement`.
+    public var isPro: Bool {
+        switch entitlement {
+        case .free: return false
+        case .trial, .pro: return true
+        }
+    }
+
+    /// Free users see a "Sent with Cadence" watermark on invoice PDFs.
+    /// Trial + Pro users do not.
+    public var canRemoveWatermark: Bool { isPro }
+
+    /// Free users can't open Reports or export CSV.
+    public var canAccessReports: Bool { isPro }
 
     private var transactionListener: Task<Void, Never>?
 
@@ -56,7 +81,7 @@ public final class SubscriptionManager {
     /// by production code. Marked `internal`.
     @MainActor var _onLoadStateChange: (@MainActor (LoadState) -> Void)?
 
-    private init() {}
+    init() {}
 
     // MARK: - Lifecycle
 
@@ -72,7 +97,7 @@ public final class SubscriptionManager {
         // going through StoreKit Testing, so QA can screenshot Pro-gated
         // surfaces (Reports, CSV) without an active sandbox account.
         if CommandLine.arguments.contains("--pretend-pro") {
-            isPro = true
+            entitlement = .pro
         }
         if transactionListener == nil {
             transactionListener = listenForTransactionUpdates()
@@ -83,7 +108,15 @@ public final class SubscriptionManager {
 
     /// Override only in tests. Refreshing entitlements after this flip clobbers
     /// it, so use sparingly. The `--pretend-pro` flag handles 99% of dev needs.
-    public func _forceIsProForTesting(_ value: Bool) { isPro = value }
+    public func _forceIsProForTesting(_ value: Bool) {
+        entitlement = value ? .pro : .free
+    }
+
+    /// Test-only. Sets `entitlement` directly. Not part of the public API.
+    @MainActor
+    public func _setEntitlementForTesting(_ value: Entitlement) {
+        entitlement = value
+    }
 
     /// Reset `loadState` to a known value. Call in test `defer` blocks to avoid
     /// state leakage between tests. Marked `internal`.
@@ -195,24 +228,56 @@ public final class SubscriptionManager {
 
     // MARK: - Entitlements
 
+    /// Returns the number of days remaining in the 7-day intro offer for the
+    /// given transaction, or nil if the transaction isn't in the intro period.
+    ///
+    /// `Transaction.offer` requires iOS 17.2 / macOS 14.2. On older OS versions
+    /// we fall back to a purchase-date heuristic: if the transaction is less than
+    /// 7 days old, assume the intro offer is still active.
+    private func introOfferDaysRemaining(transaction: StoreKit.Transaction) -> Int? {
+        let isIntroductory: Bool
+        if #available(iOS 17.2, macOS 14.2, *) {
+            isIntroductory = transaction.offer?.type == .introductory
+        } else {
+            // Heuristic for older OS: treat purchases within the last 7 days
+            // as potentially in-trial. This path is rarely hit in practice since
+            // the app ships targeting iOS 17.
+            let age = Date.now.timeIntervalSince(transaction.purchaseDate)
+            isIntroductory = age < 7 * 24 * 60 * 60
+        }
+        guard isIntroductory else { return nil }
+        let trialEndDate = transaction.purchaseDate.addingTimeInterval(7 * 24 * 60 * 60)
+        let now = Date.now
+        guard now < trialEndDate else { return nil }
+        let secondsRemaining = trialEndDate.timeIntervalSince(now)
+        let daysRemaining = max(1, Int(ceil(secondsRemaining / 86_400)))
+        return daysRemaining
+    }
+
     public func refreshEntitlements() async {
         // Honor the dev override — if a tester set this on purpose, don't clobber it.
         if CommandLine.arguments.contains("--pretend-pro") {
-            isPro = true
+            entitlement = .pro
             return
         }
-        var entitled = false
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result else { continue }
-            // Only auto-renewable subscriptions in v1; treat any verified active
-            // entry in our group as Pro.
-            if transaction.productType == .autoRenewable,
-               transaction.revocationDate == nil,
-               (transaction.expirationDate ?? .distantFuture) > .now {
-                entitled = true
+            // Only auto-renewable subscriptions in v1.
+            guard transaction.productType == .autoRenewable,
+                  transaction.revocationDate == nil,
+                  (transaction.expirationDate ?? .distantFuture) > .now else { continue }
+            guard transaction.productID == Self.monthlyProductID ||
+                  transaction.productID == Self.yearlyProductID else { continue }
+
+            if let days = introOfferDaysRemaining(transaction: transaction) {
+                entitlement = .trial(daysRemaining: days)
+            } else {
+                entitlement = .pro
             }
+            return
         }
-        isPro = entitled
+        // No active subscription found:
+        entitlement = .free
     }
 
     private func listenForTransactionUpdates() -> Task<Void, Never> {
