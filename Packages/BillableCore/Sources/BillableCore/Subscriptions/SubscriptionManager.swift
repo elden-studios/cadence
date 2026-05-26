@@ -112,12 +112,6 @@ public final class SubscriptionManager {
         Task { await refreshEntitlements() }
     }
 
-    /// Override only in tests. Refreshing entitlements after this flip clobbers
-    /// it, so use sparingly. The `--pretend-pro` flag handles 99% of dev needs.
-    public func _forceIsProForTesting(_ value: Bool) {
-        entitlement = value ? .pro : .free
-    }
-
     /// Test-only. Sets `entitlement` directly. Not part of the public API.
     @MainActor
     public func _setEntitlementForTesting(_ value: Entitlement) {
@@ -247,6 +241,11 @@ public final class SubscriptionManager {
 
     // MARK: - Entitlements
 
+    /// Trial period length in seconds. Matches the introductoryOffer P1W in
+    /// Billable.storekit. Keep these in sync — if the StoreKit Config changes
+    /// to P2W, update this constant too.
+    private static let trialDuration: TimeInterval = 7 * 24 * 60 * 60
+
     /// Returns the number of days remaining in the 7-day intro offer for the
     /// given transaction, or nil if the transaction isn't in the intro period.
     ///
@@ -262,10 +261,10 @@ public final class SubscriptionManager {
             // as potentially in-trial. This path is rarely hit in practice since
             // the app ships targeting iOS 17.
             let age = Date.now.timeIntervalSince(transaction.purchaseDate)
-            isIntroductory = age < 7 * 24 * 60 * 60
+            isIntroductory = age < Self.trialDuration
         }
         guard isIntroductory else { return nil }
-        let trialEndDate = transaction.purchaseDate.addingTimeInterval(7 * 24 * 60 * 60)
+        let trialEndDate = transaction.purchaseDate.addingTimeInterval(Self.trialDuration)
         let now = Date.now
         guard now < trialEndDate else { return nil }
         let secondsRemaining = trialEndDate.timeIntervalSince(now)
