@@ -694,7 +694,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.eldenstudios.billable;
 				PRODUCT_NAME = Billable;
 				SDKROOT = iphoneos;
@@ -718,7 +718,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.eldenstudios.billable.widgets;
 				PRODUCT_NAME = BillableWidgets;
 				SDKROOT = iphoneos;
@@ -823,7 +823,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.eldenstudios.billable;
 				PRODUCT_NAME = Billable;
 				SDKROOT = iphoneos;
@@ -883,7 +883,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.eldenstudios.billable.widgets;
 				PRODUCT_NAME = BillableWidgets;
 				SDKROOT = iphoneos;
