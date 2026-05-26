@@ -43,7 +43,11 @@ struct TodayView: View {
                     TodayActiveTimerSection(
                         currencyCode: currencyCode,
                         onStop: stopRunning,
-                        onSwitch: { showingSwitchSheet = true }
+                        onSwitch: { showingSwitchSheet = true },
+                        onResume: { project in
+                            // Placeholder — Task 3 wires TimerService.start
+                            print("Resume tapped for project: \(project.name)")
+                        }
                     )
                     if !hasRunningTimer {
                         startActions
@@ -164,9 +168,19 @@ private struct TodayActiveTimerSection: View {
     @Query(filter: #Predicate<TimeEntry> { $0.endedAt == nil })
     private var runningEntries: [TimeEntry]
 
+    @Query(
+        filter: #Predicate<TimeEntry> { $0.endedAt != nil },
+        sort: \TimeEntry.endedAt,
+        order: .reverse
+    )
+    private var stoppedEntries: [TimeEntry]
+
     let currencyCode: String
     let onStop: () -> Void
     let onSwitch: () -> Void
+    let onResume: (Project) -> Void
+
+    private var lastStopped: TimeEntry? { stoppedEntries.first }
 
     var body: some View {
         if let running = runningEntries.first {
@@ -174,8 +188,50 @@ private struct TodayActiveTimerSection: View {
                 RunningTimerCard(entry: running, asOf: context.date, currencyCode: currencyCode, onStop: onStop, onSwitch: onSwitch)
             }
         } else {
-            EmptyView()
+            // No running timer — maybe show the Resume pill.
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                if TimeEntry.shouldShowResumePill(lastStopped: lastStopped, now: context.date),
+                   let last = lastStopped,
+                   let project = last.project {
+                    ResumePill(project: project, onTap: { onResume(project) })
+                } else {
+                    EmptyView()
+                }
+            }
         }
+    }
+}
+
+private struct ResumePill: View {
+    let project: Project
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 8) {
+                Image(systemName: "play.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.tint)
+                Circle()
+                    .fill(project.client?.color.swiftUIColor ?? .gray)
+                    .frame(width: 8, height: 8)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Resume \(project.client?.name ?? "—") · \(project.name)")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                    Text("Continue tracking where you left off")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(12)
+            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
 }
 
