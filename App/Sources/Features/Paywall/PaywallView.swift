@@ -14,17 +14,20 @@ struct PaywallView: View {
     enum Trigger {
         case reports
         case settings
+        case removeWatermark  // NEW
 
         var headline: String {
             switch self {
-            case .reports:  "See your full picture."
-            case .settings: "Go Pro."
+            case .reports:         "See your full picture."
+            case .settings:        "Go Pro."
+            case .removeWatermark: "Remove the watermark."
             }
         }
         var subhead: String {
             switch self {
-            case .reports:  "Hours by client, billable vs. non-billable, earnings trends — all in one screen."
-            case .settings: "Unlimited invoicing, clients, reports, and exports."
+            case .reports:         "Hours by client, billable vs. non-billable, earnings trends — all in one screen."
+            case .settings:        "Unlimited invoicing, clients, reports, and exports."
+            case .removeWatermark: "Pro removes 'Sent with Cadence' from your invoice PDFs and unlocks Reports + CSV export."
             }
         }
     }
