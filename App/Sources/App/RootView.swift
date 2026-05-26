@@ -23,7 +23,13 @@ struct RootView: View {
             }
         }
         .onAppear {
-            needsOnboarding = OnboardingFlags.shouldShow(in: modelContext)
+            // UI-test hook: force-show the onboarding screen so tagline tests
+            // can assert on it regardless of existing simulator state.
+            if CommandLine.arguments.contains("--ui-test-show-onboarding") {
+                needsOnboarding = true
+            } else {
+                needsOnboarding = OnboardingFlags.shouldShow(in: modelContext)
+            }
         }
     }
 
