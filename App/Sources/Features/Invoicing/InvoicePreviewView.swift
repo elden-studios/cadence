@@ -21,6 +21,8 @@ struct InvoicePreviewView: View {
     @State private var showingShare = false
     @State private var finalized: Invoice?
 
+    private var subscriptions: SubscriptionManager { SubscriptionManager.shared }
+
     init(
         client: Client,
         profile: BusinessProfile,
@@ -66,7 +68,8 @@ struct InvoicePreviewView: View {
             taxRate: profile.taxRate,
             taxAmount: taxAmount,
             total: total,
-            currencyCode: profile.currencyCode
+            currencyCode: profile.currencyCode,
+            watermark: subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
         )
     }
 

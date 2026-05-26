@@ -199,10 +199,21 @@ public struct InvoiceTemplate: View {
     }
 
     private var footer: some View {
-        Text("Thank you for your business.")
-            .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .center)
+        VStack(spacing: 4) {
+            Text("Thank you for your business.")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+            // Watermark footer — free-tier brand stamp. Drawn last so it sits
+            // on top of all other content. Pro/trial users have watermark = nil
+            // and this branch is skipped entirely.
+            if let watermark = data.watermark {
+                Text(watermark)
+                    .font(.system(size: 9).italic())
+                    .foregroundStyle(Color.gray.opacity(0.6))
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
     }
 
     // MARK: - Helpers
@@ -277,6 +288,7 @@ public struct InvoiceTemplateData: Sendable {
     public var taxAmount: Decimal
     public var total: Decimal
     public var currencyCode: String
+    public var watermark: String?  // nil for Pro/trial, "Sent with Cadence" for free
 
     public init(
         issuerName: String,
@@ -297,7 +309,8 @@ public struct InvoiceTemplateData: Sendable {
         taxRate: Decimal,
         taxAmount: Decimal,
         total: Decimal,
-        currencyCode: String
+        currencyCode: String,
+        watermark: String? = nil
     ) {
         self.issuerName = issuerName
         self.issuerAddress = issuerAddress
@@ -318,6 +331,7 @@ public struct InvoiceTemplateData: Sendable {
         self.taxAmount = taxAmount
         self.total = total
         self.currencyCode = currencyCode
+        self.watermark = watermark
     }
 }
 
