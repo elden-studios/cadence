@@ -7,6 +7,11 @@ import BillableCore
 struct PaymentRemindersView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var configs: [ReminderConfig]
+    @Query private var profiles: [BusinessProfile]
+
+    private var currencyCode: String {
+        profiles.first?.currencyCode ?? "USD"
+    }
 
     // Computed accessor — ensures a singleton exists by creating one
     // lazily if needed. Subsequent reads return the same instance.
@@ -109,7 +114,7 @@ struct PaymentRemindersView: View {
 
     /// Synthetic Invoice + Client used for the preview render. Not inserted into
     /// any ModelContext — just a value snapshot for ReminderTemplateRenderer.
-    private static func makePreviewInvoice() -> Invoice {
+    private static func makePreviewInvoice(currencyCode: String) -> Invoice {
         let sampleClient = Client(
             name: "Acme Corp",
             color: .blue,
@@ -127,7 +132,7 @@ struct PaymentRemindersView: View {
             paymentTermsSnapshot: "Net 14",
             taxLabelSnapshot: "Tax",
             taxRateSnapshot: 0,
-            currencyCodeSnapshot: "USD",
+            currencyCodeSnapshot: currencyCode,
             lineItems: [
                 InvoiceLineItem(description: "Sample work", hours: 12, hourlyRate: 100, sourceTimeEntryRef: nil)
             ],
@@ -137,7 +142,7 @@ struct PaymentRemindersView: View {
     }
 
     private var previewSection: some View {
-        let invoice = Self.makePreviewInvoice()
+        let invoice = Self.makePreviewInvoice(currencyCode: currencyCode)
         let renderedSubject = ReminderTemplateRenderer.render(
             template: subject,
             invoice: invoice,

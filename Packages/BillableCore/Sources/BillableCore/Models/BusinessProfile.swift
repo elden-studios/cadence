@@ -83,3 +83,18 @@ public final class BusinessProfile {
         return !profile.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
+
+extension BusinessProfile {
+    /// Returns a fresh BusinessProfile with currencyCode defaulted from Locale.current.
+    /// Use this when first seeding the singleton profile, so a user in KSA gets SAR
+    /// without manual currency-picker interaction.
+    /// Pass an explicit code to override (mainly for tests).
+    public static func defaultForCurrentLocale(
+        currencyCode: String? = nil
+    ) -> BusinessProfile {
+        let resolved = currencyCode
+            ?? Locale.current.currency?.identifier
+            ?? "USD"
+        return BusinessProfile(currencyCode: resolved)
+    }
+}

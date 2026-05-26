@@ -23,7 +23,7 @@ struct BusinessProfileEditorView: View {
 
     @State private var taxLabel: String = "Tax"
     @State private var taxRatePercent: Double = 0   // displayed as a percentage; converted to Decimal 0..1 on save
-    @State private var currencyCode: String = "USD"
+    @State private var currencyCode: String = Locale.current.currency?.identifier ?? "USD"
 
     @State private var hasLoaded = false
 
@@ -127,7 +127,7 @@ struct BusinessProfileEditorView: View {
     }
 
     private func newProfile() -> BusinessProfile {
-        let p = BusinessProfile()
+        let p = BusinessProfile.defaultForCurrentLocale()
         modelContext.insert(p)
         return p
     }

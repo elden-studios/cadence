@@ -118,7 +118,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 6) {
                 fieldLabel("HOURLY RATE")
                 HStack {
-                    Text("$")
+                    Text(Locale.current.currencySymbol ?? "$")
                         .foregroundStyle(.white.opacity(0.7))
                     TextField("", value: $hourlyRateInput, format: .number.precision(.fractionLength(0...2)))
                         .keyboardType(.decimalPad)
@@ -299,8 +299,9 @@ struct OnboardingView: View {
 
     private func finish() {
         // Create BusinessProfile if missing (we'll let user fill in details from Settings later).
+        // Default currencyCode from Locale so a Saudi user gets SAR without manual picker work.
         if (try? modelContext.fetch(FetchDescriptor<BusinessProfile>()))?.isEmpty != false {
-            let profile = BusinessProfile()
+            let profile = BusinessProfile.defaultForCurrentLocale()
             modelContext.insert(profile)
         }
         let client = Client(name: clientName.trimmingCharacters(in: .whitespaces), color: clientColor)
@@ -314,7 +315,8 @@ struct OnboardingView: View {
         modelContext.insert(project)
         try? modelContext.save()
         if let entry = try? TimerService.start(project: project, in: modelContext) {
-            Task { await TimerActivityController.shared.startActivity(for: entry) }
+            let profileCode = (try? modelContext.fetch(FetchDescriptor<BusinessProfile>()))?.first?.currencyCode ?? "USD"
+            Task { await TimerActivityController.shared.startActivity(for: entry, currencyCode: profileCode) }
         }
         UserDefaults.standard.set(true, forKey: OnboardingFlags.completedKey)
         onFinish()
