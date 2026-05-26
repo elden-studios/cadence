@@ -27,7 +27,7 @@ struct PaywallView: View {
         }
         var subhead: String {
             switch self {
-            case .createInvoice: "Pro turns the time you tracked into a branded PDF invoice — paid in days, not weeks."
+            case .createInvoice: "Pro turns the time you tracked into a branded PDF invoice — in under 60 seconds."
             case .extraClient:   "Free is great for one or two clients. Pro fits the rest of your roster."
             case .reports:       "Hours by client, billable vs. non-billable, earnings trends — all in one screen."
             case .settings:      "Unlimited invoicing, clients, reports, and exports."

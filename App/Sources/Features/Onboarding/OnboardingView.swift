@@ -82,7 +82,7 @@ struct OnboardingView: View {
                 Text("Cadence")
                     .font(.system(size: 38, weight: .bold))
                     .foregroundStyle(.white)
-                Text("Track hours.\nSend invoices.\nGet paid.")
+                Text("Track hours.\nSend invoices.")
                     .font(.title3.weight(.medium))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white.opacity(0.85))
