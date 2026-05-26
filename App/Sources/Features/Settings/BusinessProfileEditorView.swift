@@ -74,8 +74,8 @@ struct BusinessProfileEditorView: View {
 
             Section("Currency") {
                 Picker("Currency", selection: $currencyCode) {
-                    ForEach(Self.currencyOptions, id: \.self) { code in
-                        Text("\(code) — \(currencyDisplayName(code))").tag(code)
+                    ForEach(CurrencyCatalog.allCodes, id: \.self) { code in
+                        Text("\(code) — \(CurrencyCatalog.displayName(for: code))").tag(code)
                     }
                 }
             }
@@ -135,14 +135,4 @@ struct BusinessProfileEditorView: View {
     private func format(prefix: String, number: Int) -> String {
         prefix + String(format: "%04d", number)
     }
-
-    private func currencyDisplayName(_ code: String) -> String {
-        Locale.current.localizedString(forCurrencyCode: code) ?? code
-    }
-
-    /// Common currencies for v1. Localization comes later.
-    private static let currencyOptions: [String] = [
-        "USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CHF", "SEK", "NOK", "DKK",
-        "NZD", "SGD", "HKD", "INR", "MXN", "BRL", "ZAR",
-    ]
 }
