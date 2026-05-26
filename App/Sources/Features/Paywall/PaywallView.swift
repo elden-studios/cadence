@@ -116,6 +116,15 @@ struct PaywallView: View {
 
     @ViewBuilder
     private var pricePicker: some View {
+        if mockPaywallPrices {
+            // App Store marketing screenshots: render a fully-loaded paywall
+            // with prices from Billable.storekit baked in. Triggered only by
+            // the `--mock-paywall-prices` launch arg; never active in prod.
+            VStack(spacing: 10) {
+                mockPlanRow(.yearly,  price: "$34.99", perCycle: "Just $2.92 per month, billed yearly")
+                mockPlanRow(.monthly, price: "$5.99",  perCycle: "Billed every month")
+            }
+        } else {
         switch manager.loadState {
         case .idle, .loading:
             ProgressView()
@@ -139,6 +148,57 @@ struct PaywallView: View {
             .padding()
             .frame(maxWidth: .infinity)
         }
+        }
+    }
+
+    /// Returns true when the app was launched with `--mock-paywall-prices`
+    /// (used to render a populated paywall for App Store screenshots when no
+    /// StoreKit Testing session is attached).
+    private var mockPaywallPrices: Bool {
+        CommandLine.arguments.contains("--mock-paywall-prices")
+    }
+
+    /// Visual twin of `planRow` that takes raw display strings instead of a
+    /// StoreKit `Product`. Used only when `--mock-paywall-prices` is set.
+    @ViewBuilder
+    private func mockPlanRow(_ plan: Plan, price: String, perCycle: String) -> some View {
+        let isSelected = selection == plan
+        Button {
+            selection = plan
+        } label: {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(plan == .yearly ? "Yearly" : "Monthly")
+                            .font(.headline)
+                        if plan == .yearly {
+                            Text("BEST VALUE")
+                                .font(.caption2.weight(.bold))
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(Color.accentColor.opacity(0.18), in: .capsule)
+                                .foregroundStyle(.tint)
+                        }
+                    }
+                    Text(perCycle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(price)
+                    .font(.title3.weight(.semibold).monospacedDigit())
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(isSelected ? Color.accentColor.opacity(0.10) : Color(.secondarySystemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(isSelected ? Color.accentColor : Color.gray.opacity(0.18),
+                                  lineWidth: isSelected ? 2 : 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -219,11 +279,15 @@ struct PaywallView: View {
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
-        .disabled(selectedProduct == nil || isProcessing)
+        .disabled((selectedProduct == nil && !mockPaywallPrices) || isProcessing)
     }
 
     private var purchaseButtonTitle: String {
-        manager.eligibleForIntroOffer ? "Start 7-day free trial" : "Subscribe"
+        // In marketing-screenshot mode, surface the strongest CTA — the free
+        // trial — since the SubscriptionManager has no real products to derive
+        // eligibility from.
+        if mockPaywallPrices { return "Start 7-day free trial" }
+        return manager.eligibleForIntroOffer ? "Start 7-day free trial" : "Subscribe"
     }
 
     private var secondaryActions: some View {

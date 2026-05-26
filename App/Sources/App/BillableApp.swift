@@ -25,6 +25,16 @@ struct BillableApp: App {
                     }
                 }
                 self.container = appGroup
+            } else if CommandLine.arguments.contains("--seed-marketing") {
+                // --seed-marketing: curated USD demo data for App Store screenshots.
+                // App Group container (no CloudKit) — never touches user iCloud.
+                let appGroup = try BillableModelContainer.appGroup("group.com.eldenstudios.billable")
+                Self.runOnMainActor {
+                    if (try? appGroup.mainContext.fetch(FetchDescriptor<Client>()))?.isEmpty != false {
+                        MarketingData.seed(in: appGroup.mainContext)
+                    }
+                }
+                self.container = appGroup
             } else {
                 // Production: try CloudKit + App Group; gracefully degrades to
                 // App-Group-only when CloudKit entitlements aren't active.

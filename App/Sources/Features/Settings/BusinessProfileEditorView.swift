@@ -78,6 +78,7 @@ struct BusinessProfileEditorView: View {
                         Text("\(code) — \(CurrencyCatalog.displayName(for: code))").tag(code)
                     }
                 }
+                .pickerStyle(.navigationLink)
             }
         }
         .navigationTitle("Business profile")
