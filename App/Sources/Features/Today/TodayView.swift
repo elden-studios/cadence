@@ -224,9 +224,6 @@ private struct ResumePill: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.footnote)
-                    .foregroundStyle(.tertiary)
             }
             .padding(12)
             .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 12))
