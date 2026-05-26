@@ -27,15 +27,34 @@ public final class SubscriptionManager {
         case failed(String)
     }
 
-    public private(set) var loadState: LoadState = .idle
+    public private(set) var loadState: LoadState = .idle {
+        didSet { _onLoadStateChange?(loadState) }
+    }
 
     public private(set) var monthly: Product?
     public private(set) var yearly: Product?
     public private(set) var isPro: Bool = false
-    public private(set) var isLoadingProducts: Bool = false
-    public private(set) var lastError: String?
 
     private var transactionListener: Task<Void, Never>?
+
+    // MARK: - Testability hooks
+
+    /// Injected product fetcher; defaults to the real StoreKit call.
+    /// Override in tests to control what products are returned (or to throw).
+    /// Marked `internal` — not part of the public API.
+    var _fetchProducts: @Sendable ([String]) async throws -> [Product] = { ids in
+        try await Product.products(for: ids)
+    }
+
+    /// Timeout duration for `withTimeout`. Expose as `internal` so tests can
+    /// reduce it (e.g. 0.5 s) to avoid multi-second waits.
+    var _timeoutSeconds: TimeInterval = 5
+
+    /// Called (on the main actor) every time `loadState` changes. Useful in
+    /// tests that need to observe intermediate states (e.g. assert the manager
+    /// passes through `.loading`). Leave `nil` in production — it is never set
+    /// by production code. Marked `internal`.
+    @MainActor var _onLoadStateChange: (@MainActor (LoadState) -> Void)?
 
     private init() {}
 
@@ -66,6 +85,10 @@ public final class SubscriptionManager {
     /// it, so use sparingly. The `--pretend-pro` flag handles 99% of dev needs.
     public func _forceIsProForTesting(_ value: Bool) { isPro = value }
 
+    /// Reset `loadState` to a known value. Call in test `defer` blocks to avoid
+    /// state leakage between tests. Marked `internal`.
+    func _resetLoadStateForTesting(_ state: LoadState = .idle) { loadState = state }
+
     // MARK: - Products
 
     /// Public alias so views can call `await manager.reloadProducts()` on retry.
@@ -75,43 +98,48 @@ public final class SubscriptionManager {
 
     public func refreshProducts() async {
         loadState = .loading
-        isLoadingProducts = true
-        defer { isLoadingProducts = false }
         do {
-            let products = try await withTimeout(seconds: 5) {
-                try await Product.products(for: [
+            let fetcher = _fetchProducts
+            let timeout = _timeoutSeconds
+            let products = try await withTimeout(seconds: timeout) {
+                try await fetcher([
                     Self.monthlyProductID,
                     Self.yearlyProductID,
                 ])
             }
             if products.isEmpty {
                 loadState = .failed("Pricing unavailable. Pull to retry.")
-                lastError = "Pricing unavailable. Pull to retry."
                 return
             }
             monthly = products.first { $0.id == Self.monthlyProductID }
             yearly  = products.first { $0.id == Self.yearlyProductID  }
-            lastError = nil
             loadState = .ready
         } catch {
-            let message = "Couldn't load products: \(error.localizedDescription)"
-            lastError = message
-            loadState = .failed(message)
+            loadState = .failed("Couldn't load products: \(error.localizedDescription)")
         }
     }
 
+    /// Race the operation against a sleep task. First to finish wins.
+    ///
+    /// Note: StoreKit 2's `Product.products(for:)` does NOT reliably honour Task
+    /// cancellation — when the timeout fires, the operation task may continue
+    /// executing on Apple's StoreKit queue until it completes naturally. This is
+    /// an accepted StoreKit limitation; cancellation here is best-effort for
+    /// resource cleanup, not a hard guarantee.
     private func withTimeout<T: Sendable>(
         seconds: TimeInterval,
         operation: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         try await withThrowingTaskGroup(of: T.self) { group in
+            defer { group.cancelAll() }   // runs on every exit (success, throw, cancel)
             group.addTask { try await operation() }
             group.addTask {
                 try await Task.sleep(for: .seconds(seconds))
                 throw CancellationError()
             }
-            let result = try await group.next()!
-            group.cancelAll()
+            guard let result = try await group.next() else {
+                throw CancellationError()
+            }
             return result
         }
     }
@@ -158,7 +186,9 @@ public final class SubscriptionManager {
             await refreshEntitlements()
             return isPro
         } catch {
-            lastError = error.localizedDescription
+            // TODO: Propagate restore errors when the restore flow is redesigned
+            // (tracked: clean up in a dedicated restore-flow refactor). For now we
+            // swallow the error here — the caller gets `false` as the signal.
             return false
         }
     }
@@ -195,33 +225,4 @@ public final class SubscriptionManager {
         }
     }
 
-    // MARK: - Convenience
-
-    /// True when the Yearly product offers a free trial (e.g. our 7-day intro).
-    public var yearlyHasFreeTrial: Bool {
-        guard let yearly else { return false }
-        if let offer = yearly.subscription?.introductoryOffer,
-           offer.paymentMode == .freeTrial {
-            return true
-        }
-        return false
-    }
-
-    public var yearlyTrialPeriodLabel: String? {
-        guard let yearly,
-              let offer = yearly.subscription?.introductoryOffer,
-              offer.paymentMode == .freeTrial else { return nil }
-        let unit = offer.period.unit
-        let count = offer.period.value
-        let unitLabel: String = {
-            switch unit {
-            case .day: return count == 1 ? "day" : "days"
-            case .week: return count == 1 ? "week" : "weeks"
-            case .month: return count == 1 ? "month" : "months"
-            case .year: return count == 1 ? "year" : "years"
-            @unknown default: return ""
-            }
-        }()
-        return "\(count)-\(unitLabel) free trial"
-    }
 }

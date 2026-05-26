@@ -154,13 +154,6 @@ struct PaywallView: View {
                     HStack(spacing: 6) {
                         Text(plan == .yearly ? "Yearly" : "Monthly")
                             .font(.headline)
-                        if plan == .yearly, let label = manager.yearlyTrialPeriodLabel {
-                            Text(label.uppercased())
-                                .font(.caption2.weight(.bold))
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Color.green.opacity(0.18), in: .capsule)
-                                .foregroundStyle(.green)
-                        }
                         if plan == .yearly {
                             Text("BEST VALUE")
                                 .font(.caption2.weight(.bold))
@@ -230,10 +223,7 @@ struct PaywallView: View {
     }
 
     private var purchaseButtonTitle: String {
-        if selection == .yearly, manager.yearlyHasFreeTrial {
-            return "Start free trial"
-        }
-        return "Subscribe"
+        "Subscribe"
     }
 
     private var secondaryActions: some View {
