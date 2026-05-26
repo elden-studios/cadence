@@ -74,4 +74,12 @@ public final class BusinessProfile {
     private static func format(prefix: String, number: Int) -> String {
         prefix + String(format: "%04d", number)
     }
+
+    /// Returns `true` when the profile is safe to use as an invoice issuer.
+    /// A missing or blank business name would produce "Unnamed business" on
+    /// the rendered PDF, so we gate Send until the user fills it in.
+    public static func canSendInvoice(profile: BusinessProfile?) -> Bool {
+        guard let profile else { return false }
+        return !profile.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 }

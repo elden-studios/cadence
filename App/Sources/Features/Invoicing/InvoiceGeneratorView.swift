@@ -37,6 +37,12 @@ struct InvoiceGeneratorView: View {
 
     private var profile: BusinessProfile? { profiles.first }
 
+    /// Whether Send / Preview is allowed. Delegates to the BillableCore helper so
+    /// the logic is unit-testable without importing UIKit or SwiftUI.
+    static func canSendInvoice(profile: BusinessProfile?) -> Bool {
+        BusinessProfile.canSendInvoice(profile: profile)
+    }
+
     private var resolvedRange: InvoiceDateRange {
         if preset == .custom {
             return InvoiceDateRange(start: Calendar.current.startOfDay(for: customStart),
@@ -56,6 +62,7 @@ struct InvoiceGeneratorView: View {
 
     private var canPreview: Bool {
         selectedClient != nil && profile != nil && !lineItems.isEmpty
+            && Self.canSendInvoice(profile: profile)
     }
 
     private var saveDisabled: Bool {
@@ -152,10 +159,21 @@ struct InvoiceGeneratorView: View {
                     Text("Recurring")
                 }
 
-                if profile == nil {
+                if !Self.canSendInvoice(profile: profile) {
                     Section {
-                        Label("Set up your business profile first.", systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
+                        if profile == nil {
+                            Label("Set up your business profile first.", systemImage: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
+                        } else {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                                Text("Set your business name in Settings to send invoices.")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
                     }
                 }
             }

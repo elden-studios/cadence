@@ -21,6 +21,25 @@ struct TodayView: View {
                     CatchUpBanner()
                         .padding(.horizontal)
                         .padding(.top, 4)
+                    if showEmptyBusinessBanner {
+                        NavigationLink(destination: BusinessProfileEditorView()) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                                Text("Add your business name to send invoices")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(12)
+                            .background(.orange.opacity(0.12), in: .rect(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal)
+                    }
                     TodayActiveTimerSection(
                         onStop: stopRunning,
                         onSwitch: { showingSwitchSheet = true }
@@ -93,6 +112,11 @@ struct TodayView: View {
 
     private var currencyCode: String {
         profiles.first?.currencyCode ?? "USD"
+    }
+
+    private var showEmptyBusinessBanner: Bool {
+        let trimmed = (profiles.first?.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty
     }
 
     @ViewBuilder
