@@ -233,9 +233,9 @@ struct PaywallView: View {
             }
             .font(.subheadline)
             Spacer()
-            Link("Terms", destination: URL(string: "https://example.com/terms")!)
+            Link("Terms", destination: URL(string: "https://elden-studios.github.io/cadence/legal/terms")!)
                 .font(.subheadline)
-            Link("Privacy", destination: URL(string: "https://example.com/privacy")!)
+            Link("Privacy", destination: URL(string: "https://elden-studios.github.io/cadence/legal/privacy")!)
                 .font(.subheadline)
         }
         .foregroundStyle(.secondary)
