@@ -40,6 +40,7 @@
 		AC9498FDD4C99CCA94517C37 /* IntentRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2886369E15E77C0BF85347CE /* IntentRegistration.swift */; };
 		B1FD44CA0631170789683FB8 /* BillableWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3C50D41C7D1E70A67970DA90 /* BillableWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		BF665524A4D7640150D356DC /* BillableCore in Frameworks */ = {isa = PBXBuildFile; productRef = 395F2979670525E0A6D0127A /* BillableCore */; };
+		C0FFEE0100000000000000A1 /* MailComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE0100000000000000A2 /* MailComposerView.swift */; };
 		C2262AA7F35DC1505C63AC40 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD383FD631A4DEA4B774CA4C /* DiagnosticsView.swift */; };
 		CB24424A092E9FB3F14CCB6E /* ClientDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70D5726F1FA7DA14C4B5B011 /* ClientDetailView.swift */; };
 		CD8FFD9FDBE064528DE473F3 /* Billable.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 21732C0D814DAE2B28FA1B62 /* Billable.storekit */; };
@@ -125,6 +126,7 @@
 		BBADB4F0E80F455CCAE9BBEB /* CatchUpBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatchUpBanner.swift; sourceTree = "<group>"; };
 		BD383FD631A4DEA4B774CA4C /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		BD3AC7ABEFEA2F890535AE82 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		C0FFEE0100000000000000A2 /* MailComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailComposerView.swift; sourceTree = "<group>"; };
 		C1846D95B8BE348E4ACC1081 /* TodaySummaryWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodaySummaryWidget.swift; sourceTree = "<group>"; };
 		C4E91171FBD2C8986707A0D7 /* CurrentTimerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentTimerWidget.swift; sourceTree = "<group>"; };
 		CABC4787E325D1EE2FD16329 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -358,8 +360,17 @@
 				F910066D040878FE8AA41098 /* Features */,
 				0662F4701E06673016644274 /* Intents */,
 				89CC7F5CEA7630E592D7B62C /* LiveActivity */,
+				C0FFEE0100000000000000A3 /* Shared */,
 			);
 			path = Sources;
+			sourceTree = "<group>";
+		};
+		C0FFEE0100000000000000A3 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				C0FFEE0100000000000000A2 /* MailComposerView.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		C5719DF68801B2C2BB88D7E7 /* Resources */ = {
@@ -556,6 +567,7 @@
 				97FBEA7B10420B0ED0942886 /* InvoiceGeneratorView.swift in Sources */,
 				54B2A96BFF44D4D7560DFFCE /* InvoicePreviewView.swift in Sources */,
 				F66815EDDB470712A3D8EA6F /* InvoicesView.swift in Sources */,
+				C0FFEE0100000000000000A1 /* MailComposerView.swift in Sources */,
 				F205361A2A1AF33476C14C76 /* ManualEntrySheet.swift in Sources */,
 				E002CC9D3FAFAAFFB473954B /* OnboardingView.swift in Sources */,
 				49D52608F66166AA6374F027 /* PaymentRemindersView.swift in Sources */,
