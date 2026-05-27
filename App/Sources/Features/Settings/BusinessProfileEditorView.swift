@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 import BillableCore
 
 /// Form-based editor for the user's BusinessProfile (singleton).
@@ -24,11 +25,17 @@ struct BusinessProfileEditorView: View {
     @State private var taxLabel: String = "Tax"
     @State private var taxRatePercent: Double = 0   // displayed as a percentage; converted to Decimal 0..1 on save
 
+    @State private var taxIDLabel: String = ""
+    @State private var taxIDNumber: String = ""
+
     @State private var bankBeneficiaryName: String = ""
     @State private var bankName: String = ""
     @State private var bankLocation: String = ""
     @State private var bankIBAN: String = ""
     @State private var bankSWIFT: String = ""
+
+    @State private var logoData: Data?
+    @State private var logoPickerItem: PhotosPickerItem?
 
     @State private var hasLoaded = false
 
@@ -63,7 +70,7 @@ struct BusinessProfileEditorView: View {
                 }
             }
 
-            Section("Tax") {
+            Section {
                 TextField("Tax label (Tax, VAT, GST, …)", text: $taxLabel)
                 HStack {
                     Text("Rate")
@@ -75,6 +82,53 @@ struct BusinessProfileEditorView: View {
                     Text("%")
                         .foregroundStyle(.secondary)
                 }
+                TextField("Tax ID label (VAT, CR, EIN, …)", text: $taxIDLabel)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.characters)
+                TextField("Tax ID / VAT number", text: $taxIDNumber)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.characters)
+            } header: {
+                Text("Tax")
+            } footer: {
+                Text("Tax label appears next to the rate on invoice totals. Tax ID label appears with your registration number in the issuer header — leave both blank to hide.")
+            }
+
+            Section {
+                if let data = logoData, let image = uiImageFromData(data) {
+                    HStack {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 80, height: 80)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary, lineWidth: 1))
+                        Spacer()
+                        Button(role: .destructive) {
+                            logoData = nil
+                            // Reset picker selection too, so re-picking the same
+                            // photo still fires .onChange and re-runs processing.
+                            logoPickerItem = nil
+                        } label: {
+                            Text("Remove")
+                        }
+                    }
+                }
+                let pickerTitle = logoData == nil ? "Upload logo" : "Change logo"
+                PhotosPicker(
+                    selection: $logoPickerItem,
+                    matching: .images,
+                    photoLibrary: .shared()
+                ) {
+                    Label(pickerTitle, systemImage: "photo.on.rectangle.angled")
+                }
+                .onChange(of: logoPickerItem) { _, newItem in
+                    Task { await loadAndProcessLogo(from: newItem) }
+                }
+            } header: {
+                Text("Logo")
+            } footer: {
+                Text("Shown in the top-left of every invoice PDF. Square logos work best.")
             }
 
             Section {
@@ -122,11 +176,14 @@ struct BusinessProfileEditorView: View {
         nextInvoiceNumber = profile.nextInvoiceNumber
         taxLabel = profile.taxLabel
         taxRatePercent = (profile.taxRate as NSDecimalNumber).doubleValue * 100
+        taxIDLabel = profile.taxIDLabel
+        taxIDNumber = profile.taxIDNumber
         bankBeneficiaryName = profile.bankBeneficiaryName
         bankName = profile.bankName
         bankLocation = profile.bankLocation
         bankIBAN = profile.bankIBAN
         bankSWIFT = profile.bankSWIFT
+        logoData = profile.logoData
     }
 
     private func save() {
@@ -141,14 +198,35 @@ struct BusinessProfileEditorView: View {
         profile.nextInvoiceNumber = nextInvoiceNumber
         profile.taxLabel = taxLabel
         profile.taxRate = Decimal(taxRatePercent / 100)
+        profile.taxIDLabel = taxIDLabel
+        profile.taxIDNumber = taxIDNumber
         profile.bankBeneficiaryName = bankBeneficiaryName
         profile.bankName = bankName
         profile.bankLocation = bankLocation
         profile.bankIBAN = bankIBAN
         profile.bankSWIFT = bankSWIFT
+        profile.logoData = logoData
         profile.updatedAt = .now
         modelContext.saveOrLog("save business profile")
         dismiss()
+    }
+
+    private func loadAndProcessLogo(from item: PhotosPickerItem?) async {
+        guard let item else { return }
+        guard let rawData = try? await item.loadTransferable(type: Data.self) else { return }
+        // Process off the main actor to avoid blocking the UI on a large source image.
+        let processed = await Task.detached(priority: .userInitiated) {
+            LogoImageProcessor.process(rawData)
+        }.value
+        guard let processed else { return }
+        await MainActor.run { logoData = processed }
+    }
+
+    private func uiImageFromData(_ data: Data) -> UIImage? {
+        // UIImage is only used here on the main actor for the editor's read-only
+        // display. The off-main encoding path uses pure CoreGraphics via
+        // LogoImageProcessor.
+        UIImage(data: data)
     }
 
     private func newProfile() -> BusinessProfile {

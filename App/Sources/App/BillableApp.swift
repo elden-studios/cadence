@@ -30,6 +30,16 @@ struct BillableApp: App {
             } else if CommandLine.arguments.contains("--seed-marketing") {
                 // --seed-marketing: curated USD demo data for App Store screenshots.
                 // App Group container (no CloudKit) — never touches user iCloud.
+                //
+                // UI-test support: `--reset-store` wipes the App Group store
+                // files before construction so the seeder (gated on
+                // clientCount == 0) actually runs on every launch. Without
+                // this, simulators retain prior seed state across runs and
+                // tests see stale data. The deletion is scoped to the
+                // Billable.store + Billable-local.store files in the group.
+                if CommandLine.arguments.contains("--reset-store") {
+                    Self.resetAppGroupStore("group.com.eldenstudios.billable")
+                }
                 let appGroup = try BillableModelContainer.appGroup("group.com.eldenstudios.billable")
                 Self.runOnMainActor {
                     var clientCheck = FetchDescriptor<Client>()
@@ -114,6 +124,29 @@ struct BillableApp: App {
             DispatchQueue.main.sync {
                 MainActor.assumeIsolated { work() }
             }
+        }
+    }
+
+    /// Delete the App Group SwiftData store files so the next container init
+    /// starts from an empty schema. UI-test support only — gated on the
+    /// `--reset-store` launch flag in init().
+    private static func resetAppGroupStore(_ groupID: String) {
+        guard let groupURL = FileManager.default
+                .containerURL(forSecurityApplicationGroupIdentifier: groupID) else {
+            return
+        }
+        // SwiftData writes each .store as a directory of files (.sqlite,
+        // .sqlite-wal, .sqlite-shm). Walk the group and remove anything
+        // whose name matches one of our stores.
+        let storeBases = ["Billable.store", "Billable-local.store"]
+        let fm = FileManager.default
+        do {
+            let contents = try fm.contentsOfDirectory(atPath: groupURL.path)
+            for name in contents where storeBases.contains(where: { name.hasPrefix($0) }) {
+                try? fm.removeItem(at: groupURL.appendingPathComponent(name))
+            }
+        } catch {
+            // Non-fatal: the next launch will simply read whatever's there.
         }
     }
 }

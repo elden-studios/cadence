@@ -29,7 +29,9 @@ public enum MarketingData {
             bankName: "Chase Bank",
             bankLocation: "New York, USA",
             bankIBAN: "US33 2100 0000 1000 2003 4567",
-            bankSWIFT: "CHASUS33"
+            bankSWIFT: "CHASUS33",
+            taxIDLabel: "EIN",
+            taxIDNumber: "12-3456789"
         )
         context.insert(profile)
 
@@ -129,6 +131,8 @@ public enum MarketingData {
             issuerBankLocationSnapshot: "New York, USA",
             issuerBankIBANSnapshot: "US33 2100 0000 1000 2003 4567",
             issuerBankSWIFTSnapshot: "CHASUS33",
+            issuerTaxIDLabelSnapshot: "EIN",
+            issuerTaxIDNumberSnapshot: "12-3456789",
             paymentTermsSnapshot: profile.paymentTerms,
             taxLabelSnapshot: profile.taxLabel,
             taxRateSnapshot: profile.taxRate,
@@ -168,6 +172,8 @@ public enum MarketingData {
             issuerBankLocationSnapshot: "New York, USA",
             issuerBankIBANSnapshot: "US33 2100 0000 1000 2003 4567",
             issuerBankSWIFTSnapshot: "CHASUS33",
+            issuerTaxIDLabelSnapshot: "EIN",
+            issuerTaxIDNumberSnapshot: "12-3456789",
             paymentTermsSnapshot: profile.paymentTerms,
             taxLabelSnapshot: profile.taxLabel,
             taxRateSnapshot: profile.taxRate,

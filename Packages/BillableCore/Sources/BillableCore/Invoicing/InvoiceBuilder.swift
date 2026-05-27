@@ -141,6 +141,8 @@ public enum InvoiceBuilder {
             issuerBankLocationSnapshot: profile.bankLocation,
             issuerBankIBANSnapshot: profile.bankIBAN,
             issuerBankSWIFTSnapshot: profile.bankSWIFT,
+            issuerTaxIDLabelSnapshot: profile.taxIDLabel,
+            issuerTaxIDNumberSnapshot: profile.taxIDNumber,
             paymentTermsSnapshot: profile.paymentTerms,
             taxLabelSnapshot: profile.taxLabel,
             taxRateSnapshot: profile.taxRate,

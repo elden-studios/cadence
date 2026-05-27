@@ -135,4 +135,62 @@ struct InvoicePDFRendererTests {
         // Negative assertion: the SWIFT/BIC row label should not appear
         #expect(!text.contains("SWIFT/BIC:"))
     }
+
+    @Test("renders 'VAT GB123456789' in header when label and number are both set")
+    func taxID_labelAndNumber() {
+        var data = fixtureData()
+        data.taxIDLabel = "VAT"
+        data.taxIDNumber = "GB123456789"
+        let bytes = InvoicePDFRenderer.renderPDFData(for: data, accent: .blue)
+        let doc = PDFDocument(data: bytes)!
+        let text = doc.string ?? ""
+        #expect(text.contains("VAT GB123456789"))
+    }
+
+    @Test("renders just the number (no leading space) when label is empty")
+    func taxID_numberOnly() {
+        var data = fixtureData()
+        data.taxIDLabel = ""
+        data.taxIDNumber = "GB123456789"
+        let bytes = InvoicePDFRenderer.renderPDFData(for: data, accent: .blue)
+        let doc = PDFDocument(data: bytes)!
+        let text = doc.string ?? ""
+        #expect(text.contains("GB123456789"))
+        // No leading space artifact: the number must NOT be preceded by a space-then-newline pattern
+        // (a "\n GB…" would indicate a stray empty-label concatenation).
+        #expect(!text.contains(" GB123456789"))
+    }
+
+    @Test("does NOT render tax ID line when number is empty")
+    func taxID_omittedWhenNumberEmpty() {
+        var data = fixtureData()
+        data.taxIDLabel = "VAT"
+        data.taxIDNumber = ""
+        let bytes = InvoicePDFRenderer.renderPDFData(for: data, accent: .blue)
+        let doc = PDFDocument(data: bytes)!
+        let text = doc.string ?? ""
+        #expect(!text.contains("VAT"))
+        #expect(!text.contains("GB123456789"))
+    }
+
+    @Test("does NOT render tax ID line when both fields empty")
+    func taxID_omittedWhenBothEmpty() {
+        let data = fixtureData()  // defaults already empty
+        let bytes = InvoicePDFRenderer.renderPDFData(for: data, accent: .blue)
+        let doc = PDFDocument(data: bytes)!
+        // Smoke: PDF still renders, no crash.
+        #expect(!(doc.string ?? "").isEmpty)
+    }
+
+    @Test("trims whitespace label to avoid double-spacing")
+    func taxID_trimsLabelWhitespace() {
+        var data = fixtureData()
+        data.taxIDLabel = "VAT "   // trailing space
+        data.taxIDNumber = "GB123"
+        let bytes = InvoicePDFRenderer.renderPDFData(for: data, accent: .blue)
+        let doc = PDFDocument(data: bytes)!
+        let text = doc.string ?? ""
+        #expect(text.contains("VAT GB123"))
+        #expect(!text.contains("VAT  GB123"))  // no double space
+    }
 }

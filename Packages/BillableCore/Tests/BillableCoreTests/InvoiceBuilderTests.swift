@@ -175,3 +175,86 @@ struct FinalizeAndSendTests {
         #expect(e.invoiceID == invoice.uuid)
     }
 }
+
+@Suite("InvoiceBuilder tax ID propagation")
+@MainActor
+struct InvoiceBuilderTaxIDTests {
+
+    @Test("createDraft snapshots profile.taxIDLabel and taxIDNumber onto the Invoice")
+    func taxIDSnapshot() throws {
+        let container = try ModelContainer(
+            for: BusinessProfile.self, Client.self, Project.self,
+                 TimeEntry.self, Invoice.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = container.mainContext
+        let profile = BusinessProfile(
+            name: "Studio",
+            email: "hi@studio.example",
+            taxIDLabel: "VAT",
+            taxIDNumber: "GB123456789"
+        )
+        context.insert(profile)
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+
+        let lineItems = [InvoiceLineItem(description: "Work", hours: 1, hourlyRate: 100)]
+        let invoice = try InvoiceBuilder.createDraft(
+            for: client,
+            lineItems: lineItems,
+            profile: profile,
+            context: context
+        )
+
+        #expect(invoice.issuerTaxIDLabelSnapshot == "VAT")
+        #expect(invoice.issuerTaxIDNumberSnapshot == "GB123456789")
+    }
+
+    @Test("createDraft snapshots empty tax ID when profile has empty fields")
+    func emptyTaxIDSnapshot() throws {
+        let container = try ModelContainer(
+            for: BusinessProfile.self, Client.self, Project.self,
+                 TimeEntry.self, Invoice.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = container.mainContext
+        let profile = BusinessProfile(name: "Studio", email: "hi@studio.example")
+        context.insert(profile)
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+
+        let invoice = try InvoiceBuilder.createDraft(
+            for: client,
+            lineItems: [InvoiceLineItem(description: "Work", hours: 1, hourlyRate: 100)],
+            profile: profile,
+            context: context
+        )
+
+        #expect(invoice.issuerTaxIDLabelSnapshot == "")
+        #expect(invoice.issuerTaxIDNumberSnapshot == "")
+    }
+
+    @Test("createDraft continues to snapshot profile.logoData (A1 regression guard)")
+    func logoSnapshotRegression() throws {
+        let container = try ModelContainer(
+            for: BusinessProfile.self, Client.self, Project.self,
+                 TimeEntry.self, Invoice.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = container.mainContext
+        let logoBytes = Data([0xFF, 0xD8, 0xFF, 0xE0])  // arbitrary non-empty
+        let profile = BusinessProfile(name: "Studio", email: "hi@studio.example", logoData: logoBytes)
+        context.insert(profile)
+        let client = Client(name: "Acme", color: .blue)
+        context.insert(client)
+
+        let invoice = try InvoiceBuilder.createDraft(
+            for: client,
+            lineItems: [InvoiceLineItem(description: "Work", hours: 1, hourlyRate: 100)],
+            profile: profile,
+            context: context
+        )
+
+        #expect(invoice.issuerLogoSnapshot == logoBytes)
+    }
+}

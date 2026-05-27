@@ -70,6 +70,11 @@ public struct InvoiceTemplate: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
+                if data.hasTaxID {
+                    Text(taxIDDisplay)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
@@ -268,6 +273,15 @@ public struct InvoiceTemplate: View {
             .tracking(1)
     }
 
+    /// "VAT GB123456789" if label+number; "GB123456789" if only number.
+    /// Trims leading/trailing whitespace on the label to avoid double spaces.
+    private var taxIDDisplay: String {
+        let trimmedLabel = data.taxIDLabel.trimmingCharacters(in: .whitespaces)
+        return trimmedLabel.isEmpty
+            ? data.taxIDNumber
+            : "\(trimmedLabel) \(data.taxIDNumber)"
+    }
+
     private func formatMoney(_ value: Decimal) -> String {
         value.formatted(.currency(code: data.currencyCode))
     }
@@ -343,6 +357,13 @@ public struct InvoiceTemplateData: Sendable {
             || !bankName.isEmpty
             || !bankIBAN.isEmpty
             || !bankSWIFT.isEmpty
+    }
+
+    public var taxIDLabel: String = ""
+    public var taxIDNumber: String = ""
+
+    public var hasTaxID: Bool {
+        !taxIDNumber.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     public var watermark: String?  // nil for Pro/trial, "Sent with Cadence" for free
@@ -425,6 +446,8 @@ public extension InvoiceTemplateData {
         data.bankLocation = invoice.issuerBankLocationSnapshot
         data.bankIBAN = invoice.issuerBankIBANSnapshot
         data.bankSWIFT = invoice.issuerBankSWIFTSnapshot
+        data.taxIDLabel = invoice.issuerTaxIDLabelSnapshot
+        data.taxIDNumber = invoice.issuerTaxIDNumberSnapshot
         return data
     }
 }

@@ -15,6 +15,7 @@
 		144AE35D12448F09749125F9 /* LaunchTaglineUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99E489F7B0F9B68D418ED560 /* LaunchTaglineUITests.swift */; };
 		17683A63578279729D6FFD5D /* TimeBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB4F85B38816D91407DAFA7 /* TimeBlockView.swift */; };
 		19A13F112D8EAFFECDE19C17 /* SettingsAboutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B9A55293CE419E21F6C2DE /* SettingsAboutUITests.swift */; };
+		B11A5E7E08C04D11A7E5C4E1 /* InvoicePreviewLineItemEditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11A5E7E08C04D11A7E5C4E2 /* InvoicePreviewLineItemEditUITests.swift */; };
 		215B980EDB0C94CB3C43BDDE /* BillableCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3267A35D1AD7CEA36846D498 /* BillableCore */; };
 		220427E9DC4EDF77A52184D4 /* NotificationTapFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 591084DA183D854DBB380551 /* NotificationTapFlowUITests.swift */; };
 		2692C3C033FE9ED0FC9435B6 /* CurrencyPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72980328448F3925BF44ACB /* CurrencyPickerView.swift */; };
@@ -118,6 +119,7 @@
 		9F7C1CF69F915CC96EFAA000 /* InvoicesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoicesView.swift; sourceTree = "<group>"; };
 		A2CB4838C74C817A55DDA825 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A9B9A55293CE419E21F6C2DE /* SettingsAboutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutUITests.swift; sourceTree = "<group>"; };
+		B11A5E7E08C04D11A7E5C4E2 /* InvoicePreviewLineItemEditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoicePreviewLineItemEditUITests.swift; sourceTree = "<group>"; };
 		AE12ED25B0CCD0F3FC46F7FD /* PendingMaterializationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMaterializationsView.swift; sourceTree = "<group>"; };
 		AEEC7C6934436D870B713A6B /* ReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsView.swift; sourceTree = "<group>"; };
 		BBADB4F0E80F455CCAE9BBEB /* CatchUpBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatchUpBanner.swift; sourceTree = "<group>"; };
@@ -256,6 +258,7 @@
 				99E489F7B0F9B68D418ED560 /* LaunchTaglineUITests.swift */,
 				591084DA183D854DBB380551 /* NotificationTapFlowUITests.swift */,
 				A9B9A55293CE419E21F6C2DE /* SettingsAboutUITests.swift */,
+				B11A5E7E08C04D11A7E5C4E2 /* InvoicePreviewLineItemEditUITests.swift */,
 			);
 			path = BillableUITests;
 			sourceTree = "<group>";
@@ -591,6 +594,7 @@
 				144AE35D12448F09749125F9 /* LaunchTaglineUITests.swift in Sources */,
 				220427E9DC4EDF77A52184D4 /* NotificationTapFlowUITests.swift in Sources */,
 				19A13F112D8EAFFECDE19C17 /* SettingsAboutUITests.swift in Sources */,
+				B11A5E7E08C04D11A7E5C4E1 /* InvoicePreviewLineItemEditUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
