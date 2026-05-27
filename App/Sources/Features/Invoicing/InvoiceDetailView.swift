@@ -345,9 +345,18 @@ struct InvoiceDetailView: View {
     }
 
     private func ensurePDFData() -> Data {
-        if let cached = invoice.pdfDataCached { return cached }
+        // Mirror ensurePDFOnDisk()'s watermark + staleness logic — otherwise a
+        // free-tier user who triggers the email path before any cache exists
+        // would email a no-watermark PDF (paywall bypass).
+        let shouldHaveWatermark = !subscriptions.canRemoveWatermark
+        if let cached = invoice.pdfDataCached,
+           !Self.cacheIsStale(cached, shouldHaveWatermark: shouldHaveWatermark) {
+            return cached
+        }
+        var templateData = InvoiceTemplateData.from(invoice)
+        templateData.watermark = subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
         let data = InvoicePDFRenderer.renderPDFData(
-            for: InvoiceTemplateData.from(invoice),
+            for: templateData,
             accent: invoice.clientColor.swiftUIColor
         )
         invoice.pdfDataCached = data
