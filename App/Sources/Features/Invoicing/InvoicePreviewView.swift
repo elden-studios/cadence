@@ -283,6 +283,20 @@ struct InvoicePreviewView: View {
     // MARK: - Actions
 
     private func finalizeAndShare() {
+        // Drain any pending in-flight edits before snapshotting. Closes a race
+        // where a user taps Finalize within the 200ms debounce window — without
+        // this drain, the pre-edit description would be persisted instead of
+        // the user's last keystrokes.
+        if !pendingDescriptionEdits.isEmpty {
+            var updated = lineItems
+            for (id, text) in pendingDescriptionEdits {
+                if let i = updated.firstIndex(where: { $0.id == id }) {
+                    updated[i].description = text
+                }
+            }
+            lineItems = updated
+            pendingDescriptionEdits = [:]
+        }
         do {
             let draft = try InvoiceBuilder.createDraft(
                 for: client,
