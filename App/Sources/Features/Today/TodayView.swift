@@ -133,18 +133,6 @@ struct TodayView: View {
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
         .disabled(!hasAnyProject)
-
-        QuickStartRow { project in
-            do {
-                let entry = try TimerService.start(project: project, in: modelContext)
-                Task { await TimerActivityController.shared.startActivity(for: entry, currencyCode: currencyCode) }
-                if let entity = ProjectEntity(from: project) {
-                    Task { try? await StartTimerIntent(project: entity).donate() }
-                }
-            } catch {
-                // TODO(step5): surface error via toast
-            }
-        }
     }
 
     private var hasAnyProject: Bool {
@@ -310,68 +298,6 @@ private struct RunningTimerCard: View {
 
     private var amountString: String {
         entry.amount(asOf: asOf).formatted(.currency(code: currencyCode))
-    }
-}
-
-// MARK: - Quick-start row
-
-private struct QuickStartRow: View {
-    @Environment(\.modelContext) private var modelContext
-
-    let onTap: (Project) -> Void
-
-    private var recents: [Project] {
-        let cutoff = Date.now.addingTimeInterval(-30 * 24 * 3600)
-        let descriptor = FetchDescriptor<TimeEntry>(
-            predicate: #Predicate { $0.startedAt > cutoff },
-            sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
-        )
-        let entries = (try? modelContext.fetch(descriptor)) ?? []
-        var seen = Set<PersistentIdentifier>()
-        var ordered: [Project] = []
-        for entry in entries {
-            guard let project = entry.project, !project.isArchived else { continue }
-            if seen.insert(project.persistentModelID).inserted {
-                ordered.append(project)
-                if ordered.count == 3 { break }
-            }
-        }
-        return ordered
-    }
-
-    var body: some View {
-        if !recents.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("RECENT")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 10) {
-                    ForEach(recents) { project in
-                        Button {
-                            onTap(project)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Circle()
-                                    .fill(project.client?.color.swiftUIColor ?? .blue)
-                                    .frame(width: 10, height: 10)
-                                Text(project.name)
-                                    .font(.subheadline.weight(.semibold))
-                                    .lineLimit(1)
-                                    .foregroundStyle(.primary)
-                                Text(project.client?.name ?? "—")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(10)
-                            .background(.thinMaterial, in: .rect(cornerRadius: 12))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
     }
 }
 
