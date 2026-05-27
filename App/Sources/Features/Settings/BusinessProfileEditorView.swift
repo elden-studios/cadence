@@ -28,6 +28,9 @@ struct BusinessProfileEditorView: View {
     @State private var taxIDLabel: String = ""
     @State private var taxIDNumber: String = ""
 
+    @State private var invoiceEmailSubjectTemplate: String = ""
+    @State private var invoiceEmailBodyTemplate: String = ""
+
     @State private var bankBeneficiaryName: String = ""
     @State private var bankName: String = ""
     @State private var bankLocation: String = ""
@@ -92,6 +95,17 @@ struct BusinessProfileEditorView: View {
                 Text("Tax")
             } footer: {
                 Text("Tax label appears next to the rate on invoice totals. Tax ID label appears with your registration number in the issuer header — leave both blank to hide.")
+            }
+
+            Section {
+                TextField("Subject template", text: $invoiceEmailSubjectTemplate, axis: .vertical)
+                    .lineLimit(1...3)
+                TextField("Body template", text: $invoiceEmailBodyTemplate, axis: .vertical)
+                    .lineLimit(4...12)
+            } header: {
+                Text("Invoice email")
+            } footer: {
+                Text("Prefills your email when you tap 'Email invoice'. Merge fields: {clientName}, {clientFirstName}, {invoiceNumber}, {amount}, {dueDate}, {senderName}.")
             }
 
             Section {
@@ -178,6 +192,8 @@ struct BusinessProfileEditorView: View {
         taxRatePercent = (profile.taxRate as NSDecimalNumber).doubleValue * 100
         taxIDLabel = profile.taxIDLabel
         taxIDNumber = profile.taxIDNumber
+        invoiceEmailSubjectTemplate = profile.invoiceEmailSubjectTemplate
+        invoiceEmailBodyTemplate = profile.invoiceEmailBodyTemplate
         bankBeneficiaryName = profile.bankBeneficiaryName
         bankName = profile.bankName
         bankLocation = profile.bankLocation
@@ -200,6 +216,8 @@ struct BusinessProfileEditorView: View {
         profile.taxRate = Decimal(taxRatePercent / 100)
         profile.taxIDLabel = taxIDLabel
         profile.taxIDNumber = taxIDNumber
+        profile.invoiceEmailSubjectTemplate = invoiceEmailSubjectTemplate
+        profile.invoiceEmailBodyTemplate = invoiceEmailBodyTemplate
         profile.bankBeneficiaryName = bankBeneficiaryName
         profile.bankName = bankName
         profile.bankLocation = bankLocation
