@@ -25,6 +25,9 @@ struct BusinessProfileEditorView: View {
     @State private var taxLabel: String = "Tax"
     @State private var taxRatePercent: Double = 0   // displayed as a percentage; converted to Decimal 0..1 on save
 
+    @State private var taxIDLabel: String = ""
+    @State private var taxIDNumber: String = ""
+
     @State private var bankBeneficiaryName: String = ""
     @State private var bankName: String = ""
     @State private var bankLocation: String = ""
@@ -67,7 +70,7 @@ struct BusinessProfileEditorView: View {
                 }
             }
 
-            Section("Tax") {
+            Section {
                 TextField("Tax label (Tax, VAT, GST, …)", text: $taxLabel)
                 HStack {
                     Text("Rate")
@@ -79,6 +82,16 @@ struct BusinessProfileEditorView: View {
                     Text("%")
                         .foregroundStyle(.secondary)
                 }
+                TextField("Tax ID label (VAT, CR, EIN, …)", text: $taxIDLabel)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.characters)
+                TextField("Tax ID / VAT number", text: $taxIDNumber)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.characters)
+            } header: {
+                Text("Tax")
+            } footer: {
+                Text("Tax label appears next to the rate on invoice totals. Tax ID label appears with your registration number in the issuer header — leave both blank to hide.")
             }
 
             Section {
@@ -163,6 +176,8 @@ struct BusinessProfileEditorView: View {
         nextInvoiceNumber = profile.nextInvoiceNumber
         taxLabel = profile.taxLabel
         taxRatePercent = (profile.taxRate as NSDecimalNumber).doubleValue * 100
+        taxIDLabel = profile.taxIDLabel
+        taxIDNumber = profile.taxIDNumber
         bankBeneficiaryName = profile.bankBeneficiaryName
         bankName = profile.bankName
         bankLocation = profile.bankLocation
@@ -183,6 +198,8 @@ struct BusinessProfileEditorView: View {
         profile.nextInvoiceNumber = nextInvoiceNumber
         profile.taxLabel = taxLabel
         profile.taxRate = Decimal(taxRatePercent / 100)
+        profile.taxIDLabel = taxIDLabel
+        profile.taxIDNumber = taxIDNumber
         profile.bankBeneficiaryName = bankBeneficiaryName
         profile.bankName = bankName
         profile.bankLocation = bankLocation
