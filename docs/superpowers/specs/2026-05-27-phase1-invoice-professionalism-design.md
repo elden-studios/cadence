@@ -7,7 +7,7 @@
 **Parent backlog:** `2026-05-27-post-v1.3-backlog.md`
 **Parent phase plan:** `2026-05-27-post-v1.3-enhancement-phases.md`
 **Branch target:** `feature/v1.5-invoice-professionalism` off `main`
-**Confidence:** 95%+
+**Confidence:** 97%
 
 ## Context
 
@@ -203,6 +203,17 @@ Section {
 
 ### Image processing helper
 
+Add these imports to `BusinessProfileEditorView.swift` (alongside `SwiftUI`,
+`SwiftData`, `BillableCore` already there):
+
+```swift
+import PhotosUI            // PhotosPicker, PhotosPickerItem
+import ImageIO             // CGImageSource, CGImageDestination
+import UniformTypeIdentifiers  // UTType.png, UTType.jpeg
+```
+
+Then:
+
 ```swift
 private func loadAndProcessLogo(from item: PhotosPickerItem?) async {
     guard let item else { return }
@@ -217,7 +228,14 @@ private func loadAndProcessLogo(from item: PhotosPickerItem?) async {
 
 /// Resize `data` so its largest dimension ≤ 1024px and re-encode as PNG
 /// (if alpha present) or JPEG quality 0.85 (otherwise). Returns nil on failure.
-/// Uses CGImageSource thumbnail API to avoid decoding the full image into memory.
+///
+/// Pure CoreGraphics + ImageIO — no UIImage. This avoids any Swift 6 strict-
+/// concurrency questions about UIImage's Sendable conformance and lets the
+/// function run safely off the main actor via `Task.detached`.
+///
+/// `CGImageSourceCreateThumbnailAtIndex` is the memory-safe path: it decodes
+/// directly at thumbnail size rather than loading the full source image (a
+/// 50 MP photo is ~150 MB decoded; a 1024px thumbnail is ~4 MB).
 private nonisolated func processLogoData(_ data: Data) -> Data? {
     let maxDimension: CGFloat = 1024
 
@@ -227,26 +245,32 @@ private nonisolated func processLogoData(_ data: Data) -> Data? {
         kCGImageSourceCreateThumbnailFromImageAlways: true,
         kCGImageSourceCreateThumbnailWithTransform: true,
         kCGImageSourceThumbnailMaxPixelSize: maxDimension,
-        // Don't upscale tiny logos.
         kCGImageSourceShouldCache: false,
     ]
     guard let cgImage = CGImageSourceCreateThumbnailAtIndex(src, 0, thumbOptions as CFDictionary) else {
         return nil
     }
 
-    // Alpha-aware re-encode: PNG if alpha, JPEG otherwise.
+    // Alpha-aware encode: PNG if alpha present, JPEG otherwise.
     let alphaInfo = cgImage.alphaInfo
     let hasAlpha = alphaInfo != .none && alphaInfo != .noneSkipFirst && alphaInfo != .noneSkipLast
+    let utType: CFString = hasAlpha ? UTType.png.identifier as CFString : UTType.jpeg.identifier as CFString
 
-    let uiImage = UIImage(cgImage: cgImage)
-    if hasAlpha {
-        return uiImage.pngData()
-    } else {
-        return uiImage.jpegData(compressionQuality: 0.85)
+    let outData = NSMutableData()
+    guard let destination = CGImageDestinationCreateWithData(outData as CFMutableData, utType, 1, nil) else {
+        return nil
     }
+    let properties: [CFString: Any] = hasAlpha
+        ? [:]
+        : [kCGImageDestinationLossyCompressionQuality: 0.85]
+    CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
+    guard CGImageDestinationFinalize(destination) else { return nil }
+    return outData as Data
 }
 
 private func uiImageFromData(_ data: Data) -> UIImage? {
+    // UIImage is only used on the main actor for the editor preview display
+    // (read-only, no encoding). Sendable-safe.
     UIImage(data: data)
 }
 ```
@@ -554,21 +578,50 @@ private var lineItemsEditor: some View {
     }
 }
 
+@State private var pendingDescriptionEdits: [UUID: String] = [:]
+
 private func descriptionBinding(at index: Int) -> Binding<String> {
     Binding(
-        get: { lineItems[index].description },
+        get: {
+            // Show pending edit if present; otherwise the committed lineItems value.
+            pendingDescriptionEdits[lineItems[index].id] ?? lineItems[index].description
+        },
         set: { newValue in
-            lineItems[index].description = newValue
+            // Immediate: record the pending edit. Drives the TextField + validation.
+            pendingDescriptionEdits[lineItems[index].id] = newValue
         }
     )
 }
 
+// 200ms debounce: flushes pending edits into the lineItems @State so the PDF
+// preview only re-renders when the user pauses typing. Validation (red border,
+// disabled Finalize button) stays real-time because both read from
+// pendingDescriptionEdits ?? lineItems.
+.task(id: pendingDescriptionEdits) {
+    try? await Task.sleep(for: .milliseconds(200))
+    guard !pendingDescriptionEdits.isEmpty else { return }
+    var updated = lineItems
+    for (id, text) in pendingDescriptionEdits {
+        if let i = updated.firstIndex(where: { $0.id == id }) {
+            updated[i].description = text
+        }
+    }
+    lineItems = updated
+    pendingDescriptionEdits = [:]
+}
+
+// Validation reads from pendingDescriptionEdits ?? lineItems so the red border
+// and Finalize-button-disabled state respond in real time (no 200ms lag).
+private func currentDescription(at index: Int) -> String {
+    pendingDescriptionEdits[lineItems[index].id] ?? lineItems[index].description
+}
+
 private func isDescriptionEmpty(at index: Int) -> Bool {
-    lineItems[index].description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    currentDescription(at: index).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 }
 
 private var hasInvalidDescriptions: Bool {
-    lineItems.contains { $0.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    lineItems.indices.contains { isDescriptionEmpty(at: $0) }
 }
 
 private func formatHours(_ value: Decimal) -> String {
@@ -614,14 +667,26 @@ obvious without inline error text.
 - `InvoiceTemplate` re-renders with the new description
 - User sees the update within one frame (~16ms)
 
-No cache to invalidate; no debounce needed for typical invoices (1-10 line
-items, where most freelance work lands).
+No cache to invalidate.
 
-**Perf fallback if 30+ line items prove laggy in real-device testing:**
-add a 200ms `.task(id:)` debounce in `descriptionBinding(at:)`, so the
-template re-renders only when the user pauses typing. ~5 lines of code.
-The validation state (red border, disabled Finalize button) remains
-real-time regardless — only the PDF re-render is debounced.
+**Re-render is debounced by design** (not a fallback). A 200ms
+`.task(id: pendingDescriptionEdits)` flushes pending text into the
+`lineItems` `@State` only when the user pauses typing. This:
+
+- Eliminates the unknown of "how does the SwiftUI template re-render at 30+
+  line items on every keystroke?" — irrelevant because we don't re-render
+  on every keystroke.
+- Keeps validation real-time. `isDescriptionEmpty(at:)` and
+  `hasInvalidDescriptions` read from `pendingDescriptionEdits ?? lineItems`,
+  so the red border and disabled Finalize button respond immediately on
+  keystroke, regardless of the debounce.
+- 200ms is the standard search-box debounce duration users universally
+  accept as "instant." The PDF preview catches up imperceptibly after the
+  user pauses.
+
+The pattern is implemented via a `[UUID: String]` pending-edits dictionary
+keyed by line-item id; see `descriptionBinding(at:)` and the trailing
+`.task(id:)` modifier above.
 
 `pdfDataCached` on the persisted `Invoice` is only populated *after*
 finalization (existing line 207 in `finalizeAndShare`). Drafts don't have a
@@ -775,29 +840,29 @@ A Phase 1 implementation is complete when:
 - **PDF layout risk:** Adding a tax ID row to the issuer header block extends
   the left column by ~14pt (one row, 11pt font, ~3pt leading). Total header
   is still well within the page bounds. No reflow expected.
-- **A8 perf risk (unmeasured, mitigable):** Live SwiftUI re-render on every
-  keystroke is expected to be smooth at 1-10 line items (the common case),
-  but unmeasured at 30+. If real-device testing shows lag, add a 200ms
-  `.task(id:)` debounce on the description binding so the PDF re-renders
-  only when the user pauses. Validation (red border + disabled Finalize)
-  stays real-time. ~5 lines of code.
-- **A1 strict-concurrency risk:** `processLogoData` uses `UIImage(cgImage:)`
-  and `UIImage.pngData()` / `jpegData()`. These are nonisolated and `UIImage`
-  is `Sendable` in iOS 17+, but Swift 6 strict concurrency may still warn.
-  Fallback: replace UIImage encoding with pure CoreGraphics via
-  `CGImageDestinationCreateWithData` + `CGImageDestinationAddImage` +
-  `CGImageDestinationFinalize`. Adds ~10 lines, fully Sendable-safe.
+- **A8 perf risk:** **Resolved by design.** The 200ms `.task(id:)` debounce
+  on `pendingDescriptionEdits` is part of the architecture, not a fallback.
+  The PDF preview re-renders only when the user pauses typing, at any
+  invoice size. Validation stays real-time via the
+  `pendingDescriptionEdits ?? lineItems` lookup in `currentDescription(at:)`.
+- **A1 strict-concurrency risk:** **Resolved by design.** `processLogoData`
+  is pure CoreGraphics + ImageIO (`CGImageSource` →
+  `CGImageDestinationCreateWithData` → `CGImageDestinationAddImage` →
+  `CGImageDestinationFinalize`) — no UIImage in the off-main encoding path.
+  UIImage is only used main-actor-side for the editor preview's read-only
+  display. Safe under Swift 6 strict concurrency.
 - **A1 image-processing crash risk:** Low. `CGImageSource` with
-  thumbnail-max-pixel-size is the memory-safe path and is the recommended
-  Apple pattern for large source images. `Task.detached` offload keeps the
-  main thread responsive.
+  thumbnail-max-pixel-size is Apple's recommended pattern for large source
+  images (a 50 MP photo is decoded at thumbnail size, ~4 MB, not at full
+  size, ~150 MB). `Task.detached` keeps the main thread responsive.
 - **A2 editor naming UX risk:** "Tax label" (for the totals row) and
   "Tax ID label" (for the issuer header) coexist in the same Tax section.
   The disambiguating section footer mitigates but doesn't eliminate
   confusion. If user testing reveals confusion, the fix is to either
   rename one ("Sales tax label" + "Tax ID label") or split into two
   separate sections ("Tax rate" + "Tax registration"). Defer the decision
-  until we see real reactions.
+  until we see real reactions. This is the one residual ~1% uncertainty
+  in the design — inherent to UX questions, not resolvable in design.
 
 ## Acceptance: spec is "done" when
 
