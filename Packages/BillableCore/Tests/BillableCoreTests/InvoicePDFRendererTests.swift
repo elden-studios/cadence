@@ -78,4 +78,61 @@ struct InvoicePDFRendererTests {
         #expect(extracted.contains("Acme Corp"))
         #expect(extracted.contains("Studio Lina"))
     }
+
+    @Test("renders PAYMENT DETAILS section when at least one bank field is set")
+    func paymentDetails_rendered() {
+        var data = fixtureData()
+        data.bankBeneficiaryName = "Studio Lina LLC"
+        data.bankName = "Riyad Bank"
+        data.bankLocation = "Riyadh, Saudi Arabia"
+        data.bankIBAN = "SA03 8000 0000 6080 1016 7519"
+        data.bankSWIFT = "RIBLSARI"
+        data.taxAmount = data.subtotal * data.taxRate
+        data.total = data.subtotal + data.taxAmount
+
+        let bytes = InvoicePDFRenderer.renderPDFData(for: data, accent: .blue)
+        let doc = PDFDocument(data: bytes)!
+        let text = doc.string ?? ""
+
+        #expect(text.contains("PAYMENT DETAILS"))
+        #expect(text.contains("Studio Lina LLC"))
+        #expect(text.contains("Riyad Bank"))
+        #expect(text.contains("Riyadh, Saudi Arabia"))
+        #expect(text.contains("SA03 8000 0000 6080 1016 7519"))
+        #expect(text.contains("RIBLSARI"))
+    }
+
+    @Test("does NOT render PAYMENT DETAILS section when all bank fields empty")
+    func paymentDetails_omittedWhenEmpty() {
+        var data = fixtureData()
+        data.taxAmount = data.subtotal * data.taxRate
+        data.total = data.subtotal + data.taxAmount
+        // bank fields are all default "" — no need to set anything
+
+        let bytes = InvoicePDFRenderer.renderPDFData(for: data, accent: .blue)
+        let doc = PDFDocument(data: bytes)!
+        let text = doc.string ?? ""
+
+        #expect(!text.contains("PAYMENT DETAILS"))
+    }
+
+    @Test("omits SWIFT row when SWIFT field is empty but others are set")
+    func paymentDetails_swiftRowOmitted() {
+        var data = fixtureData()
+        data.bankBeneficiaryName = "Studio Lina LLC"
+        data.bankName = "Riyad Bank"
+        data.bankIBAN = "SA03 8000 0000 6080 1016 7519"
+        // bankSWIFT stays "" — should not render
+        data.taxAmount = data.subtotal * data.taxRate
+        data.total = data.subtotal + data.taxAmount
+
+        let bytes = InvoicePDFRenderer.renderPDFData(for: data, accent: .blue)
+        let doc = PDFDocument(data: bytes)!
+        let text = doc.string ?? ""
+
+        #expect(text.contains("PAYMENT DETAILS"))
+        #expect(text.contains("Studio Lina LLC"))
+        // Negative assertion: the SWIFT/BIC row label should not appear
+        #expect(!text.contains("SWIFT/BIC:"))
+    }
 }

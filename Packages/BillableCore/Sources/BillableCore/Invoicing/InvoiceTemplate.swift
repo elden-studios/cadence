@@ -30,6 +30,7 @@ public struct InvoiceTemplate: View {
                 billToAndMeta
                 lineItemsTable
                 totalsBlock
+                bankDetailsBlock
                 if let notes = data.notes, !notes.isEmpty {
                     notesBlock(notes)
                 }
@@ -186,6 +187,48 @@ public struct InvoiceTemplate: View {
         .frame(width: 230)
     }
 
+    // MARK: - Bank details
+
+    @ViewBuilder
+    private var bankDetailsBlock: some View {
+        if data.hasBankDetails {
+            VStack(alignment: .leading, spacing: 6) {
+                sectionCap("PAYMENT DETAILS")
+                VStack(alignment: .leading, spacing: 3) {
+                    if !data.bankBeneficiaryName.isEmpty {
+                        bankRow("Beneficiary:", data.bankBeneficiaryName, monospaced: false)
+                    }
+                    if !data.bankName.isEmpty {
+                        bankRow("Bank:", data.bankName, monospaced: false)
+                    }
+                    if !data.bankLocation.isEmpty {
+                        bankRow("Location:", data.bankLocation, monospaced: false)
+                    }
+                    if !data.bankIBAN.isEmpty {
+                        bankRow("IBAN:", data.bankIBAN, monospaced: true)
+                    }
+                    if !data.bankSWIFT.isEmpty {
+                        bankRow("SWIFT/BIC:", data.bankSWIFT, monospaced: true)
+                    }
+                }
+            }
+        }
+    }
+
+    private func bankRow(_ label: String, _ value: String, monospaced: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(label)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(.secondary)
+                .frame(width: 80, alignment: .leading)
+            Text(value)
+                .font(monospaced
+                      ? .system(size: 11, design: .monospaced)
+                      : .system(size: 11))
+                .foregroundStyle(.primary)
+        }
+    }
+
     // MARK: - Notes + footer
 
     private func notesBlock(_ notes: String) -> some View {
@@ -288,6 +331,20 @@ public struct InvoiceTemplateData: Sendable {
     public var taxAmount: Decimal
     public var total: Decimal
     public var currencyCode: String
+
+    public var bankBeneficiaryName: String = ""
+    public var bankName: String = ""
+    public var bankLocation: String = ""
+    public var bankIBAN: String = ""
+    public var bankSWIFT: String = ""
+
+    public var hasBankDetails: Bool {
+        !bankBeneficiaryName.isEmpty
+            || !bankName.isEmpty
+            || !bankIBAN.isEmpty
+            || !bankSWIFT.isEmpty
+    }
+
     public var watermark: String?  // nil for Pro/trial, "Sent with Cadence" for free
 
     public init(
@@ -342,7 +399,7 @@ public extension InvoiceTemplateData {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
-        return InvoiceTemplateData(
+        var data = InvoiceTemplateData(
             issuerName: invoice.issuerNameSnapshot,
             issuerAddress: invoice.issuerAddressSnapshot,
             issuerEmail: invoice.issuerEmailSnapshot,
@@ -363,5 +420,11 @@ public extension InvoiceTemplateData {
             total: invoice.total,
             currencyCode: invoice.currencyCodeSnapshot
         )
+        data.bankBeneficiaryName = invoice.issuerBankBeneficiaryNameSnapshot
+        data.bankName = invoice.issuerBankNameSnapshot
+        data.bankLocation = invoice.issuerBankLocationSnapshot
+        data.bankIBAN = invoice.issuerBankIBANSnapshot
+        data.bankSWIFT = invoice.issuerBankSWIFTSnapshot
+        return data
     }
 }
