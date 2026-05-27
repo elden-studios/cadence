@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import MessageUI
 import BillableCore
 
 /// Final preview before sending. Renders the same `InvoiceTemplate` that will
@@ -22,6 +23,9 @@ struct InvoicePreviewView: View {
     @State private var showingShare = false
     @State private var finalized: Invoice?
     @State private var showingRemoveWatermarkPaywall = false
+    @State private var showingMailComposer = false
+    @State private var mailComposerSubject = ""
+    @State private var mailComposerBody = ""
 
     private var subscriptions: SubscriptionManager { SubscriptionManager.shared }
 
@@ -125,12 +129,24 @@ struct InvoicePreviewView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        finalizeAndShare()
+                        finalizeAndEmail()
                     } label: {
-                        Label("Finalize & share", systemImage: "paperplane.fill")
+                        Label("Finalize & email", systemImage: "envelope.fill")
                     }
                     .bold()
                     .disabled(hasInvalidDescriptions)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            finalizeAndShare()
+                        } label: {
+                            Label("Finalize & share", systemImage: "square.and.arrow.up")
+                        }
+                        .disabled(hasInvalidDescriptions)
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
                 }
             }
             .sheet(isPresented: $showingShare) {
@@ -142,6 +158,29 @@ struct InvoicePreviewView: View {
                             dismiss()
                             onDone()
                         }
+                }
+            }
+            .sheet(isPresented: $showingMailComposer) {
+                if let finalized {
+                    MailComposerView(
+                        recipients: client.email.map { [$0] } ?? [],
+                        subject: mailComposerSubject,
+                        body: mailComposerBody,
+                        attachmentData: finalized.pdfDataCached ?? Data(),
+                        attachmentMimeType: "application/pdf",
+                        attachmentFilename: "\(finalized.number).pdf",
+                        onDismiss: { _ in
+                            // MailComposerView's coordinator already hops to the
+                            // main actor before invoking onDismiss; assumeIsolated
+                            // lets us call the @MainActor-bound dismiss() and the
+                            // @MainActor-captured onDone closure from inside the
+                            // @Sendable closure type.
+                            MainActor.assumeIsolated {
+                                dismiss()
+                                onDone()
+                            }
+                        }
+                    )
                 }
             }
             .sheet(isPresented: $showingRemoveWatermarkPaywall) {
@@ -253,6 +292,74 @@ struct InvoicePreviewView: View {
         }
         lineItems = updated
         pendingDescriptionEdits = [:]
+    }
+
+    private func finalizeAndEmail() {
+        flushPendingDescriptionEdits()
+        do {
+            let draft = try InvoiceBuilder.createDraft(
+                for: client,
+                lineItems: lineItems,
+                notes: notes,
+                profile: profile,
+                context: modelContext
+            )
+            try InvoiceBuilder.finalizeAndSend(
+                draft,
+                sourceEntries: sourceEntries,
+                profile: profile,
+                context: modelContext
+            )
+            let data = InvoicePDFRenderer.renderPDFData(
+                for: InvoiceTemplateData.from(draft),
+                accent: draft.clientColor.swiftUIColor
+            )
+            draft.pdfDataCached = data
+            modelContext.saveOrLog("cache invoice pdf (finalize+email)")
+            finalized = draft
+            pdfData = data
+
+            // Render templates against the freshly-finalized invoice.
+            let senderName = profile.name
+            let subject = ReminderTemplateRenderer.render(
+                template: profile.invoiceEmailSubjectTemplate,
+                invoice: draft,
+                senderName: senderName
+            )
+            let body = ReminderTemplateRenderer.render(
+                template: profile.invoiceEmailBodyTemplate,
+                invoice: draft,
+                senderName: senderName
+            )
+            if MFMailComposeViewController.canSendMail() {
+                mailComposerSubject = subject
+                mailComposerBody = body
+                showingMailComposer = true
+            } else {
+                // Fallback: open default mail handler. PDF attachment lost.
+                guard let email = client.email,
+                      !email.isEmpty,
+                      let url = mailtoURLFromComponents(to: email, subject: subject, body: body) else {
+                    // Final fallback: drop back to iOS share sheet.
+                    showingShare = true
+                    return
+                }
+                UIApplication.shared.open(url)
+            }
+        } catch {
+            // Silent failure for now; Phase 1 noted error toasts as future work.
+        }
+    }
+
+    private func mailtoURLFromComponents(to: String, subject: String, body: String) -> URL? {
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = to
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: subject),
+            URLQueryItem(name: "body", value: body)
+        ]
+        return components.url
     }
 
     private func formatLineItemHours(_ value: Decimal) -> String {
