@@ -41,6 +41,17 @@ public final class BusinessProfile {
             || !bankSWIFT.isEmpty
     }
 
+    // MARK: - Tax ID (v1.5 / Phase 1)
+
+    public var taxIDLabel: String = ""   // e.g. "VAT", "GST", "CR No.", "EIN", "TRN"
+    public var taxIDNumber: String = ""  // e.g. "GB123456789", "300012345600003"
+
+    /// True when the issuer has a tax registration number to display.
+    /// `taxIDLabel` alone does not count — a label without a number is meaningless.
+    public var hasTaxID: Bool {
+        !taxIDNumber.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -62,6 +73,8 @@ public final class BusinessProfile {
         bankLocation: String = "",
         bankIBAN: String = "",
         bankSWIFT: String = "",
+        taxIDLabel: String = "",
+        taxIDNumber: String = "",
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -82,6 +95,8 @@ public final class BusinessProfile {
         self.bankLocation = bankLocation
         self.bankIBAN = bankIBAN
         self.bankSWIFT = bankSWIFT
+        self.taxIDLabel = taxIDLabel
+        self.taxIDNumber = taxIDNumber
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
