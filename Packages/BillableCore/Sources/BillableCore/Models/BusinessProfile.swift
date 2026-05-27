@@ -52,6 +52,11 @@ public final class BusinessProfile {
         !taxIDNumber.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    // MARK: - Invoice email templates (v1.6 / Phase 2)
+
+    public var invoiceEmailSubjectTemplate: String = BusinessProfile.defaultInvoiceEmailSubject
+    public var invoiceEmailBodyTemplate: String = BusinessProfile.defaultInvoiceEmailBody
+
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -75,6 +80,8 @@ public final class BusinessProfile {
         bankSWIFT: String = "",
         taxIDLabel: String = "",
         taxIDNumber: String = "",
+        invoiceEmailSubjectTemplate: String = BusinessProfile.defaultInvoiceEmailSubject,
+        invoiceEmailBodyTemplate: String = BusinessProfile.defaultInvoiceEmailBody,
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -97,6 +104,8 @@ public final class BusinessProfile {
         self.bankSWIFT = bankSWIFT
         self.taxIDLabel = taxIDLabel
         self.taxIDNumber = taxIDNumber
+        self.invoiceEmailSubjectTemplate = invoiceEmailSubjectTemplate
+        self.invoiceEmailBodyTemplate = invoiceEmailBodyTemplate
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -125,6 +134,20 @@ public final class BusinessProfile {
         guard let profile else { return false }
         return !profile.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+
+    public static let defaultInvoiceEmailSubject =
+        "Invoice {invoiceNumber} from {senderName}"
+
+    public static let defaultInvoiceEmailBody = """
+Hi {clientFirstName},
+
+Please find invoice {invoiceNumber} for {amount} attached. It's due {dueDate}.
+
+Let me know if you have any questions.
+
+Thanks,
+{senderName}
+"""
 }
 
 extension BusinessProfile {
