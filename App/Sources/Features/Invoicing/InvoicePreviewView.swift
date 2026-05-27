@@ -77,6 +77,8 @@ struct InvoicePreviewView: View {
         data.bankLocation = profile.bankLocation
         data.bankIBAN = profile.bankIBAN
         data.bankSWIFT = profile.bankSWIFT
+        data.taxIDLabel = profile.taxIDLabel
+        data.taxIDNumber = profile.taxIDNumber
         return data
     }
 
