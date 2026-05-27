@@ -92,6 +92,26 @@ struct SettingsView: View {
 
                 Section("About") {
                     LabeledContent("Version", value: appVersionString)
+                    HStack {
+                        Text("Developer")
+                        Spacer()
+                        Text("Cadence by Elden Studios Company")
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    Link(destination: URL(string: "mailto:bazerbashi@elden-studios.com")!) {
+                        HStack {
+                            Text("Contact")
+                            Spacer()
+                            Text("bazerbashi@elden-studios.com")
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Image(systemName: "envelope")
+                                .foregroundStyle(.tint)
+                                .font(.caption)
+                        }
+                    }
                 }
             }
             .navigationTitle("Settings")
