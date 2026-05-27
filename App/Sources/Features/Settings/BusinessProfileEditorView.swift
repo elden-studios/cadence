@@ -93,6 +93,8 @@ struct BusinessProfileEditorView: View {
                         Spacer()
                         Button(role: .destructive) {
                             logoData = nil
+                            // Reset picker selection too, so re-picking the same
+                            // photo still fires .onChange and re-runs processing.
                             logoPickerItem = nil
                         } label: {
                             Text("Remove")
