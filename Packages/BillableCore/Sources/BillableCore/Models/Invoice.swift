@@ -36,6 +36,11 @@ public final class Invoice {
     public var issuerAddressSnapshot: String
     public var issuerEmailSnapshot: String
     public var issuerLogoSnapshot: Data?
+    public var issuerBankBeneficiaryNameSnapshot: String = ""
+    public var issuerBankNameSnapshot: String = ""
+    public var issuerBankLocationSnapshot: String = ""
+    public var issuerBankIBANSnapshot: String = ""
+    public var issuerBankSWIFTSnapshot: String = ""
     public var paymentTermsSnapshot: String
 
     public var taxLabelSnapshot: String
@@ -78,6 +83,11 @@ public final class Invoice {
         issuerAddressSnapshot: String,
         issuerEmailSnapshot: String,
         issuerLogoSnapshot: Data? = nil,
+        issuerBankBeneficiaryNameSnapshot: String = "",
+        issuerBankNameSnapshot: String = "",
+        issuerBankLocationSnapshot: String = "",
+        issuerBankIBANSnapshot: String = "",
+        issuerBankSWIFTSnapshot: String = "",
         paymentTermsSnapshot: String,
         taxLabelSnapshot: String,
         taxRateSnapshot: Decimal,
@@ -101,6 +111,11 @@ public final class Invoice {
         self.issuerAddressSnapshot = issuerAddressSnapshot
         self.issuerEmailSnapshot = issuerEmailSnapshot
         self.issuerLogoSnapshot = issuerLogoSnapshot
+        self.issuerBankBeneficiaryNameSnapshot = issuerBankBeneficiaryNameSnapshot
+        self.issuerBankNameSnapshot = issuerBankNameSnapshot
+        self.issuerBankLocationSnapshot = issuerBankLocationSnapshot
+        self.issuerBankIBANSnapshot = issuerBankIBANSnapshot
+        self.issuerBankSWIFTSnapshot = issuerBankSWIFTSnapshot
         self.paymentTermsSnapshot = paymentTermsSnapshot
         self.taxLabelSnapshot = taxLabelSnapshot
         self.taxRateSnapshot = taxRateSnapshot

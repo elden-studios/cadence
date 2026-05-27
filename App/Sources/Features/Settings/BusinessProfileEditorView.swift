@@ -23,7 +23,12 @@ struct BusinessProfileEditorView: View {
 
     @State private var taxLabel: String = "Tax"
     @State private var taxRatePercent: Double = 0   // displayed as a percentage; converted to Decimal 0..1 on save
-    @State private var currencyCode: String = Locale.current.currency?.identifier ?? "USD"
+
+    @State private var bankBeneficiaryName: String = ""
+    @State private var bankName: String = ""
+    @State private var bankLocation: String = ""
+    @State private var bankIBAN: String = ""
+    @State private var bankSWIFT: String = ""
 
     @State private var hasLoaded = false
 
@@ -72,14 +77,25 @@ struct BusinessProfileEditorView: View {
                 }
             }
 
-            Section("Currency") {
-                Picker("Currency", selection: $currencyCode) {
-                    ForEach(CurrencyCatalog.allCodes, id: \.self) { code in
-                        Text("\(code) — \(CurrencyCatalog.displayName(for: code))").tag(code)
-                    }
-                }
-                .pickerStyle(.navigationLink)
+            Section {
+                TextField("Beneficiary name", text: $bankBeneficiaryName)
+                    .textInputAutocapitalization(.words)
+                TextField("Bank name", text: $bankName)
+                    .textInputAutocapitalization(.words)
+                TextField("Location (city, country)", text: $bankLocation)
+                    .textInputAutocapitalization(.words)
+                TextField("IBAN", text: $bankIBAN)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.characters)
+                TextField("SWIFT / BIC (optional)", text: $bankSWIFT)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.characters)
+            } header: {
+                Text("Bank details")
+            } footer: {
+                Text("Shown on invoices so clients know where to pay. Leave blank to hide.")
             }
+
         }
         .navigationTitle("Business profile")
         .navigationBarTitleDisplayMode(.inline)
@@ -106,7 +122,11 @@ struct BusinessProfileEditorView: View {
         nextInvoiceNumber = profile.nextInvoiceNumber
         taxLabel = profile.taxLabel
         taxRatePercent = (profile.taxRate as NSDecimalNumber).doubleValue * 100
-        currencyCode = profile.currencyCode
+        bankBeneficiaryName = profile.bankBeneficiaryName
+        bankName = profile.bankName
+        bankLocation = profile.bankLocation
+        bankIBAN = profile.bankIBAN
+        bankSWIFT = profile.bankSWIFT
     }
 
     private func save() {
@@ -121,7 +141,11 @@ struct BusinessProfileEditorView: View {
         profile.nextInvoiceNumber = nextInvoiceNumber
         profile.taxLabel = taxLabel
         profile.taxRate = Decimal(taxRatePercent / 100)
-        profile.currencyCode = currencyCode
+        profile.bankBeneficiaryName = bankBeneficiaryName
+        profile.bankName = bankName
+        profile.bankLocation = bankLocation
+        profile.bankIBAN = bankIBAN
+        profile.bankSWIFT = bankSWIFT
         profile.updatedAt = .now
         modelContext.saveOrLog("save business profile")
         dismiss()
