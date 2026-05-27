@@ -245,7 +245,7 @@ private struct ResumePill: View {
 }
 
 private struct RunningTimerCard: View {
-    let entry: TimeEntry
+    @Bindable var entry: TimeEntry
     let asOf: Date
     let currencyCode: String
     let onStop: () -> Void
@@ -268,6 +268,13 @@ private struct RunningTimerCard: View {
             }
             Text(entry.project?.name ?? "Project")
                 .font(.title2.weight(.semibold))
+
+            // A4: inline note. Empty string ↔ nil so users can clear by deleting.
+            TextField("What are you working on?", text: notesBinding, axis: .vertical)
+                .lineLimit(1...2)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .textFieldStyle(.plain)
 
             HStack(alignment: .firstTextBaseline) {
                 Text(elapsedString)
@@ -296,6 +303,13 @@ private struct RunningTimerCard: View {
         }
         .padding()
         .background(.thinMaterial, in: .rect(cornerRadius: 16))
+    }
+
+    private var notesBinding: Binding<String> {
+        Binding(
+            get: { entry.notes ?? "" },
+            set: { entry.notes = $0.isEmpty ? nil : $0 }
+        )
     }
 
     private var elapsedString: String {
