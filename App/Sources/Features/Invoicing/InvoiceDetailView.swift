@@ -3,6 +3,7 @@ import SwiftData
 import PDFKit
 import StoreKit
 import UserNotifications
+import MessageUI
 import BillableCore
 
 struct InvoiceDetailView: View {
@@ -18,6 +19,9 @@ struct InvoiceDetailView: View {
     @State private var pendingMailBody: String = ""
     @State private var pendingMailRecipients: [String] = []
     @State private var pendingMailFireDate: Date?
+    @State private var showingMailComposer = false
+    @State private var mailComposerSubject = ""
+    @State private var mailComposerBody = ""
 
     private var subscriptions: SubscriptionManager { SubscriptionManager.shared }
 
@@ -63,6 +67,13 @@ struct InvoiceDetailView: View {
                     } label: {
                         Label("Share PDF", systemImage: "square.and.arrow.up")
                     }
+                    if invoice.status != .draft {
+                        Button {
+                            presentEmailInvoice()
+                        } label: {
+                            Label("Email invoice", systemImage: "envelope")
+                        }
+                    }
                     if invoice.status == .sent {
                         Button {
                             sendReminder()
@@ -87,6 +98,17 @@ struct InvoiceDetailView: View {
                 ShareSheet(items: [url])
                     .ignoresSafeArea()
             }
+        }
+        .sheet(isPresented: $showingMailComposer) {
+            MailComposerView(
+                recipients: invoice.clientEmailSnapshot.map { [$0] } ?? [],
+                subject: mailComposerSubject,
+                body: mailComposerBody,
+                attachmentData: ensurePDFData(),
+                attachmentMimeType: "application/pdf",
+                attachmentFilename: "\(invoice.number).pdf",
+                onDismiss: { _ in /* no-op; iOS provides its own feedback */ }
+            )
         }
         .confirmationDialog(
             "Delete draft \(invoice.number)?",
@@ -229,6 +251,17 @@ struct InvoiceDetailView: View {
                     .padding(.vertical, 6)
             }
             .buttonStyle(.bordered)
+
+            if invoice.status != .draft {
+                Button {
+                    presentEmailInvoice()
+                } label: {
+                    Label("Email invoice", systemImage: "envelope")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.bordered)
+            }
         }
     }
 
@@ -277,13 +310,76 @@ struct InvoiceDetailView: View {
         }
     }
 
+    private func presentEmailInvoice() {
+        var profileDescriptor = FetchDescriptor<BusinessProfile>()
+        profileDescriptor.fetchLimit = 1
+        let profile = (try? modelContext.fetch(profileDescriptor))?.first
+        let senderName = profile?.name ?? ""
+
+        let subjectTemplate = profile?.invoiceEmailSubjectTemplate ?? BusinessProfile.defaultInvoiceEmailSubject
+        let bodyTemplate = profile?.invoiceEmailBodyTemplate ?? BusinessProfile.defaultInvoiceEmailBody
+
+        let renderedSubject = ReminderTemplateRenderer.render(
+            template: subjectTemplate,
+            invoice: invoice,
+            senderName: senderName
+        )
+        let renderedBody = ReminderTemplateRenderer.render(
+            template: bodyTemplate,
+            invoice: invoice,
+            senderName: senderName
+        )
+
+        if MFMailComposeViewController.canSendMail() {
+            mailComposerSubject = renderedSubject
+            mailComposerBody = renderedBody
+            showingMailComposer = true
+        } else {
+            // Graceful fallback: open user's default mail handler via mailto.
+            // PDF attachment is lost in this path — better than a silent no-op.
+            guard let email = invoice.clientEmailSnapshot,
+                  !email.isEmpty,
+                  let url = mailtoURL(to: email, subject: renderedSubject, body: renderedBody) else { return }
+            UIApplication.shared.open(url)
+        }
+    }
+
+    private func ensurePDFData() -> Data {
+        if let cached = invoice.pdfDataCached { return cached }
+        let data = InvoicePDFRenderer.renderPDFData(
+            for: InvoiceTemplateData.from(invoice),
+            accent: invoice.clientColor.swiftUIColor
+        )
+        invoice.pdfDataCached = data
+        modelContext.saveOrLog("cache invoice pdf (email)")
+        return data
+    }
+
     private func sendReminder() {
+        var configDescriptor = FetchDescriptor<ReminderConfig>()
+        configDescriptor.fetchLimit = 1
+        let config = (try? modelContext.fetch(configDescriptor))?.first
+        var profileDescriptor = FetchDescriptor<BusinessProfile>()
+        profileDescriptor.fetchLimit = 1
+        let profile = (try? modelContext.fetch(profileDescriptor))?.first
+        let senderName = profile?.name ?? ""
+
+        let subjectTemplate = config?.subjectTemplate ?? ReminderConfig.defaultSubjectTemplate
+        let bodyTemplate = config?.bodyTemplate ?? ReminderConfig.defaultBodyTemplate
+
+        let subject = ReminderTemplateRenderer.render(
+            template: subjectTemplate,
+            invoice: invoice,
+            senderName: senderName
+        )
+        let body = ReminderTemplateRenderer.render(
+            template: bodyTemplate,
+            invoice: invoice,
+            senderName: senderName
+        )
+
         guard let email = invoice.clientEmailSnapshot, !email.isEmpty,
-              let url = mailtoURL(
-                to: email,
-                subject: "Reminder: Invoice \(invoice.number) still outstanding",
-                body: "Hi,\n\nJust a friendly nudge — invoice \(invoice.number) for \(invoice.total.formatted(.currency(code: invoice.currencyCodeSnapshot))) was due on \(invoice.dueAt.formatted(date: .abbreviated, time: .omitted)). Let me know if you need anything to process payment.\n\nThanks!"
-              ) else { return }
+              let url = mailtoURL(to: email, subject: subject, body: body) else { return }
         UIApplication.shared.open(url)
     }
 
