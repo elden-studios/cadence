@@ -12,7 +12,8 @@ struct InvoicePreviewView: View {
 
     let client: Client
     let profile: BusinessProfile
-    let lineItems: [InvoiceLineItem]
+    @State private var lineItems: [InvoiceLineItem]
+    @State private var pendingDescriptionEdits: [UUID: String] = [:]
     let sourceEntries: [TimeEntry]
     @State private var notes: String?
     let onDone: () -> Void
@@ -34,7 +35,7 @@ struct InvoicePreviewView: View {
     ) {
         self.client = client
         self.profile = profile
-        self.lineItems = lineItems
+        _lineItems = State(initialValue: lineItems)
         self.sourceEntries = sourceEntries
         _notes = State(initialValue: notes)
         self.onDone = onDone
@@ -109,6 +110,7 @@ struct InvoicePreviewView: View {
                         .buttonStyle(.plain)
                         .padding(.horizontal)
                     }
+                    lineItemsEditor
                     pdfPreviewCard
                     notesEditor
                 }
@@ -128,6 +130,7 @@ struct InvoicePreviewView: View {
                         Label("Finalize & share", systemImage: "paperplane.fill")
                     }
                     .bold()
+                    .disabled(hasInvalidDescriptions)
                 }
             }
             .sheet(isPresented: $showingShare) {
@@ -164,6 +167,98 @@ struct InvoicePreviewView: View {
             .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         }
         .aspectRatio(InvoiceTemplate.pageWidth / InvoiceTemplate.pageHeight, contentMode: .fit)
+    }
+
+    // MARK: - Line items editor (A8)
+
+    private var lineItemsEditor: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("LINE ITEMS")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            ForEach(Array(lineItems.enumerated()), id: \.element.id) { index, item in
+                lineItemRow(index: index, item: item)
+            }
+        }
+        // 200ms debounce: flushes pending edits into the lineItems @State so the
+        // PDF preview only re-renders when the user pauses typing. Validation
+        // (red border, disabled Finalize) stays real-time because both read
+        // from pendingDescriptionEdits ?? lineItems via currentDescription(at:).
+        .task(id: pendingDescriptionEdits) {
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !pendingDescriptionEdits.isEmpty else { return }
+            var updated = lineItems
+            for (id, text) in pendingDescriptionEdits {
+                if let i = updated.firstIndex(where: { $0.id == id }) {
+                    updated[i].description = text
+                }
+            }
+            lineItems = updated
+            pendingDescriptionEdits = [:]
+        }
+    }
+
+    @ViewBuilder
+    private func lineItemRow(index: Int, item: InvoiceLineItem) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            TextField("Description", text: descriptionBinding(at: index), axis: .vertical)
+                .lineLimit(1...3)
+                .textInputAutocapitalization(.sentences)
+            HStack(spacing: 8) {
+                Text(formatLineItemHours(item.hours)).foregroundStyle(.secondary)
+                Text("·").foregroundStyle(.tertiary)
+                Text(formatLineItemMoney(item.hourlyRate)).foregroundStyle(.secondary)
+                Spacer()
+                Text(formatLineItemMoney(item.amount)).fontWeight(.medium)
+            }
+            .font(.caption)
+        }
+        .padding(10)
+        .background(.background, in: .rect(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(
+                    isDescriptionEmpty(at: index)
+                        ? AnyShapeStyle(Color.red.opacity(0.6))
+                        : AnyShapeStyle(.quaternary),
+                    lineWidth: 1
+                )
+        )
+    }
+
+    private func descriptionBinding(at index: Int) -> Binding<String> {
+        Binding(
+            get: {
+                pendingDescriptionEdits[lineItems[index].id] ?? lineItems[index].description
+            },
+            set: { newValue in
+                pendingDescriptionEdits[lineItems[index].id] = newValue
+            }
+        )
+    }
+
+    private func currentDescription(at index: Int) -> String {
+        pendingDescriptionEdits[lineItems[index].id] ?? lineItems[index].description
+    }
+
+    private func isDescriptionEmpty(at index: Int) -> Bool {
+        currentDescription(at: index).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasInvalidDescriptions: Bool {
+        lineItems.indices.contains { isDescriptionEmpty(at: $0) }
+    }
+
+    private func formatLineItemHours(_ value: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 2
+        let s = formatter.string(from: NSDecimalNumber(decimal: value)) ?? "\(value)"
+        return s + "h"
+    }
+
+    private func formatLineItemMoney(_ value: Decimal) -> String {
+        value.formatted(.currency(code: profile.currencyCode))
     }
 
     private var notesEditor: some View {
