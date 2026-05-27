@@ -106,8 +106,8 @@ struct BusinessProfileEditorView: View {
                         Spacer()
                         Button(role: .destructive) {
                             logoData = nil
-                            // Reset picker selection too, so re-picking the same
-                            // photo still fires .onChange and re-runs processing.
+                            // Reset picker selection so re-picking the same photo
+                            // changes the .task(id:) value and re-runs processing.
                             logoPickerItem = nil
                         } label: {
                             Text("Remove")
@@ -122,8 +122,8 @@ struct BusinessProfileEditorView: View {
                 ) {
                     Label(pickerTitle, systemImage: "photo.on.rectangle.angled")
                 }
-                .onChange(of: logoPickerItem) { _, newItem in
-                    Task { await loadAndProcessLogo(from: newItem) }
+                .task(id: logoPickerItem) {
+                    await loadAndProcessLogo(from: logoPickerItem)
                 }
             } header: {
                 Text("Logo")
@@ -214,12 +214,13 @@ struct BusinessProfileEditorView: View {
     private func loadAndProcessLogo(from item: PhotosPickerItem?) async {
         guard let item else { return }
         guard let rawData = try? await item.loadTransferable(type: Data.self) else { return }
+        guard !Task.isCancelled else { return }
         // Process off the main actor to avoid blocking the UI on a large source image.
         let processed = await Task.detached(priority: .userInitiated) {
             LogoImageProcessor.process(rawData)
         }.value
-        guard let processed else { return }
-        await MainActor.run { logoData = processed }
+        guard let processed, !Task.isCancelled else { return }
+        logoData = processed
     }
 
     private func uiImageFromData(_ data: Data) -> UIImage? {

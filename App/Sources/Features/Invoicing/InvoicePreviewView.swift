@@ -185,16 +185,10 @@ struct InvoicePreviewView: View {
         // (red border, disabled Finalize) stays real-time because both read
         // from pendingDescriptionEdits ?? lineItems via currentDescription(at:).
         .task(id: pendingDescriptionEdits) {
-            try? await Task.sleep(for: .milliseconds(200))
             guard !pendingDescriptionEdits.isEmpty else { return }
-            var updated = lineItems
-            for (id, text) in pendingDescriptionEdits {
-                if let i = updated.firstIndex(where: { $0.id == id }) {
-                    updated[i].description = text
-                }
-            }
-            lineItems = updated
-            pendingDescriptionEdits = [:]
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled else { return }
+            flushPendingDescriptionEdits()
         }
     }
 
@@ -249,11 +243,20 @@ struct InvoicePreviewView: View {
         lineItems.indices.contains { isDescriptionEmpty(at: $0) }
     }
 
+    private func flushPendingDescriptionEdits() {
+        guard !pendingDescriptionEdits.isEmpty else { return }
+        var updated = lineItems
+        for (id, text) in pendingDescriptionEdits {
+            if let i = updated.firstIndex(where: { $0.id == id }) {
+                updated[i].description = text
+            }
+        }
+        lineItems = updated
+        pendingDescriptionEdits = [:]
+    }
+
     private func formatLineItemHours(_ value: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.minimumFractionDigits = 0
-        formatter.maximumFractionDigits = 2
-        let s = formatter.string(from: NSDecimalNumber(decimal: value)) ?? "\(value)"
+        let s = value.formatted(.number.precision(.fractionLength(0...2)))
         return s + "h"
     }
 
@@ -287,16 +290,7 @@ struct InvoicePreviewView: View {
         // where a user taps Finalize within the 200ms debounce window — without
         // this drain, the pre-edit description would be persisted instead of
         // the user's last keystrokes.
-        if !pendingDescriptionEdits.isEmpty {
-            var updated = lineItems
-            for (id, text) in pendingDescriptionEdits {
-                if let i = updated.firstIndex(where: { $0.id == id }) {
-                    updated[i].description = text
-                }
-            }
-            lineItems = updated
-            pendingDescriptionEdits = [:]
-        }
+        flushPendingDescriptionEdits()
         do {
             let draft = try InvoiceBuilder.createDraft(
                 for: client,

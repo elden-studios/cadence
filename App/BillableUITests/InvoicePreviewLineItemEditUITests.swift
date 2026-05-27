@@ -163,10 +163,12 @@ final class InvoicePreviewLineItemEditUITests: XCTestCase {
         firstDescription.typeText(XCUIKeyboardKey.delete.rawValue)
 
         // Validation reads directly from pendingDescriptionEdits + lineItems,
-        // so the disable should be immediate. Give the 200ms debounce + a
-        // small cushion to be safe across simulator load.
-        Thread.sleep(forTimeInterval: 0.6)
-        XCTAssertFalse(finalize.isEnabled,
+        // so the disable should propagate within the 200ms debounce window.
+        // Wait dynamically (vs Thread.sleep) to avoid flake on slow simulator runs.
+        let disabledPredicate = NSPredicate(format: "isEnabled == false")
+        let disabledExpectation = expectation(for: disabledPredicate, evaluatedWith: finalize)
+        let waitOutcome = XCTWaiter().wait(for: [disabledExpectation], timeout: 2.0)
+        XCTAssertEqual(waitOutcome, .completed,
                        "Finalize must be disabled when any description is empty")
     }
 }
