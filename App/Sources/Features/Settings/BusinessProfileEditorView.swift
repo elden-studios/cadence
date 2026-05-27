@@ -108,6 +108,7 @@ struct BusinessProfileEditorView: View {
                         Spacer()
                         Button(role: .destructive) {
                             logoData = nil
+                            logoUIImage = nil
                             logoLoadError = nil
                             // Reset picker selection so re-picking the same photo
                             // changes the .task(id:) value and re-runs processing.
@@ -178,6 +179,11 @@ struct BusinessProfileEditorView: View {
             }.value
             guard !Task.isCancelled else { return }
             logoUIImage = image
+            if image == nil {
+                // Stored bytes won't decode (e.g. CloudKit sync corruption, format
+                // regression). Surface so the user can recover by re-picking.
+                logoLoadError = "Couldn't display the saved logo. Pick a new one."
+            }
         }
     }
 
@@ -203,6 +209,12 @@ struct BusinessProfileEditorView: View {
         bankIBAN = profile.bankIBAN
         bankSWIFT = profile.bankSWIFT
         logoData = profile.logoData
+        // Synchronously decode the saved logo on first mount so the preview
+        // appears on the first body render — otherwise .task(id: logoData)'s
+        // off-main decode produces a visible flicker on every editor open.
+        if let data = profile.logoData {
+            logoUIImage = UIImage(data: data)
+        }
     }
 
     private func save() {
@@ -230,13 +242,27 @@ struct BusinessProfileEditorView: View {
         dismiss()
     }
 
+    @MainActor
     private func loadAndProcessLogo(from item: PhotosPickerItem?) async {
         guard let item else { return }
         logoLoadError = nil
-        guard let rawData = try? await item.loadTransferable(type: Data.self) else {
-            logoLoadError = "Couldn't load that photo. Try another."
+
+        let rawData: Data
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else {
+                logoLoadError = "Couldn't load that photo. Try another."
+                return
+            }
+            rawData = data
+        } catch {
+            // Distinguish cancellation (user picked again mid-load) from real
+            // failure — try? would swallow CancellationError and surface a lie.
+            if !Task.isCancelled {
+                logoLoadError = "Couldn't load that photo. Try another."
+            }
             return
         }
+
         guard !Task.isCancelled else { return }
         // Process off the main actor to avoid blocking the UI on a large source image.
         let processed = await Task.detached(priority: .userInitiated) {
