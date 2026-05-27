@@ -36,6 +36,8 @@ struct BusinessProfileEditorView: View {
 
     @State private var logoData: Data?
     @State private var logoPickerItem: PhotosPickerItem?
+    @State private var logoUIImage: UIImage?
+    @State private var logoLoadError: String?
 
     @State private var hasLoaded = false
 
@@ -95,7 +97,7 @@ struct BusinessProfileEditorView: View {
             }
 
             Section {
-                if let data = logoData, let image = uiImageFromData(data) {
+                if let image = logoUIImage {
                     HStack {
                         Image(uiImage: image)
                             .resizable()
@@ -106,6 +108,7 @@ struct BusinessProfileEditorView: View {
                         Spacer()
                         Button(role: .destructive) {
                             logoData = nil
+                            logoLoadError = nil
                             // Reset picker selection so re-picking the same photo
                             // changes the .task(id:) value and re-runs processing.
                             logoPickerItem = nil
@@ -124,6 +127,11 @@ struct BusinessProfileEditorView: View {
                 }
                 .task(id: logoPickerItem) {
                     await loadAndProcessLogo(from: logoPickerItem)
+                }
+                if let logoLoadError {
+                    Text(logoLoadError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
             } header: {
                 Text("Logo")
@@ -160,6 +168,17 @@ struct BusinessProfileEditorView: View {
             }
         }
         .onAppear { loadIfNeeded() }
+        .task(id: logoData) {
+            guard let data = logoData else {
+                logoUIImage = nil
+                return
+            }
+            let image = await Task.detached(priority: .userInitiated) {
+                UIImage(data: data)
+            }.value
+            guard !Task.isCancelled else { return }
+            logoUIImage = image
+        }
     }
 
     private func loadIfNeeded() {
@@ -198,8 +217,8 @@ struct BusinessProfileEditorView: View {
         profile.nextInvoiceNumber = nextInvoiceNumber
         profile.taxLabel = taxLabel
         profile.taxRate = Decimal(taxRatePercent / 100)
-        profile.taxIDLabel = taxIDLabel
-        profile.taxIDNumber = taxIDNumber
+        profile.taxIDLabel = taxIDLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        profile.taxIDNumber = taxIDNumber.trimmingCharacters(in: .whitespacesAndNewlines)
         profile.bankBeneficiaryName = bankBeneficiaryName
         profile.bankName = bankName
         profile.bankLocation = bankLocation
@@ -213,21 +232,22 @@ struct BusinessProfileEditorView: View {
 
     private func loadAndProcessLogo(from item: PhotosPickerItem?) async {
         guard let item else { return }
-        guard let rawData = try? await item.loadTransferable(type: Data.self) else { return }
+        logoLoadError = nil
+        guard let rawData = try? await item.loadTransferable(type: Data.self) else {
+            logoLoadError = "Couldn't load that photo. Try another."
+            return
+        }
         guard !Task.isCancelled else { return }
         // Process off the main actor to avoid blocking the UI on a large source image.
         let processed = await Task.detached(priority: .userInitiated) {
             LogoImageProcessor.process(rawData)
         }.value
-        guard let processed, !Task.isCancelled else { return }
+        guard !Task.isCancelled else { return }
+        guard let processed else {
+            logoLoadError = "That image format isn't supported. Try a JPEG or PNG."
+            return
+        }
         logoData = processed
-    }
-
-    private func uiImageFromData(_ data: Data) -> UIImage? {
-        // UIImage is only used here on the main actor for the editor's read-only
-        // display. The off-main encoding path uses pure CoreGraphics via
-        // LogoImageProcessor.
-        UIImage(data: data)
     }
 
     private func newProfile() -> BusinessProfile {
