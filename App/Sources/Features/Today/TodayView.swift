@@ -255,6 +255,11 @@ private struct RunningTimerCard: View {
 
     @State private var showingAdjustDialog = false
     @State private var showingDatePickerSheet = false
+    // Snapshot of entry.notes at last save. Used by the debounce .task to detect
+    // a genuine pause-in-typing vs. an in-flight series of keystrokes — avoids
+    // the previous per-keystroke saveOrLog storm (which spammed SwiftData and
+    // CloudKit per character).
+    @State private var lastSavedNotes: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -318,6 +323,34 @@ private struct RunningTimerCard: View {
         }
         .padding()
         .background(.thinMaterial, in: .rect(cornerRadius: 16))
+        // Debounced persistence for the inline note field. The setter mutates
+        // entry.notes in memory only; this .task fires once per quiescent
+        // 400ms window (Task.sleep is cancelled and re-fired when `entry.notes`
+        // changes again), bumps updatedAt, and saves. Mirrors the descriptionBinding
+        // debounce pattern in InvoicePreviewView. Force-quit window shrinks from
+        // "until next autosave" to ~400ms — acceptable, and keeps the per-keystroke
+        // SwiftData/CloudKit write storm collapsed into one save per pause.
+        .task(id: entry.notes) {
+            // Skip the initial fire-on-appear: lastSavedNotes is nil at first
+            // appear AND matches entry.notes when entry.notes is also nil.
+            // The condition below picks up only real user edits.
+            guard entry.notes != lastSavedNotes else { return }
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            // Re-check post-sleep — entry.notes may have been reverted between
+            // the keystroke and the timeout (e.g., user typed then erased back
+            // to the original value).
+            guard entry.notes != lastSavedNotes else { return }
+            entry.updatedAt = .now
+            modelContext.saveOrLog("update running entry notes")
+            lastSavedNotes = entry.notes
+        }
+        .onAppear {
+            // Seed the saved-state baseline so the .task above can detect the
+            // first real edit. Without this, the first keystroke wouldn't fire
+            // (lastSavedNotes == nil == entry.notes for a brand-new entry).
+            lastSavedNotes = entry.notes
+        }
         .confirmationDialog(
             "Adjust start time",
             isPresented: $showingAdjustDialog,
@@ -368,15 +401,14 @@ private struct RunningTimerCard: View {
                 // Normalize: empty string ↔ nil so deleting fully resets.
                 let normalized = newValue.isEmpty ? nil : newValue
                 // No-op guard: SwiftUI's TextField can invoke the setter with
-                // the same value on focus / re-render churn. Without this we'd
-                // bump updatedAt and save on every keystroke pass-through.
+                // the same value on focus / re-render churn.
                 guard entry.notes != normalized else { return }
+                // In-memory mutation only — the debounce .task(id: entry.notes)
+                // below picks this up and persists once typing pauses. Avoids
+                // the per-keystroke SwiftData / CloudKit write storm the first
+                // implementation introduced (matches the descriptionBinding
+                // pattern in InvoicePreviewView which already debounces).
                 entry.notes = normalized
-                // Match the invariant honored by TimerService.adjustStart and
-                // every other TimeEntry mutation: bump updatedAt + save so the
-                // note survives a force-quit (vs relying on autosave timing).
-                entry.updatedAt = .now
-                modelContext.saveOrLog("update running entry notes")
             }
         )
     }
@@ -397,29 +429,29 @@ private struct AdjustStartTimePickerSheet: View {
     let onSave: (Date) -> Void
     let onCancel: () -> Void
     @State private var selection: Date
-    // Single anchor for both the picker's range bound and the Save predicate.
-    // Captured into @State at init so it stays stable across body re-renders;
-    // without this, `in: ...Date.now` and `disabled(selection >= Date.now)`
-    // read Date.now independently on each render and could disagree by
-    // milliseconds, causing the Save button to flicker enabled/disabled at
-    // the boundary.
-    @State private var upperBound: Date
 
     init(currentStart: Date, onSave: @escaping (Date) -> Void, onCancel: @escaping () -> Void) {
         self.currentStart = currentStart
         self.onSave = onSave
         self.onCancel = onCancel
         _selection = State(initialValue: currentStart)
-        _upperBound = State(initialValue: .now)
     }
 
     var body: some View {
-        NavigationStack {
+        // Single `now` per body render — the DatePicker's range bound and the
+        // Save predicate read THIS value, not Date.now twice independently.
+        // Eliminates the millisecond-scale flicker that prompted the first fix
+        // attempt (which pinned to .now at init and introduced minute-scale
+        // staleness when the sheet stayed open). Body re-renders pick up a
+        // fresh now on every user interaction, so the upper bound advances
+        // naturally with the wall clock.
+        let now = Date.now
+        return NavigationStack {
             Form {
                 DatePicker(
                     "Start time",
                     selection: $selection,
-                    in: ...upperBound,
+                    in: ...now,
                     displayedComponents: [.date, .hourAndMinute]
                 )
                 .datePickerStyle(.graphical)
@@ -433,7 +465,7 @@ private struct AdjustStartTimePickerSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") { onSave(selection) }
                         .bold()
-                        .disabled(selection >= upperBound)
+                        .disabled(selection >= now)
                 }
             }
         }

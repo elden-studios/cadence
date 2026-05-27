@@ -16,8 +16,14 @@ struct ClientsView: View {
     // map builder) so the @Query never materializes them — for power users
     // with hundreds of historical invoices that's a meaningful win in fetch
     // cost AND in the per-render iteration below.
+    //
+    // Sort by `\Invoice.sentAt` (not issuedAt) so the FIRST occurrence per
+    // client is genuinely the most recent send. Issuance and send dates can
+    // diverge by arbitrary amounts when a draft is created then finalized
+    // later — sorting by issuedAt would let an older-issued-but-recently-sent
+    // invoice be masked by a newer-issued-but-earlier-sent one.
     @Query(filter: #Predicate<Invoice> { $0.sentAt != nil },
-           sort: \Invoice.issuedAt, order: .reverse)
+           sort: \Invoice.sentAt, order: .reverse)
     private var sentInvoices: [Invoice]
 
     @State private var showingNew = false
@@ -25,15 +31,16 @@ struct ClientsView: View {
 
     private var lastInvoiceByClientID: [PersistentIdentifier: Date] {
         var map: [PersistentIdentifier: Date] = [:]
-        // Sort is `\Invoice.issuedAt` descending, so the FIRST occurrence per
-        // client is the most recent activity. Early-exit once we've recorded a
-        // value for a client — turns O(N invoices) into O(unique clients).
+        // Sort is `\Invoice.sentAt` DESC + predicate guarantees non-nil, so the
+        // first occurrence per client IS the most recent send. Early-exit once
+        // we've recorded a value for a client — O(unique clients) in practice.
         for invoice in sentInvoices {
             guard let clientID = invoice.client?.persistentModelID else { continue }
             guard map[clientID] == nil else { continue }
-            let date = invoice.sentAt ?? invoice.paidAt
-            guard let date else { continue }
-            map[clientID] = date
+            // Predicate guarantees sentAt non-nil, but guard defensively
+            // rather than force-unwrap.
+            guard let sentAt = invoice.sentAt else { continue }
+            map[clientID] = sentAt
         }
         return map
     }

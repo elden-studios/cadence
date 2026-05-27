@@ -51,7 +51,17 @@ struct MailComposerView: UIViewControllerRepresentable {
             let onDismiss = self.onDismiss
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    controller.dismiss(animated: true) { onDismiss(result) }
+                    // Wrap BOTH the dismiss call AND the completion body in
+                    // assumeIsolated. UIKit guarantees the completion runs on
+                    // the main thread but its closure type isn't declared
+                    // @MainActor — without this inner assumeIsolated, the
+                    // consumer's onDismiss closure (which is @Sendable and
+                    // typically touches @State) would be relying on the
+                    // outer hop alone, which doesn't cover deferred work.
+                    // Future-proofs against SDK annotation changes too.
+                    controller.dismiss(animated: true) {
+                        MainActor.assumeIsolated { onDismiss(result) }
+                    }
                 }
             }
         }

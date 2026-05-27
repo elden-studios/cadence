@@ -15,10 +15,6 @@ struct InvoiceDetailView: View {
 
     @State private var showingShare = false
     @State private var showingDeleteConfirm = false
-    @State private var pendingMailSubject: String = ""
-    @State private var pendingMailBody: String = ""
-    @State private var pendingMailRecipients: [String] = []
-    @State private var pendingMailFireDate: Date?
     @State private var showingMailComposer = false
     @State private var mailComposerSubject = ""
     @State private var mailComposerBody = ""
@@ -106,6 +102,12 @@ struct InvoiceDetailView: View {
             }
         }
         .sheet(isPresented: $showingMailComposer) {
+            // INTENTIONALLY no `if let attachment` gate here (unlike
+            // InvoicePreviewView): reminders legitimately present the composer
+            // without a PDF attachment (mailComposerAttachment == nil and
+            // attachPDF: false is passed in sendReminder). MailComposerView's
+            // own `if let data = attachmentData` skips the attachment block
+            // when nil, so the composer opens cleanly either way.
             MailComposerView(
                 recipients: mailComposerRecipients,
                 subject: mailComposerSubject,
@@ -113,21 +115,7 @@ struct InvoiceDetailView: View {
                 attachmentData: mailComposerAttachment,
                 attachmentMimeType: "application/pdf",
                 attachmentFilename: "\(invoice.number).pdf",
-                onDismiss: { _ in
-                    // Flip the @State back so the sheet binding stays in sync
-                    // with the controller dismiss. MailComposerView's Coordinator
-                    // dismisses the UIKit controller manually (per Apple's
-                    // MessageUI delegate contract); without this flip, SwiftUI's
-                    // .sheet binding can stay "true" and refuse to re-present
-                    // the next time the user taps Email invoice.
-                    //
-                    // assumeIsolated bridges the @Sendable closure typing —
-                    // MailComposerView's Coordinator already hops to main before
-                    // invoking onDismiss, so this is safe at runtime.
-                    MainActor.assumeIsolated {
-                        showingMailComposer = false
-                    }
-                }
+                onDismiss: { _ in dismissMailComposer() }
             )
         }
         .alert("Add a client email first",
@@ -417,10 +405,15 @@ struct InvoiceDetailView: View {
             senderName: senderName
         )
 
-        // Reminders go through the same composer/mailto path as Email invoice,
-        // so behavior is consistent across both toolbar actions (Phase 2 review
-        // finding #10).
-        presentMail(to: email, subject: subject, body: body, attachPDF: true)
+        // Reminders go through the same composer/mailto path as Email invoice
+        // (consistency UX). But NO PDF: the unification fixes the channel
+        // mismatch the first review flagged, while preserving the prior
+        // semantics that reminders are lightweight nudges, not invoice resends.
+        // The recipient already received the PDF in the original send; the
+        // reminder body says 'just a quick nudge', not 'attached again'. If a
+        // user actually wants to resend the invoice, the toolbar's 'Email
+        // invoice' action does that — and attaches the PDF.
+        presentMail(to: email, subject: subject, body: body, attachPDF: false)
     }
 
     /// Shared mail-presentation helper used by both `presentEmailInvoice` and
@@ -444,7 +437,38 @@ struct InvoiceDetailView: View {
         }
     }
 
+    /// Sheet-dismissal cleanup for the mail composer. Flips the SwiftUI sheet
+    /// binding back to false so subsequent taps can re-present (MailComposerView's
+    /// Coordinator dismisses the UIKit controller manually per Apple's MessageUI
+    /// delegate contract; without flipping the binding, SwiftUI's .sheet state
+    /// could stay 'true' and refuse to re-present). Also clears the captured
+    /// recipients + PDF attachment so a stale PDF Data buffer (often hundreds of
+    /// KB or several MB) isn't held in @State for the rest of the view's
+    /// navigation lifetime.
+    ///
+    /// Declared `nonisolated` so the @Sendable onDismiss closure can call it
+    /// directly without the call site needing its own assumeIsolated bridge —
+    /// the helper does the bridging once, here, where it belongs. Safe because
+    /// MailComposerView's Coordinator hops to main before invoking onDismiss.
+    private nonisolated func dismissMailComposer() {
+        MainActor.assumeIsolated {
+            showingMailComposer = false
+            mailComposerAttachment = nil
+            mailComposerRecipients = []
+        }
+    }
+
     private func composeReminder(for fireDate: Date) {
+        // Pre-flight: must have a recipient before marking this step as fired.
+        // Previously the function recorded fired() unconditionally, then opened
+        // a mailto URL that returned nil on empty email — silently dropping the
+        // reminder step entirely. Now: if no email, alert the user and leave the
+        // step un-fired so they can fix the client and try again.
+        guard let email = invoice.clientEmailSnapshot, !email.isEmpty else {
+            showingNoClientEmailAlert = true
+            return
+        }
+
         var configDescriptor = FetchDescriptor<ReminderConfig>()
         configDescriptor.fetchLimit = 1
         let configs = (try? modelContext.fetch(configDescriptor)) ?? []
@@ -458,23 +482,23 @@ struct InvoiceDetailView: View {
         let subjectTemplate = config?.subjectTemplate ?? ReminderConfig.defaultSubjectTemplate
         let bodyTemplate = config?.bodyTemplate ?? ReminderConfig.defaultBodyTemplate
 
-        pendingMailSubject = ReminderTemplateRenderer.render(
+        let subject = ReminderTemplateRenderer.render(
             template: subjectTemplate,
             invoice: invoice,
             senderName: senderName,
             now: Date()
         )
-        pendingMailBody = ReminderTemplateRenderer.render(
+        let body = ReminderTemplateRenderer.render(
             template: bodyTemplate,
             invoice: invoice,
             senderName: senderName,
             now: Date()
         )
-        pendingMailRecipients = [invoice.clientEmailSnapshot].compactMap { $0 }
-        pendingMailFireDate = fireDate
 
         // Record fired BEFORE presenting so the step doesn't repeat even if the
-        // user cancels — once we've offered to send, the step is considered acted on.
+        // user cancels — once we've offered to send, the step is considered
+        // acted on. Pre-flight above guarantees the mail handoff at least
+        // attempts a valid recipient.
         let scheduler = Scheduler(
             center: UNUserNotificationCenter.current(),
             modelContext: modelContext
@@ -482,9 +506,10 @@ struct InvoiceDetailView: View {
         let service = ReminderService(scheduler: scheduler, modelContext: modelContext)
         service.recordFired(invoice: invoice, at: fireDate)
 
-        let recipient = pendingMailRecipients.first ?? ""
-        guard let url = mailtoURL(to: recipient, subject: pendingMailSubject, body: pendingMailBody) else { return }
-        UIApplication.shared.open(url)
+        // Route through the same MailComposerView + mailto fallback path that
+        // sendReminder uses. No PDF attachment — reminders are nudges, not
+        // resends (the recipient already received the original invoice).
+        presentMail(to: email, subject: subject, body: body, attachPDF: false)
     }
 
     private func mailtoURL(to: String, subject: String, body: String) -> URL? {

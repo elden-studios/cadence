@@ -140,7 +140,13 @@ struct InvoicePreviewView: View {
                         Label("Finalize & email", systemImage: "envelope.fill")
                     }
                     .bold()
-                    .disabled(hasInvalidDescriptions)
+                    // `finalized != nil` is the actual debouncer for double-taps —
+                    // the in-function `guard finalized == nil` is belt-and-suspenders.
+                    // The pair closes the race window between guard check and
+                    // `finalized = draft` assignment (multi-touch / accessibility /
+                    // multiple gesture recognizers can otherwise fire two calls in
+                    // the same run-loop frame).
+                    .disabled(hasInvalidDescriptions || finalized != nil)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -152,11 +158,11 @@ struct InvoicePreviewView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
-                    // Disable on the ToolbarItem (matches the primary
-                    // 'Finalize & email' button above). If we only disabled the
-                    // inner Button, the ellipsis stayed tappable and opened a
-                    // menu of disabled items — confusing UX.
-                    .disabled(hasInvalidDescriptions)
+                    // Same defense as the primary button — and same UX
+                    // consistency: only the outer ToolbarItem disables (not the
+                    // inner Button) so the ellipsis isn't a tappable affordance
+                    // that opens a menu of disabled items.
+                    .disabled(hasInvalidDescriptions || finalized != nil)
                 }
             }
             .sheet(isPresented: $showingShare) {
@@ -201,7 +207,7 @@ struct InvoicePreviewView: View {
                    isPresented: $showingNoClientEmailAlert,
                    actions: { Button("OK", role: .cancel) {} },
                    message: {
-                Text("This client doesn't have an email on file. Add one in the client's details before finalizing by email — or use 'Finalize & share' to send the PDF another way.")
+                Text("This client doesn't have an email on file. Add one in the client's details to send invoices by email.")
             })
             .sheet(isPresented: $showingRemoveWatermarkPaywall) {
                 PaywallView(trigger: .removeWatermark)
@@ -385,18 +391,31 @@ struct InvoicePreviewView: View {
                 mailComposerAttachment = data
                 showingMailComposer = true
             } else {
-                // Fallback: open default mail handler. PDF attachment is lost
-                // on this path (mailto: doesn't carry attachments).
+                // Fallback when Mail isn't configured: open the default mail
+                // handler via mailto:. PDF attachment is lost on this path
+                // (mailto: doesn't carry attachments). If URL construction
+                // somehow fails (e.g. an unusual recipient that defeats
+                // URLComponents), fall further back to the iOS share sheet so
+                // the user still has a path to deliver the just-finalized PDF.
+                // Without this last fallback the user could be auto-dismissed
+                // with a sent invoice and no delivery surface — the regression
+                // the second code-review pass flagged.
                 if let url = mailtoURLFromComponents(to: recipient, subject: subject, body: body) {
                     UIApplication.shared.open(url)
+                    // Critical: dismiss the preview ourselves. The canSendMail==true
+                    // path dismisses via MailComposerView.onDismiss; the share
+                    // path dismisses via ShareSheet.onDisappear; this branch
+                    // did neither, leaving the user on a preview screen whose
+                    // invoice was already finalized — a re-tap would have
+                    // burned another invoice number.
+                    dismiss()
+                    onDone()
+                } else {
+                    // mailto build failed — surface the share sheet instead of
+                    // silent dismiss. ShareSheet.onDisappear handles
+                    // dismiss()+onDone() for us.
+                    showingShare = true
                 }
-                // Critical: dismiss the preview ourselves. The canSendMail==true
-                // path dismisses via MailComposerView.onDismiss; the share path
-                // dismisses via ShareSheet.onDisappear; this branch did neither,
-                // leaving the user on a preview screen whose invoice was already
-                // finalized — a re-tap would have burned another invoice number.
-                dismiss()
-                onDone()
             }
         } catch {
             // Silent failure for now; Phase 1 noted error toasts as future work.

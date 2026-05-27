@@ -75,7 +75,7 @@ struct BusinessProfileEmailTemplatesTests {
         #expect(profile.effectiveInvoiceEmailBodyTemplate == BusinessProfile.defaultInvoiceEmailBody)
     }
 
-    @Test("effective…Template returns the stored value unchanged when non-empty")
+    @Test("effective…Template returns the stored value unchanged when non-empty and already trimmed")
     func effectiveTemplatePreservesNonEmpty() {
         let profile = BusinessProfile(
             invoiceEmailSubjectTemplate: "Custom subject for {invoiceNumber}",
@@ -83,6 +83,44 @@ struct BusinessProfileEmailTemplatesTests {
         )
         #expect(profile.effectiveInvoiceEmailSubjectTemplate == "Custom subject for {invoiceNumber}")
         #expect(profile.effectiveInvoiceEmailBodyTemplate == "Custom body")
+    }
+
+    @Test("effective…Template trims surrounding whitespace + newlines on the returned value")
+    func effectiveTemplateTrimsSurroundingWhitespace() {
+        // Trailing newlines (common when pasting from email clients) would
+        // otherwise leak into MFMailComposeViewController.setSubject and may be
+        // interpreted as the start of a new header by some SMTP gateways.
+        let profile = BusinessProfile(
+            invoiceEmailSubjectTemplate: "  Invoice {invoiceNumber}\n",
+            invoiceEmailBodyTemplate: "\n\nHi,\n  thanks  \n\n"
+        )
+        #expect(profile.effectiveInvoiceEmailSubjectTemplate == "Invoice {invoiceNumber}")
+        // Internal whitespace + newlines are preserved; only outer trimmed.
+        #expect(profile.effectiveInvoiceEmailBodyTemplate == "Hi,\n  thanks")
+    }
+
+    @Test("effective…Template survives SwiftData round-trip — falls back to default if stored value is empty")
+    func effectiveTemplateRoundTripsThroughSwiftData() throws {
+        // Belt-and-suspenders: if a future @Model-decoder code path ever hydrates
+        // BusinessProfile without running the swift init's defaults, the effective
+        // properties still need to fall back correctly when reading the stored
+        // property directly. This exercises the persistence path the previous
+        // computed-property-only tests skip.
+        let container = try BillableModelContainer.inMemory()
+        let writeContext = ModelContext(container)
+        let profile = BusinessProfile(
+            invoiceEmailSubjectTemplate: "",
+            invoiceEmailBodyTemplate: "  "
+        )
+        writeContext.insert(profile)
+        try writeContext.save()
+
+        let readContext = ModelContext(container)
+        let fetched = try readContext.fetch(FetchDescriptor<BusinessProfile>())
+        #expect(fetched.count == 1)
+        let restored = try #require(fetched.first)
+        #expect(restored.effectiveInvoiceEmailSubjectTemplate == BusinessProfile.defaultInvoiceEmailSubject)
+        #expect(restored.effectiveInvoiceEmailBodyTemplate == BusinessProfile.defaultInvoiceEmailBody)
     }
 
     @Test("Default body template renders all merge fields end-to-end with no unsubstituted braces")

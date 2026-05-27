@@ -156,17 +156,24 @@ Thanks,
     /// not empty strings — so the renderer would produce a blank subject. This
     /// computed property closes that gap by treating whitespace-only as "use the
     /// default" at the model layer, so every caller is protected.
+    ///
+    /// The non-empty branch returns the TRIMMED value so a stored
+    /// `"Invoice {invoiceNumber}\n"` (e.g. trailing newline from a paste) doesn't
+    /// leak through to `MFMailComposeViewController.setSubject(...)` — RFC 5322
+    /// subjects are single-line and many SMTP gateways treat embedded newlines
+    /// as the start of a new header.
     public var effectiveInvoiceEmailSubjectTemplate: String {
         let trimmed = invoiceEmailSubjectTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? Self.defaultInvoiceEmailSubject : invoiceEmailSubjectTemplate
+        return trimmed.isEmpty ? Self.defaultInvoiceEmailSubject : trimmed
     }
 
     /// The body template the email composer should actually use. Same
     /// whitespace-only-falls-back-to-default semantics as
-    /// `effectiveInvoiceEmailSubjectTemplate`.
+    /// `effectiveInvoiceEmailSubjectTemplate`. Returns the trimmed value so
+    /// surrounding whitespace doesn't render into the email body.
     public var effectiveInvoiceEmailBodyTemplate: String {
         let trimmed = invoiceEmailBodyTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? Self.defaultInvoiceEmailBody : invoiceEmailBodyTemplate
+        return trimmed.isEmpty ? Self.defaultInvoiceEmailBody : trimmed
     }
 }
 
