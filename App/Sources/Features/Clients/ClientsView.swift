@@ -12,8 +12,23 @@ struct ClientsView: View {
     @Query(filter: #Predicate<Client> { $0.isArchived }, sort: \Client.name)
     private var archivedClients: [Client]
 
+    @Query(sort: \Invoice.issuedAt, order: .reverse)
+    private var allInvoices: [Invoice]
+
     @State private var showingNew = false
     @State private var deletionCandidate: Client?
+
+    private var lastInvoiceByClientID: [PersistentIdentifier: Date] {
+        var map: [PersistentIdentifier: Date] = [:]
+        for invoice in allInvoices where invoice.status != .draft {
+            guard let clientID = invoice.client?.persistentModelID else { continue }
+            let date = invoice.sentAt ?? invoice.paidAt
+            guard let date else { continue }
+            if let existing = map[clientID], existing >= date { continue }
+            map[clientID] = date
+        }
+        return map
+    }
 
     var body: some View {
         NavigationStack {
@@ -102,7 +117,10 @@ struct ClientsView: View {
                     NavigationLink {
                         ClientDetailView(client: client)
                     } label: {
-                        ClientRow(client: client)
+                        ClientRow(
+                            client: client,
+                            lastInvoiceDate: lastInvoiceByClientID[client.persistentModelID]
+                        )
                     }
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
@@ -127,7 +145,7 @@ struct ClientsView: View {
             if !archivedClients.isEmpty {
                 Section("Archived") {
                     ForEach(archivedClients) { client in
-                        ClientRow(client: client)
+                        ClientRow(client: client, lastInvoiceDate: nil)
                             .foregroundStyle(.secondary)
                             .swipeActions(edge: .trailing) {
                                 Button {
@@ -148,6 +166,7 @@ struct ClientsView: View {
 
 private struct ClientRow: View {
     let client: Client
+    let lastInvoiceDate: Date?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -160,6 +179,11 @@ private struct ClientRow: View {
                     Text(contactName)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                if let lastInvoiceDate {
+                    Text(DaysAgoFormatter.string(for: lastInvoiceDate, prefix: "Last invoice: "))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
             }
             Spacer()
