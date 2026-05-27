@@ -23,7 +23,6 @@ struct BusinessProfileEditorView: View {
 
     @State private var taxLabel: String = "Tax"
     @State private var taxRatePercent: Double = 0   // displayed as a percentage; converted to Decimal 0..1 on save
-    @State private var currencyCode: String = Locale.current.currency?.identifier ?? "USD"
 
     @State private var hasLoaded = false
 
@@ -72,14 +71,6 @@ struct BusinessProfileEditorView: View {
                 }
             }
 
-            Section("Currency") {
-                Picker("Currency", selection: $currencyCode) {
-                    ForEach(CurrencyCatalog.allCodes, id: \.self) { code in
-                        Text("\(code) — \(CurrencyCatalog.displayName(for: code))").tag(code)
-                    }
-                }
-                .pickerStyle(.navigationLink)
-            }
         }
         .navigationTitle("Business profile")
         .navigationBarTitleDisplayMode(.inline)
@@ -106,7 +97,6 @@ struct BusinessProfileEditorView: View {
         nextInvoiceNumber = profile.nextInvoiceNumber
         taxLabel = profile.taxLabel
         taxRatePercent = (profile.taxRate as NSDecimalNumber).doubleValue * 100
-        currencyCode = profile.currencyCode
     }
 
     private func save() {
@@ -121,7 +111,6 @@ struct BusinessProfileEditorView: View {
         profile.nextInvoiceNumber = nextInvoiceNumber
         profile.taxLabel = taxLabel
         profile.taxRate = Decimal(taxRatePercent / 100)
-        profile.currencyCode = currencyCode
         profile.updatedAt = .now
         modelContext.saveOrLog("save business profile")
         dismiss()

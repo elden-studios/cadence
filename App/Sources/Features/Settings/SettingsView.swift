@@ -12,6 +12,19 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Preferences") {
+                    NavigationLink {
+                        CurrencyPickerView()
+                    } label: {
+                        LabeledContent("Currency") {
+                            Text(profiles.first?.currencyCode
+                                 ?? Locale.current.currency?.identifier
+                                 ?? "USD")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
                 Section("Business profile") {
                     NavigationLink {
                         BusinessProfileEditorView()
