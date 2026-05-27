@@ -310,8 +310,13 @@ struct InvoicePreviewView: View {
                 profile: profile,
                 context: modelContext
             )
+            // Watermark gate: free-tier users get "Sent with Cadence" stamped on the
+            // PDF; Pro removes it. Mirrors the InvoiceDetailView ensurePDFData / ensurePDFOnDisk
+            // logic — without this, a free user could email an un-watermarked PDF.
+            var templateData = InvoiceTemplateData.from(draft)
+            templateData.watermark = subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
             let data = InvoicePDFRenderer.renderPDFData(
-                for: InvoiceTemplateData.from(draft),
+                for: templateData,
                 accent: draft.clientColor.swiftUIColor
             )
             draft.pdfDataCached = data
@@ -412,8 +417,14 @@ struct InvoicePreviewView: View {
                 profile: profile,
                 context: modelContext
             )
+            // Watermark gate: free-tier users get "Sent with Cadence" stamped on the
+            // PDF; Pro removes it. Without this, a free user could share an
+            // un-watermarked PDF via the iOS share sheet — same gate as the
+            // InvoiceDetailView paths and the new finalizeAndEmail() above.
+            var templateData = InvoiceTemplateData.from(draft)
+            templateData.watermark = subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
             let data = InvoicePDFRenderer.renderPDFData(
-                for: InvoiceTemplateData.from(draft),
+                for: templateData,
                 accent: draft.clientColor.swiftUIColor
             )
             draft.pdfDataCached = data
