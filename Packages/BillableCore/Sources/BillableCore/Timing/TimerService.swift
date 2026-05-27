@@ -22,6 +22,11 @@ public enum TimerService {
         case alreadyTrackingSameProject
     }
 
+    public enum AdjustError: Error, Equatable, Sendable {
+        case startInFuture
+        case entryNotRunning
+    }
+
     /// The currently running TimeEntry, if any. `nil` when idle.
     @MainActor
     public static func currentRunningEntry(in context: ModelContext) -> TimeEntry? {
@@ -127,5 +132,24 @@ public enum TimerService {
         context.insert(entry)
         try context.save()
         return entry
+    }
+
+    /// Shift a running entry's startedAt backward (or forward, within constraints).
+    /// Throws if `newStart >= Date.now` (would create negative duration) or if
+    /// the entry is no longer running.
+    ///
+    /// Used by the Today screen's RunningTimerCard to let users correct a
+    /// "forgot to start the timer" mistake without stopping the entry.
+    @MainActor
+    public static func adjustStart(
+        entry: TimeEntry,
+        to newStart: Date,
+        in context: ModelContext
+    ) throws {
+        guard entry.endedAt == nil else { throw AdjustError.entryNotRunning }
+        guard newStart < .now else { throw AdjustError.startInFuture }
+        entry.startedAt = newStart
+        entry.updatedAt = .now
+        try context.save()
     }
 }
