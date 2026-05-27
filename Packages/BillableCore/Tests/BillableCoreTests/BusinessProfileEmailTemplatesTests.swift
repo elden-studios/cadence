@@ -65,6 +65,26 @@ struct BusinessProfileEmailTemplatesTests {
         #expect(rendered == "Invoice INV-0042 from Studio Lina")
     }
 
+    @Test("effective…Template falls back to default when stored value is empty or whitespace")
+    func effectiveTemplateFallsBackOnEmpty() {
+        let profile = BusinessProfile(
+            invoiceEmailSubjectTemplate: "",
+            invoiceEmailBodyTemplate: "   \n\t  "
+        )
+        #expect(profile.effectiveInvoiceEmailSubjectTemplate == BusinessProfile.defaultInvoiceEmailSubject)
+        #expect(profile.effectiveInvoiceEmailBodyTemplate == BusinessProfile.defaultInvoiceEmailBody)
+    }
+
+    @Test("effective…Template returns the stored value unchanged when non-empty")
+    func effectiveTemplatePreservesNonEmpty() {
+        let profile = BusinessProfile(
+            invoiceEmailSubjectTemplate: "Custom subject for {invoiceNumber}",
+            invoiceEmailBodyTemplate: "Custom body"
+        )
+        #expect(profile.effectiveInvoiceEmailSubjectTemplate == "Custom subject for {invoiceNumber}")
+        #expect(profile.effectiveInvoiceEmailBodyTemplate == "Custom body")
+    }
+
     @Test("Default body template renders all merge fields end-to-end with no unsubstituted braces")
     func defaultBodyRendersCleanly() throws {
         let container = try BillableModelContainer.inMemory()

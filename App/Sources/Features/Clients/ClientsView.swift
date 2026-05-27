@@ -12,19 +12,27 @@ struct ClientsView: View {
     @Query(filter: #Predicate<Client> { $0.isArchived }, sort: \Client.name)
     private var archivedClients: [Client]
 
-    @Query(sort: \Invoice.issuedAt, order: .reverse)
-    private var allInvoices: [Invoice]
+    // Drafts are excluded at the SwiftData predicate level (instead of in the
+    // map builder) so the @Query never materializes them — for power users
+    // with hundreds of historical invoices that's a meaningful win in fetch
+    // cost AND in the per-render iteration below.
+    @Query(filter: #Predicate<Invoice> { $0.sentAt != nil },
+           sort: \Invoice.issuedAt, order: .reverse)
+    private var sentInvoices: [Invoice]
 
     @State private var showingNew = false
     @State private var deletionCandidate: Client?
 
     private var lastInvoiceByClientID: [PersistentIdentifier: Date] {
         var map: [PersistentIdentifier: Date] = [:]
-        for invoice in allInvoices where invoice.status != .draft {
+        // Sort is `\Invoice.issuedAt` descending, so the FIRST occurrence per
+        // client is the most recent activity. Early-exit once we've recorded a
+        // value for a client — turns O(N invoices) into O(unique clients).
+        for invoice in sentInvoices {
             guard let clientID = invoice.client?.persistentModelID else { continue }
+            guard map[clientID] == nil else { continue }
             let date = invoice.sentAt ?? invoice.paidAt
             guard let date else { continue }
-            if let existing = map[clientID], existing >= date { continue }
             map[clientID] = date
         }
         return map

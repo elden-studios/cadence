@@ -364,7 +364,20 @@ private struct RunningTimerCard: View {
     private var notesBinding: Binding<String> {
         Binding(
             get: { entry.notes ?? "" },
-            set: { entry.notes = $0.isEmpty ? nil : $0 }
+            set: { newValue in
+                // Normalize: empty string ↔ nil so deleting fully resets.
+                let normalized = newValue.isEmpty ? nil : newValue
+                // No-op guard: SwiftUI's TextField can invoke the setter with
+                // the same value on focus / re-render churn. Without this we'd
+                // bump updatedAt and save on every keystroke pass-through.
+                guard entry.notes != normalized else { return }
+                entry.notes = normalized
+                // Match the invariant honored by TimerService.adjustStart and
+                // every other TimeEntry mutation: bump updatedAt + save so the
+                // note survives a force-quit (vs relying on autosave timing).
+                entry.updatedAt = .now
+                modelContext.saveOrLog("update running entry notes")
+            }
         )
     }
 
@@ -384,12 +397,20 @@ private struct AdjustStartTimePickerSheet: View {
     let onSave: (Date) -> Void
     let onCancel: () -> Void
     @State private var selection: Date
+    // Single anchor for both the picker's range bound and the Save predicate.
+    // Captured into @State at init so it stays stable across body re-renders;
+    // without this, `in: ...Date.now` and `disabled(selection >= Date.now)`
+    // read Date.now independently on each render and could disagree by
+    // milliseconds, causing the Save button to flicker enabled/disabled at
+    // the boundary.
+    @State private var upperBound: Date
 
     init(currentStart: Date, onSave: @escaping (Date) -> Void, onCancel: @escaping () -> Void) {
         self.currentStart = currentStart
         self.onSave = onSave
         self.onCancel = onCancel
         _selection = State(initialValue: currentStart)
+        _upperBound = State(initialValue: .now)
     }
 
     var body: some View {
@@ -398,7 +419,7 @@ private struct AdjustStartTimePickerSheet: View {
                 DatePicker(
                     "Start time",
                     selection: $selection,
-                    in: ...Date.now,
+                    in: ...upperBound,
                     displayedComponents: [.date, .hourAndMinute]
                 )
                 .datePickerStyle(.graphical)
@@ -412,7 +433,7 @@ private struct AdjustStartTimePickerSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") { onSave(selection) }
                         .bold()
-                        .disabled(selection >= Date.now)
+                        .disabled(selection >= upperBound)
                 }
             }
         }

@@ -148,6 +148,26 @@ Let me know if you have any questions.
 Thanks,
 {senderName}
 """
+
+    /// The subject template the email composer should actually use.
+    ///
+    /// If the user has cleared the stored template (or it's whitespace-only), the
+    /// raw `??` fallback at call sites does NOT trigger — `??` only fires on nil,
+    /// not empty strings — so the renderer would produce a blank subject. This
+    /// computed property closes that gap by treating whitespace-only as "use the
+    /// default" at the model layer, so every caller is protected.
+    public var effectiveInvoiceEmailSubjectTemplate: String {
+        let trimmed = invoiceEmailSubjectTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? Self.defaultInvoiceEmailSubject : invoiceEmailSubjectTemplate
+    }
+
+    /// The body template the email composer should actually use. Same
+    /// whitespace-only-falls-back-to-default semantics as
+    /// `effectiveInvoiceEmailSubjectTemplate`.
+    public var effectiveInvoiceEmailBodyTemplate: String {
+        let trimmed = invoiceEmailBodyTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? Self.defaultInvoiceEmailBody : invoiceEmailBodyTemplate
+    }
 }
 
 extension BusinessProfile {

@@ -26,6 +26,12 @@ struct InvoicePreviewView: View {
     @State private var showingMailComposer = false
     @State private var mailComposerSubject = ""
     @State private var mailComposerBody = ""
+    // Captured at finalize time so the sheet content builder doesn't need to
+    // dereference draft.pdfDataCached (which the defensive `?? Data()` fallback
+    // hid — could ship a 0-byte attachment on a SwiftData fault).
+    @State private var mailComposerAttachment: Data?
+    @State private var mailComposerRecipients: [String] = []
+    @State private var showingNoClientEmailAlert = false
 
     private var subscriptions: SubscriptionManager { SubscriptionManager.shared }
 
@@ -143,10 +149,14 @@ struct InvoicePreviewView: View {
                         } label: {
                             Label("Finalize & share", systemImage: "square.and.arrow.up")
                         }
-                        .disabled(hasInvalidDescriptions)
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
+                    // Disable on the ToolbarItem (matches the primary
+                    // 'Finalize & email' button above). If we only disabled the
+                    // inner Button, the ellipsis stayed tappable and opened a
+                    // menu of disabled items — confusing UX.
+                    .disabled(hasInvalidDescriptions)
                 }
             }
             .sheet(isPresented: $showingShare) {
@@ -161,12 +171,15 @@ struct InvoicePreviewView: View {
                 }
             }
             .sheet(isPresented: $showingMailComposer) {
-                if let finalized {
+                // Only present when we have something real to attach. Replaces
+                // the previous `?? Data()` fallback which would silently send a
+                // 0-byte PDF if the cache read returned nil.
+                if let finalized, let attachment = mailComposerAttachment {
                     MailComposerView(
-                        recipients: client.email.map { [$0] } ?? [],
+                        recipients: mailComposerRecipients,
                         subject: mailComposerSubject,
                         body: mailComposerBody,
-                        attachmentData: finalized.pdfDataCached ?? Data(),
+                        attachmentData: attachment,
                         attachmentMimeType: "application/pdf",
                         attachmentFilename: "\(finalized.number).pdf",
                         onDismiss: { _ in
@@ -176,6 +189,7 @@ struct InvoicePreviewView: View {
                             // @MainActor-captured onDone closure from inside the
                             // @Sendable closure type.
                             MainActor.assumeIsolated {
+                                showingMailComposer = false
                                 dismiss()
                                 onDone()
                             }
@@ -183,6 +197,12 @@ struct InvoicePreviewView: View {
                     )
                 }
             }
+            .alert("Add a client email first",
+                   isPresented: $showingNoClientEmailAlert,
+                   actions: { Button("OK", role: .cancel) {} },
+                   message: {
+                Text("This client doesn't have an email on file. Add one in the client's details before finalizing by email — or use 'Finalize & share' to send the PDF another way.")
+            })
             .sheet(isPresented: $showingRemoveWatermarkPaywall) {
                 PaywallView(trigger: .removeWatermark)
             }
@@ -295,6 +315,22 @@ struct InvoicePreviewView: View {
     }
 
     private func finalizeAndEmail() {
+        // Idempotency: if we've already finalized in this preview session,
+        // refuse to do it a second time — otherwise a re-tap (e.g. after the
+        // mailto fallback dropped the user into an external mail app and they
+        // came back) would call InvoiceBuilder.createDraft again and burn
+        // another invoice number for the same work.
+        guard finalized == nil else { return }
+
+        // Pre-flight: the entire flow exists to email the client, so finalizing
+        // before we've confirmed there's anywhere to send the email is wrong —
+        // a cancel after that would leave the invoice .sent with no email
+        // actually delivered, and no rollback path. Alert the user instead.
+        guard let recipient = client.email, !recipient.isEmpty else {
+            showingNoClientEmailAlert = true
+            return
+        }
+
         flushPendingDescriptionEdits()
         do {
             let draft = try InvoiceBuilder.createDraft(
@@ -324,32 +360,43 @@ struct InvoicePreviewView: View {
             finalized = draft
             pdfData = data
 
-            // Render templates against the freshly-finalized invoice.
+            // Render templates against the freshly-finalized invoice. Use the
+            // `effective…Template` properties so a user who cleared the templates
+            // in Settings doesn't end up with a blank subject/body.
             let senderName = profile.name
             let subject = ReminderTemplateRenderer.render(
-                template: profile.invoiceEmailSubjectTemplate,
+                template: profile.effectiveInvoiceEmailSubjectTemplate,
                 invoice: draft,
                 senderName: senderName
             )
             let body = ReminderTemplateRenderer.render(
-                template: profile.invoiceEmailBodyTemplate,
+                template: profile.effectiveInvoiceEmailBodyTemplate,
                 invoice: draft,
                 senderName: senderName
             )
+
             if MFMailComposeViewController.canSendMail() {
+                // Capture everything into @State BEFORE flipping the sheet bool
+                // so the sheet content closure isn't responsible for any side
+                // effects.
+                mailComposerRecipients = [recipient]
                 mailComposerSubject = subject
                 mailComposerBody = body
+                mailComposerAttachment = data
                 showingMailComposer = true
             } else {
-                // Fallback: open default mail handler. PDF attachment lost.
-                guard let email = client.email,
-                      !email.isEmpty,
-                      let url = mailtoURLFromComponents(to: email, subject: subject, body: body) else {
-                    // Final fallback: drop back to iOS share sheet.
-                    showingShare = true
-                    return
+                // Fallback: open default mail handler. PDF attachment is lost
+                // on this path (mailto: doesn't carry attachments).
+                if let url = mailtoURLFromComponents(to: recipient, subject: subject, body: body) {
+                    UIApplication.shared.open(url)
                 }
-                UIApplication.shared.open(url)
+                // Critical: dismiss the preview ourselves. The canSendMail==true
+                // path dismisses via MailComposerView.onDismiss; the share path
+                // dismisses via ShareSheet.onDisappear; this branch did neither,
+                // leaving the user on a preview screen whose invoice was already
+                // finalized — a re-tap would have burned another invoice number.
+                dismiss()
+                onDone()
             }
         } catch {
             // Silent failure for now; Phase 1 noted error toasts as future work.
@@ -398,6 +445,11 @@ struct InvoicePreviewView: View {
     // MARK: - Actions
 
     private func finalizeAndShare() {
+        // Idempotency: same guard as finalizeAndEmail. The share-sheet's
+        // onDisappear dismisses the preview, so the re-tap window is narrow,
+        // but a second tap before SwiftUI fires onDisappear would still call
+        // createDraft a second time. Belt-and-suspenders.
+        guard finalized == nil else { return }
         // Drain any pending in-flight edits before snapshotting. Closes a race
         // where a user taps Finalize within the 200ms debounce window — without
         // this drain, the pre-edit description would be persisted instead of
