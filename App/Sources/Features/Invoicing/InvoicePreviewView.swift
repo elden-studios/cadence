@@ -50,7 +50,7 @@ struct InvoicePreviewView: View {
 
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
-        return InvoiceTemplateData(
+        var data = InvoiceTemplateData(
             issuerName: profile.name,
             issuerAddress: profile.address,
             issuerEmail: profile.email,
@@ -72,6 +72,12 @@ struct InvoicePreviewView: View {
             currencyCode: profile.currencyCode,
             watermark: subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
         )
+        data.bankBeneficiaryName = profile.bankBeneficiaryName
+        data.bankName = profile.bankName
+        data.bankLocation = profile.bankLocation
+        data.bankIBAN = profile.bankIBAN
+        data.bankSWIFT = profile.bankSWIFT
+        return data
     }
 
     var body: some View {

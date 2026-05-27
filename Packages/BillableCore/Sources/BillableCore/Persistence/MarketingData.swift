@@ -24,7 +24,12 @@ public enum MarketingData {
             nextInvoiceNumber: 12,                       // suggests prior history
             taxLabel: "Sales Tax",
             taxRate: Decimal(string: "0.0875")!,
-            currencyCode: "USD"
+            currencyCode: "USD",
+            bankBeneficiaryName: "Studio Lina LLC",
+            bankName: "Chase Bank",
+            bankLocation: "New York, USA",
+            bankIBAN: "US33 2100 0000 1000 2003 4567",
+            bankSWIFT: "CHASUS33"
         )
         context.insert(profile)
 
@@ -119,6 +124,11 @@ public enum MarketingData {
             issuerNameSnapshot: profile.name,
             issuerAddressSnapshot: profile.address,
             issuerEmailSnapshot: profile.email,
+            issuerBankBeneficiaryNameSnapshot: "Studio Lina LLC",
+            issuerBankNameSnapshot: "Chase Bank",
+            issuerBankLocationSnapshot: "New York, USA",
+            issuerBankIBANSnapshot: "US33 2100 0000 1000 2003 4567",
+            issuerBankSWIFTSnapshot: "CHASUS33",
             paymentTermsSnapshot: profile.paymentTerms,
             taxLabelSnapshot: profile.taxLabel,
             taxRateSnapshot: profile.taxRate,
@@ -153,6 +163,11 @@ public enum MarketingData {
             issuerNameSnapshot: profile.name,
             issuerAddressSnapshot: profile.address,
             issuerEmailSnapshot: profile.email,
+            issuerBankBeneficiaryNameSnapshot: "Studio Lina LLC",
+            issuerBankNameSnapshot: "Chase Bank",
+            issuerBankLocationSnapshot: "New York, USA",
+            issuerBankIBANSnapshot: "US33 2100 0000 1000 2003 4567",
+            issuerBankSWIFTSnapshot: "CHASUS33",
             paymentTermsSnapshot: profile.paymentTerms,
             taxLabelSnapshot: profile.taxLabel,
             taxRateSnapshot: profile.taxRate,
