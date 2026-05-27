@@ -49,7 +49,7 @@ public final class BusinessProfile {
     /// True when the issuer has a tax registration number to display.
     /// `taxIDLabel` alone does not count — a label without a number is meaningless.
     public var hasTaxID: Bool {
-        !taxIDNumber.trimmingCharacters(in: .whitespaces).isEmpty
+        !taxIDNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     public var createdAt: Date

@@ -274,12 +274,15 @@ public struct InvoiceTemplate: View {
     }
 
     /// "VAT GB123456789" if label+number; "GB123456789" if only number.
-    /// Trims leading/trailing whitespace on the label to avoid double spaces.
+    /// Trims whitespace on both fields — stray spaces/newlines pasted from
+    /// external sources would otherwise be frozen onto immutable invoice
+    /// snapshots and visible on every reprint.
     private var taxIDDisplay: String {
-        let trimmedLabel = data.taxIDLabel.trimmingCharacters(in: .whitespaces)
+        let trimmedLabel = data.taxIDLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedNumber = data.taxIDNumber.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedLabel.isEmpty
-            ? data.taxIDNumber
-            : "\(trimmedLabel) \(data.taxIDNumber)"
+            ? trimmedNumber
+            : "\(trimmedLabel) \(trimmedNumber)"
     }
 
     private func formatMoney(_ value: Decimal) -> String {
@@ -287,10 +290,7 @@ public struct InvoiceTemplate: View {
     }
 
     private func formatHours(_ value: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.minimumFractionDigits = 0
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSDecimalNumber(decimal: value)) ?? "\(value)"
+        value.formatted(.number.precision(.fractionLength(0...2)))
     }
 
     private func formatPercent(_ rate: Decimal) -> String {
@@ -363,7 +363,7 @@ public struct InvoiceTemplateData: Sendable {
     public var taxIDNumber: String = ""
 
     public var hasTaxID: Bool {
-        !taxIDNumber.trimmingCharacters(in: .whitespaces).isEmpty
+        !taxIDNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     public var watermark: String?  // nil for Pro/trial, "Sent with Cadence" for free
