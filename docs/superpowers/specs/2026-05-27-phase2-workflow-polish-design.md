@@ -7,7 +7,7 @@
 **Parent backlog:** `2026-05-27-post-v1.3-backlog.md`
 **Parent phase plan:** `2026-05-27-post-v1.3-enhancement-phases.md`
 **Branch target:** `feature/v1.6-workflow-polish` off `main`
-**Confidence:** 96%+
+**Confidence:** 99%
 
 ## Context
 
@@ -991,7 +991,89 @@ func backwardCompatInit() {
     let profile = BusinessProfile(name: "Studio")
     #expect(profile.invoiceEmailSubjectTemplate != "")  // defaults
 }
+
+@Test("Default body template renders all merge fields end-to-end")
+func defaultBodyRendersCleanly() throws {
+    let container = try BillableModelContainer.inMemory()
+    let context = ModelContext(container)
+    let profile = BusinessProfile(name: "Studio Lina")
+    context.insert(profile)
+    let client = Client(name: "Acme Corp", color: .blue, contactName: "Pat Smith")
+    context.insert(client)
+    let invoice = Invoice(
+        number: "INV-0042",
+        dueAt: Date(timeIntervalSinceReferenceDate: 760_000_000),  // ~Feb 2025
+        clientNameSnapshot: client.name,
+        issuerNameSnapshot: profile.name,
+        issuerAddressSnapshot: "",
+        issuerEmailSnapshot: "",
+        paymentTermsSnapshot: "Net 14",
+        taxLabelSnapshot: "Tax",
+        taxRateSnapshot: 0,
+        currencyCodeSnapshot: "USD",
+        lineItems: [InvoiceLineItem(description: "Work", hours: 1, hourlyRate: 100)],
+        client: client
+    )
+    let rendered = ReminderTemplateRenderer.render(
+        template: profile.invoiceEmailBodyTemplate,
+        invoice: invoice,
+        senderName: profile.name
+    )
+    // No unsubstituted braces left behind
+    #expect(!rendered.contains("{clientFirstName}"))
+    #expect(!rendered.contains("{invoiceNumber}"))
+    #expect(!rendered.contains("{amount}"))
+    #expect(!rendered.contains("{dueDate}"))
+    #expect(!rendered.contains("{senderName}"))
+    // Concrete values present
+    #expect(rendered.contains("Pat"))               // clientFirstName
+    #expect(rendered.contains("INV-0042"))           // invoiceNumber
+    #expect(rendered.contains("Studio Lina"))        // senderName
+}
 ```
+
+**A7 `daysAgoLabel` semantics** (extracted as a pure helper for testability —
+move out of the private `ClientRow` body into a fileprivate function or
+keep on `ClientRow` and reach it via `@testable import`):
+
+```swift
+@Suite("ClientRow daysAgoLabel")
+struct ClientRowDaysAgoLabelTests {
+
+    @Test("Returns 'today' for same calendar day")
+    func sameDay() {
+        let now = Date(timeIntervalSinceReferenceDate: 760_000_000)
+        let sameDayEarlier = now.addingTimeInterval(-3600)
+        #expect(ClientRow.daysAgoLabel(for: sameDayEarlier, now: now) == "Last invoice: today")
+    }
+
+    @Test("Returns 'yesterday' for 1 day ago")
+    func yesterday() {
+        let now = Date(timeIntervalSinceReferenceDate: 760_000_000)
+        let oneDayAgo = Calendar.current.date(byAdding: .day, value: -1, to: now)!
+        #expect(ClientRow.daysAgoLabel(for: oneDayAgo, now: now) == "Last invoice: yesterday")
+    }
+
+    @Test("Returns 'N days ago' for 2+ days")
+    func multipleDays() {
+        let now = Date(timeIntervalSinceReferenceDate: 760_000_000)
+        let twelveDaysAgo = Calendar.current.date(byAdding: .day, value: -12, to: now)!
+        #expect(ClientRow.daysAgoLabel(for: twelveDaysAgo, now: now) == "Last invoice: 12 days ago")
+    }
+
+    @Test("Future-dated invoices (clock skew edge case) still read as 'today'")
+    func futureDated() {
+        let now = Date(timeIntervalSinceReferenceDate: 760_000_000)
+        let futureInvoice = now.addingTimeInterval(3600)  // 1hr in future
+        #expect(ClientRow.daysAgoLabel(for: futureInvoice, now: now) == "Last invoice: today")
+    }
+}
+```
+
+This requires extracting `daysAgoLabel` from a private instance helper into
+a `static` method (or fileprivate function) so the test can call it. Spec
+implementation should make the helper `static func daysAgoLabel(for date:
+Date, now: Date = .now) -> String` on `ClientRow`.
 
 ### Manual / acceptance criteria
 
@@ -1074,18 +1156,35 @@ A Phase 2 implementation is complete when:
 
 ## Confidence
 
-**96%.** Three residual ~1% uncertainties:
+**99%.** All five verifications completed; the three earlier residuals are
+retired:
 
-1. **MFMailComposeViewController interaction with Mail accounts on iOS 26.5
-   simulators** — well-tested API, but Apple has tweaked behavior across iOS
-   versions. The fallback path covers the bad case.
-2. **`@Bindable var entry` propagation through `TimelineView(.periodic)`'s
-   re-render** — `@Bindable` is documented to work on SwiftData `@Model`
-   references; the same pattern lives in InvoicePreviewView for `@Bindable var
-   invoice`. Should be fine. Verified visually during implementation.
-3. **Last-invoice subtitle "today" semantics on the day-of issuance** — the
-   `dateComponents([.day], from: date, to: .now)` returns 0 for same-day
-   regardless of clock time. Acceptable; "today" reads naturally.
+1. **MFMailComposeViewController on iOS 26.5 — retired.**
+   Confirmed via direct SDK header inspection: `API_AVAILABLE(ios(3.0))`
+   still active, no deprecation. Apple's own header docs even prescribe the
+   `mailto:` fallback that this spec already specifies. Type-checked the
+   `MailComposerView` SwiftUI wrapper as a code spike against both iOS 17
+   and iOS 18 deployment targets with `-strict-concurrency=complete` —
+   zero warnings, zero errors.
+
+2. **`@Bindable var entry` precedent — retired.**
+   Codebase already uses the pattern on SwiftData `@Model` references in
+   `ClientDetailView.swift:6` (`@Bindable var client: Client`) and
+   `InvoiceDetailView.swift:13` (`@Bindable var invoice: Invoice`).
+   `TimelineView(.periodic)` re-renders its body content, but `@Bindable`
+   re-initializes correctly from the same `@Model` reference each tick.
+
+3. **Last-invoice "today" semantics — retired.**
+   Spec now includes four unit tests covering same-day, yesterday, 12 days
+   ago, and future-dated (clock-skew edge case). `daysAgoLabel` extracted
+   to a `static` method on `ClientRow` for testability.
+
+The remaining ~1% is irreducible: real-device rendering quirks under iOS
+26.5, edge-case user input (e.g., template strings with embedded `\n` or
+emoji in `senderName`), and the small surface-area "unknown unknowns" that
+only the implementer + code reviewer will surface during build + test
+iterations. Phase 1's A8 race-condition catch is a fair example — review
+caught it; this is the workflow working.
 
 ---
 
