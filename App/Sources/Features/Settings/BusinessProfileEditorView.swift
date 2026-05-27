@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 import BillableCore
 
 /// Form-based editor for the user's BusinessProfile (singleton).
@@ -29,6 +30,9 @@ struct BusinessProfileEditorView: View {
     @State private var bankLocation: String = ""
     @State private var bankIBAN: String = ""
     @State private var bankSWIFT: String = ""
+
+    @State private var logoData: Data?
+    @State private var logoPickerItem: PhotosPickerItem?
 
     @State private var hasLoaded = false
 
@@ -75,6 +79,41 @@ struct BusinessProfileEditorView: View {
                     Text("%")
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            Section {
+                if let data = logoData, let image = uiImageFromData(data) {
+                    HStack {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 80, height: 80)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary, lineWidth: 1))
+                        Spacer()
+                        Button(role: .destructive) {
+                            logoData = nil
+                            logoPickerItem = nil
+                        } label: {
+                            Text("Remove")
+                        }
+                    }
+                }
+                let pickerTitle = logoData == nil ? "Upload logo" : "Change logo"
+                PhotosPicker(
+                    selection: $logoPickerItem,
+                    matching: .images,
+                    photoLibrary: .shared()
+                ) {
+                    Label(pickerTitle, systemImage: "photo.on.rectangle.angled")
+                }
+                .onChange(of: logoPickerItem) { _, newItem in
+                    Task { await loadAndProcessLogo(from: newItem) }
+                }
+            } header: {
+                Text("Logo")
+            } footer: {
+                Text("Shown in the top-left of every invoice PDF. Square logos work best.")
             }
 
             Section {
@@ -127,6 +166,7 @@ struct BusinessProfileEditorView: View {
         bankLocation = profile.bankLocation
         bankIBAN = profile.bankIBAN
         bankSWIFT = profile.bankSWIFT
+        logoData = profile.logoData
     }
 
     private func save() {
@@ -146,9 +186,28 @@ struct BusinessProfileEditorView: View {
         profile.bankLocation = bankLocation
         profile.bankIBAN = bankIBAN
         profile.bankSWIFT = bankSWIFT
+        profile.logoData = logoData
         profile.updatedAt = .now
         modelContext.saveOrLog("save business profile")
         dismiss()
+    }
+
+    private func loadAndProcessLogo(from item: PhotosPickerItem?) async {
+        guard let item else { return }
+        guard let rawData = try? await item.loadTransferable(type: Data.self) else { return }
+        // Process off the main actor to avoid blocking the UI on a large source image.
+        let processed = await Task.detached(priority: .userInitiated) {
+            LogoImageProcessor.process(rawData)
+        }.value
+        guard let processed else { return }
+        await MainActor.run { logoData = processed }
+    }
+
+    private func uiImageFromData(_ data: Data) -> UIImage? {
+        // UIImage is only used here on the main actor for the editor's read-only
+        // display. The off-main encoding path uses pure CoreGraphics via
+        // LogoImageProcessor.
+        UIImage(data: data)
     }
 
     private func newProfile() -> BusinessProfile {
