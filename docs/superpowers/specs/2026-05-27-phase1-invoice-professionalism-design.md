@@ -614,8 +614,14 @@ obvious without inline error text.
 - `InvoiceTemplate` re-renders with the new description
 - User sees the update within one frame (~16ms)
 
-No cache to invalidate; no debounce needed; no perf concern at the size of
-typical invoices (1-30 line items).
+No cache to invalidate; no debounce needed for typical invoices (1-10 line
+items, where most freelance work lands).
+
+**Perf fallback if 30+ line items prove laggy in real-device testing:**
+add a 200ms `.task(id:)` debounce in `descriptionBinding(at:)`, so the
+template re-renders only when the user pauses typing. ~5 lines of code.
+The validation state (red border, disabled Finalize button) remains
+real-time regardless — only the PDF re-render is debounced.
 
 `pdfDataCached` on the persisted `Invoice` is only populated *after*
 finalization (existing line 207 in `finalizeAndShare`). Drafts don't have a
@@ -680,16 +686,20 @@ Logo path needs no propagation changes (already wired end-to-end).
 @Test("Empty description survives JSON round-trip (regression — we validate on UI, not model)")
 ```
 
-**Migration acceptance:**
+**Model defaults (catches migration mistakes):**
 
 ```
-@Test("v1.4-shape BusinessProfile loads with default empty tax ID fields")
+@Test("BusinessProfile() default-init has empty taxIDLabel and taxIDNumber")
+@Test("Invoice with no explicit tax ID snapshot args has empty snapshots")
 ```
 
-This test inserts a `BusinessProfile()` with the new init parameters absent
-(simulating older data), saves and fetches it, and asserts `taxIDLabel == ""`
-and `taxIDNumber == ""`. Catches a category of migration mistakes (e.g.,
-forgetting the default value).
+These insert a `BusinessProfile()` and an `Invoice(...)` using the
+default-`""` init parameters (simulating data that pre-dates Phase 1) and
+assert the fields are empty. Catches the most likely migration mistake —
+forgetting the default value on a new field — without needing a real v1.4
+store fixture. Actual on-device migration from v1.4 → v1.5 is covered by
+the manual acceptance check below ("App launches cleanly on a device with
+v1.4 data installed").
 
 ### Image processing helper (A1)
 
@@ -765,13 +775,29 @@ A Phase 1 implementation is complete when:
 - **PDF layout risk:** Adding a tax ID row to the issuer header block extends
   the left column by ~14pt (one row, 11pt font, ~3pt leading). Total header
   is still well within the page bounds. No reflow expected.
-- **A8 perf risk:** Live SwiftUI re-render on every keystroke. Tested up to
-  30 line items in InvoicePreviewView without lag (existing behavior since
-  the template is already live-rendered there). No new perf surface.
-- **A1 image-processing risk:** `CGImageSource` with thumbnail-max-pixel-size
-  is the memory-safe path; tested to handle 50 MP source images without
-  crash. The `Task.detached` offload keeps the main thread responsive even
-  on older devices.
+- **A8 perf risk (unmeasured, mitigable):** Live SwiftUI re-render on every
+  keystroke is expected to be smooth at 1-10 line items (the common case),
+  but unmeasured at 30+. If real-device testing shows lag, add a 200ms
+  `.task(id:)` debounce on the description binding so the PDF re-renders
+  only when the user pauses. Validation (red border + disabled Finalize)
+  stays real-time. ~5 lines of code.
+- **A1 strict-concurrency risk:** `processLogoData` uses `UIImage(cgImage:)`
+  and `UIImage.pngData()` / `jpegData()`. These are nonisolated and `UIImage`
+  is `Sendable` in iOS 17+, but Swift 6 strict concurrency may still warn.
+  Fallback: replace UIImage encoding with pure CoreGraphics via
+  `CGImageDestinationCreateWithData` + `CGImageDestinationAddImage` +
+  `CGImageDestinationFinalize`. Adds ~10 lines, fully Sendable-safe.
+- **A1 image-processing crash risk:** Low. `CGImageSource` with
+  thumbnail-max-pixel-size is the memory-safe path and is the recommended
+  Apple pattern for large source images. `Task.detached` offload keeps the
+  main thread responsive.
+- **A2 editor naming UX risk:** "Tax label" (for the totals row) and
+  "Tax ID label" (for the issuer header) coexist in the same Tax section.
+  The disambiguating section footer mitigates but doesn't eliminate
+  confusion. If user testing reveals confusion, the fix is to either
+  rename one ("Sales tax label" + "Tax ID label") or split into two
+  separate sections ("Tax rate" + "Tax registration"). Defer the decision
+  until we see real reactions.
 
 ## Acceptance: spec is "done" when
 
