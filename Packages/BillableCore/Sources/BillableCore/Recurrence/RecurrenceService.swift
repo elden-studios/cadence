@@ -105,7 +105,9 @@ public enum RecurrenceService {
         guard let client = template.client else {
             throw MaterializationError.noClient
         }
-        let profiles = try context.fetch(FetchDescriptor<BusinessProfile>())
+        var profileDescriptor = FetchDescriptor<BusinessProfile>()
+        profileDescriptor.fetchLimit = 1
+        let profiles = try context.fetch(profileDescriptor)
         guard let profile = profiles.first else {
             throw MaterializationError.noBusinessProfile
         }

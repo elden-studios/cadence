@@ -300,7 +300,9 @@ struct OnboardingView: View {
     private func finish() {
         // Create BusinessProfile if missing (we'll let user fill in details from Settings later).
         // Default currencyCode from Locale so a Saudi user gets SAR without manual picker work.
-        if (try? modelContext.fetch(FetchDescriptor<BusinessProfile>()))?.isEmpty != false {
+        var profileCheck = FetchDescriptor<BusinessProfile>()
+        profileCheck.fetchLimit = 1
+        if (try? modelContext.fetch(profileCheck))?.isEmpty != false {
             let profile = BusinessProfile.defaultForCurrentLocale()
             modelContext.insert(profile)
         }
@@ -315,7 +317,9 @@ struct OnboardingView: View {
         modelContext.insert(project)
         modelContext.saveOrLog("complete onboarding")
         if let entry = try? TimerService.start(project: project, in: modelContext) {
-            let profileCode = (try? modelContext.fetch(FetchDescriptor<BusinessProfile>()))?.first?.currencyCode ?? "USD"
+            var profileFetch = FetchDescriptor<BusinessProfile>()
+            profileFetch.fetchLimit = 1
+            let profileCode = (try? modelContext.fetch(profileFetch))?.first?.currencyCode ?? "USD"
             Task { await TimerActivityController.shared.startActivity(for: entry, currencyCode: profileCode) }
         }
         UserDefaults.standard.set(true, forKey: OnboardingFlags.completedKey)

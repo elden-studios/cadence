@@ -164,11 +164,19 @@ struct TodayView: View {
 // MARK: - Active timer card
 
 private struct TodayActiveTimerSection: View {
-    @Query(filter: #Predicate<TimeEntry> { $0.endedAt == nil })
+    @Query(Self.runningDescriptor)
     private var runningEntries: [TimeEntry]
 
     @Query(Self.lastStoppedDescriptor)
     private var stoppedEntries: [TimeEntry]
+
+    private static var runningDescriptor: FetchDescriptor<TimeEntry> {
+        var descriptor = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate<TimeEntry> { $0.endedAt == nil }
+        )
+        descriptor.fetchLimit = 1
+        return descriptor
+    }
 
     private static var lastStoppedDescriptor: FetchDescriptor<TimeEntry> {
         var descriptor = FetchDescriptor<TimeEntry>(

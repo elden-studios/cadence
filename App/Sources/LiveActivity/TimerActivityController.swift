@@ -84,7 +84,9 @@ final class TimerActivityController {
 
         // No live activity, but a running entry exists in the store → restart it.
         if let running = TimerService.currentRunningEntry(in: context) {
-            let profileCode = (try? context.fetch(FetchDescriptor<BusinessProfile>()))?.first?.currencyCode ?? "USD"
+            var profileDescriptor = FetchDescriptor<BusinessProfile>()
+            profileDescriptor.fetchLimit = 1
+            let profileCode = (try? context.fetch(profileDescriptor))?.first?.currencyCode ?? "USD"
             await startActivity(for: running, currencyCode: profileCode)
         }
     }

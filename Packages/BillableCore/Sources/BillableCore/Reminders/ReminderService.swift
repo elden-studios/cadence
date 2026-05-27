@@ -35,7 +35,9 @@ public final class ReminderService {
     /// Called from `Invoice.markSent(at:)`'s `didMarkSentHook` (Task 5.4 wires
     /// this hook in `BillableApp.performStartupWiring()`).
     public func scheduleForInvoice(_ invoice: Invoice) async throws {
-        let configs = try modelContext.fetch(FetchDescriptor<ReminderConfig>())
+        var configDescriptor = FetchDescriptor<ReminderConfig>()
+        configDescriptor.fetchLimit = 1
+        let configs = try modelContext.fetch(configDescriptor)
         guard let config = configs.first, config.masterEnabled else {
             log.info("scheduleForInvoice(): master disabled or no config — no-op")
             return

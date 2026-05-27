@@ -72,9 +72,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             // Look up the InvoiceReminderSchedule by id and route to the owning
             // invoice's detail view.
             guard let context = sharedModelContext else { return .recurringList }
-            let descriptor = FetchDescriptor<InvoiceReminderSchedule>(
+            var descriptor = FetchDescriptor<InvoiceReminderSchedule>(
                 predicate: #Predicate { $0.id == scheduleID }
             )
+            descriptor.fetchLimit = 1
             if let schedule = try? context.fetch(descriptor).first,
                let invoice = schedule.invoice {
                 return .invoiceDetail(invoiceID: invoice.uuid)

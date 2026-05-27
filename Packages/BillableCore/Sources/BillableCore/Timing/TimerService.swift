@@ -25,9 +25,10 @@ public enum TimerService {
     /// The currently running TimeEntry, if any. `nil` when idle.
     @MainActor
     public static func currentRunningEntry(in context: ModelContext) -> TimeEntry? {
-        let descriptor = FetchDescriptor<TimeEntry>(
+        var descriptor = FetchDescriptor<TimeEntry>(
             predicate: #Predicate { $0.endedAt == nil }
         )
+        descriptor.fetchLimit = 1
         return (try? context.fetch(descriptor))?.first
     }
 

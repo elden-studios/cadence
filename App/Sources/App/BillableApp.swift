@@ -20,7 +20,9 @@ struct BillableApp: App {
                 // demo data isolated from real iCloud accounts.
                 let appGroup = try BillableModelContainer.appGroup("group.com.eldenstudios.billable")
                 Self.runOnMainActor {
-                    if (try? appGroup.mainContext.fetch(FetchDescriptor<Client>()))?.isEmpty != false {
+                    var clientCheck = FetchDescriptor<Client>()
+                    clientCheck.fetchLimit = 1
+                    if (try? appGroup.mainContext.fetch(clientCheck))?.isEmpty != false {
                         SampleData.seedDemo(in: appGroup.mainContext)
                     }
                 }
@@ -30,7 +32,9 @@ struct BillableApp: App {
                 // App Group container (no CloudKit) — never touches user iCloud.
                 let appGroup = try BillableModelContainer.appGroup("group.com.eldenstudios.billable")
                 Self.runOnMainActor {
-                    if (try? appGroup.mainContext.fetch(FetchDescriptor<Client>()))?.isEmpty != false {
+                    var clientCheck = FetchDescriptor<Client>()
+                    clientCheck.fetchLimit = 1
+                    if (try? appGroup.mainContext.fetch(clientCheck))?.isEmpty != false {
                         MarketingData.seed(in: appGroup.mainContext)
                     }
                 }

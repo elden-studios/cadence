@@ -288,9 +288,13 @@ struct InvoiceDetailView: View {
     }
 
     private func composeReminder(for fireDate: Date) {
-        let configs = (try? modelContext.fetch(FetchDescriptor<ReminderConfig>())) ?? []
+        var configDescriptor = FetchDescriptor<ReminderConfig>()
+        configDescriptor.fetchLimit = 1
+        let configs = (try? modelContext.fetch(configDescriptor)) ?? []
         let config = configs.first
-        let profiles = (try? modelContext.fetch(FetchDescriptor<BusinessProfile>())) ?? []
+        var profileDescriptor = FetchDescriptor<BusinessProfile>()
+        profileDescriptor.fetchLimit = 1
+        let profiles = (try? modelContext.fetch(profileDescriptor)) ?? []
         let profile = profiles.first
         let senderName = profile?.name ?? ""
 

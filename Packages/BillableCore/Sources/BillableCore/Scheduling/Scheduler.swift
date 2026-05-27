@@ -237,9 +237,10 @@ public final class Scheduler {
     /// caller can route to the appropriate destination via `NotificationRouter`.
     public func handleNotificationTap(requestIdentifier: String) -> SchedulerPayload? {
         guard let id = UUID(uuidString: requestIdentifier) else { return nil }
-        let descriptor = FetchDescriptor<ScheduledNotification>(
+        var descriptor = FetchDescriptor<ScheduledNotification>(
             predicate: #Predicate { $0.id == id }
         )
+        descriptor.fetchLimit = 1
         guard let row = try? modelContext.fetch(descriptor).first else { return nil }
         return SchedulerPayload.decode(payloadType: row.payloadType, payloadID: row.payloadID)
     }

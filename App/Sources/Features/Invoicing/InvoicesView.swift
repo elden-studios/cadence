@@ -151,7 +151,8 @@ private struct InvoiceDetailDestinationLoader: View {
         }
     }
     private func fetch() -> Invoice? {
-        let descriptor = FetchDescriptor<Invoice>(predicate: #Predicate { $0.uuid == invoiceID })
+        var descriptor = FetchDescriptor<Invoice>(predicate: #Predicate { $0.uuid == invoiceID })
+        descriptor.fetchLimit = 1
         return try? modelContext.fetch(descriptor).first
     }
 }
@@ -169,7 +170,8 @@ private struct InvoicePreviewDestinationLoader: View {
         }
     }
     private func fetch() -> Invoice? {
-        let descriptor = FetchDescriptor<Invoice>(predicate: #Predicate { $0.uuid == invoiceID })
+        var descriptor = FetchDescriptor<Invoice>(predicate: #Predicate { $0.uuid == invoiceID })
+        descriptor.fetchLimit = 1
         return try? modelContext.fetch(descriptor).first
     }
 }
@@ -185,7 +187,8 @@ private struct RecurrenceEditorDestinationLoader: View {
         }
     }
     private func fetch() -> RecurrenceTemplate? {
-        let descriptor = FetchDescriptor<RecurrenceTemplate>(predicate: #Predicate { $0.id == templateID })
+        var descriptor = FetchDescriptor<RecurrenceTemplate>(predicate: #Predicate { $0.id == templateID })
+        descriptor.fetchLimit = 1
         return try? modelContext.fetch(descriptor).first
     }
 }
