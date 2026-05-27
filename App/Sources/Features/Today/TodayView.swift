@@ -251,6 +251,11 @@ private struct RunningTimerCard: View {
     let onStop: () -> Void
     let onSwitch: () -> Void
 
+    @Environment(\.modelContext) private var modelContext
+
+    @State private var showingAdjustDialog = false
+    @State private var showingDatePickerSheet = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
@@ -277,9 +282,19 @@ private struct RunningTimerCard: View {
                 .textFieldStyle(.plain)
 
             HStack(alignment: .firstTextBaseline) {
-                Text(elapsedString)
-                    .font(.system(size: 40, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
+                Button {
+                    showingAdjustDialog = true
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(elapsedString)
+                            .font(.system(size: 40, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.subheadline)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .buttonStyle(.plain)
                 Spacer()
                 Text(amountString)
                     .font(.title3.weight(.semibold).monospacedDigit())
@@ -303,6 +318,47 @@ private struct RunningTimerCard: View {
         }
         .padding()
         .background(.thinMaterial, in: .rect(cornerRadius: 16))
+        .confirmationDialog(
+            "Adjust start time",
+            isPresented: $showingAdjustDialog,
+            titleVisibility: .visible
+        ) {
+            Button("Back 5 minutes") { shiftStart(byMinutes: 5) }
+            Button("Back 10 minutes") { shiftStart(byMinutes: 10) }
+            Button("Back 15 minutes") { shiftStart(byMinutes: 15) }
+            Button("Adjust to…") {
+                showingDatePickerSheet = true
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $showingDatePickerSheet) {
+            AdjustStartTimePickerSheet(
+                currentStart: entry.startedAt,
+                onSave: { newStart in
+                    applyAdjustedStart(newStart)
+                    showingDatePickerSheet = false
+                },
+                onCancel: { showingDatePickerSheet = false }
+            )
+        }
+    }
+
+    private func shiftStart(byMinutes minutes: Int) {
+        let newStart = entry.startedAt.addingTimeInterval(TimeInterval(-minutes * 60))
+        applyAdjustedStart(newStart)
+    }
+
+    private func applyAdjustedStart(_ newStart: Date) {
+        // Defensive guard: never write a future start. The DatePicker sheet
+        // already restricts to .now-or-earlier; the 5/10/15-min offsets always
+        // go backward. This guard is for unforeseen call paths.
+        guard newStart < .now else { return }
+        do {
+            try TimerService.adjustStart(entry: entry, to: newStart, in: modelContext)
+        } catch {
+            // Silent fail; UI simply won't update. Phase 1 noted error toasts
+            // as future work.
+        }
     }
 
     private var notesBinding: Binding<String> {
@@ -320,6 +376,47 @@ private struct RunningTimerCard: View {
 
     private var amountString: String {
         entry.amount(asOf: asOf).formatted(.currency(code: currencyCode))
+    }
+}
+
+private struct AdjustStartTimePickerSheet: View {
+    let currentStart: Date
+    let onSave: (Date) -> Void
+    let onCancel: () -> Void
+    @State private var selection: Date
+
+    init(currentStart: Date, onSave: @escaping (Date) -> Void, onCancel: @escaping () -> Void) {
+        self.currentStart = currentStart
+        self.onSave = onSave
+        self.onCancel = onCancel
+        _selection = State(initialValue: currentStart)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                DatePicker(
+                    "Start time",
+                    selection: $selection,
+                    in: ...Date.now,
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .datePickerStyle(.graphical)
+            }
+            .navigationTitle("Adjust start")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { onCancel() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Save") { onSave(selection) }
+                        .bold()
+                        .disabled(selection >= Date.now)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 
