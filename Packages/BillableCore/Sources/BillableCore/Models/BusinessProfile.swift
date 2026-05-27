@@ -23,6 +23,24 @@ public final class BusinessProfile {
 
     public var currencyCode: String  // ISO 4217 (e.g. "USD"). v1 single-currency.
 
+    // MARK: - Bank details (v1.4)
+
+    public var bankBeneficiaryName: String = ""
+    public var bankName: String = ""
+    public var bankLocation: String = ""
+    public var bankIBAN: String = ""
+    public var bankSWIFT: String = ""
+
+    /// True if any of the meaningful payment-routing fields are non-empty.
+    /// `bankLocation` alone does not count — a city/country without bank
+    /// or IBAN is not actionable payment info.
+    public var hasBankDetails: Bool {
+        !bankBeneficiaryName.isEmpty
+            || !bankName.isEmpty
+            || !bankIBAN.isEmpty
+            || !bankSWIFT.isEmpty
+    }
+
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -39,6 +57,11 @@ public final class BusinessProfile {
         taxLabel: String = "Tax",
         taxRate: Decimal = 0,
         currencyCode: String = "USD",
+        bankBeneficiaryName: String = "",
+        bankName: String = "",
+        bankLocation: String = "",
+        bankIBAN: String = "",
+        bankSWIFT: String = "",
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -54,6 +77,11 @@ public final class BusinessProfile {
         self.taxLabel = taxLabel
         self.taxRate = taxRate
         self.currencyCode = currencyCode
+        self.bankBeneficiaryName = bankBeneficiaryName
+        self.bankName = bankName
+        self.bankLocation = bankLocation
+        self.bankIBAN = bankIBAN
+        self.bankSWIFT = bankSWIFT
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
