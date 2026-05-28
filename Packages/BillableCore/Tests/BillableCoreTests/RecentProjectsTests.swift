@@ -72,4 +72,14 @@ struct RecentProjectsTests {
         let all = try ctx.fetch(FetchDescriptor<TimeEntry>())
         #expect(RecentProjects.rank(from: all, limit: 3).count == 3)
     }
+
+    @Test("limit <= 0 and empty input return no projects")
+    func boundaries() throws {
+        let (ctx, client) = try fixture()
+        entry(ctx, project(ctx, client, "A"), at: t0)
+        try ctx.save()
+        let all = try ctx.fetch(FetchDescriptor<TimeEntry>())
+        #expect(RecentProjects.rank(from: all, limit: 0).isEmpty)
+        #expect(RecentProjects.rank(from: [], limit: 5).isEmpty)
+    }
 }

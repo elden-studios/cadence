@@ -8,6 +8,7 @@ public enum RecentProjects {
     /// (newest first), capped at `limit`. Sorts internally, so the caller's
     /// fetch order doesn't matter.
     public static func rank(from entries: [TimeEntry], limit: Int) -> [Project] {
+        guard limit > 0 else { return [] }
         let sorted = entries.sorted { $0.startedAt > $1.startedAt }
         var seen = Set<PersistentIdentifier>()
         var ordered: [Project] = []
