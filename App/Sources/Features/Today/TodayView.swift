@@ -108,8 +108,16 @@ private struct JumpBackInSection: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [BusinessProfile]
     @Query(Self.recentDescriptor) private var recentEntries: [TimeEntry]
+    @Query(Self.runningDescriptor) private var runningEntries: [TimeEntry]
+
+    private static var runningDescriptor: FetchDescriptor<TimeEntry> {
+        var d = FetchDescriptor<TimeEntry>(predicate: #Predicate { $0.endedAt == nil })
+        d.fetchLimit = 1
+        return d
+    }
 
     private static var recentDescriptor: FetchDescriptor<TimeEntry> {
+        // 60-day window (wider than StartTimerSheet's 30-day) so Today surfaces more resume candidates.
         let cutoff = Date.now.addingTimeInterval(-60 * 24 * 3600)
         var d = FetchDescriptor<TimeEntry>(
             predicate: #Predicate { $0.startedAt > cutoff },
@@ -125,6 +133,10 @@ private struct JumpBackInSection: View {
 
     private var recents: [Project] {
         RecentProjects.rank(from: recentEntries, limit: 5)
+    }
+
+    private func isThisProjectRunning(_ project: Project) -> Bool {
+        runningEntries.first?.project?.persistentModelID == project.persistentModelID
     }
 
     var body: some View {
@@ -170,15 +182,25 @@ private struct JumpBackInSection: View {
             .buttonStyle(.plain)
 
             Button {
-                TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
+                if let running = runningEntries.first,
+                   running.project?.persistentModelID != project.persistentModelID {
+                    TimerActions.switchTo(project: project, currencyCode: currencyCode, in: modelContext)
+                } else {
+                    TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
+                }
             } label: {
-                Image(systemName: "play.fill")
+                Image(systemName: isThisProjectRunning(project) ? "waveform" : "play.fill")
                     .font(.caption)
                     .foregroundStyle(.white)
                     .frame(width: 26, height: 26)
-                    .background(Color(red: 0.98, green: 0.49, blue: 0.13), in: .circle)
+                    .background(
+                        (isThisProjectRunning(project) ? Color.green : timerAccent),
+                        in: .circle
+                    )
             }
             .buttonStyle(.plain)
+            .disabled(isThisProjectRunning(project))
+            .accessibilityLabel(isThisProjectRunning(project) ? "Running" : "Start timer")
             .padding(10)
         }
     }

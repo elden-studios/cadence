@@ -13,7 +13,7 @@ struct StartTimerSheet: View {
     @Query private var profiles: [BusinessProfile]
 
     private var currencyCode: String {
-        profiles.first?.currencyCode ?? "USD"
+        profiles.first?.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
     }
 
     @State private var search: String = ""
