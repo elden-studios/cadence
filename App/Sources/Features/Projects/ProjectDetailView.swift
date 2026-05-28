@@ -40,14 +40,18 @@ struct ProjectDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
+        // Sort once per real change, not per TimelineView tick: the order is
+        // asOf-independent, so hoisting it out of the per-second content closure
+        // avoids re-sorting every second while a timer is running.
+        let sortedEntries = project.entries.sorted { $0.startedAt > $1.startedAt }
+        return ScrollView {
             Group {
                 if runningEntryForProject != nil {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        content(asOf: context.date)
+                        content(asOf: context.date, sortedEntries: sortedEntries)
                     }
                 } else {
-                    content(asOf: .now)
+                    content(asOf: .now, sortedEntries: sortedEntries)
                 }
             }
             .padding()
@@ -84,7 +88,7 @@ struct ProjectDetailView: View {
     }
 
     @ViewBuilder
-    private func content(asOf: Date) -> some View {
+    private func content(asOf: Date, sortedEntries: [TimeEntry]) -> some View {
         let stats = ProjectStats.compute(for: project, asOf: asOf)
         VStack(alignment: .leading, spacing: 20) {
             hero(stats: stats)
@@ -102,7 +106,7 @@ struct ProjectDetailView: View {
                 }
                 .buttonStyle(.bordered)
             }
-            recentSessions(asOf: asOf)
+            recentSessions(asOf: asOf, sortedEntries: sortedEntries)
             lifecycleButton()
         }
     }
@@ -208,9 +212,8 @@ struct ProjectDetailView: View {
     // MARK: Recent sessions
 
     @ViewBuilder
-    private func recentSessions(asOf: Date) -> some View {
-        let sorted = project.entries.sorted { $0.startedAt > $1.startedAt }
-        let shown = Array(sorted.prefix(sessionLimit))
+    private func recentSessions(asOf: Date, sortedEntries: [TimeEntry]) -> some View {
+        let shown = Array(sortedEntries.prefix(sessionLimit))
         LazyVStack(alignment: .leading, spacing: 10) {
             Text("Sessions").font(.headline)
             if shown.isEmpty {
@@ -225,8 +228,8 @@ struct ProjectDetailView: View {
                         sessionRow(entry, asOf: asOf)
                     }
                 }
-                if sorted.count > shown.count {
-                    Button("See all \(sorted.count) sessions") { sessionLimit = sorted.count }
+                if sortedEntries.count > shown.count {
+                    Button("See all \(sortedEntries.count) sessions") { sessionLimit = sortedEntries.count }
                         .font(.subheadline)
                 }
             }

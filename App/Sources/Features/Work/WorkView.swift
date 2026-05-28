@@ -14,7 +14,9 @@ struct WorkView: View {
             predicate: #Predicate<Project> { !$0.isArchived },
             sortBy: [SortDescriptor(\.name)]
         )
-        descriptor.relationshipKeyPathsForPrefetching = [\.client]
+        // Prefetch entries too: each row computes ProjectStats from project.entries,
+        // so without this the grouped list triggers an N+1 fetch storm.
+        descriptor.relationshipKeyPathsForPrefetching = [\.client, \.entries]
         return descriptor
     }
     @Query(Self.runningDescriptor) private var runningEntries: [TimeEntry]
