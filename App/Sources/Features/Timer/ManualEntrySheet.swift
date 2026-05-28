@@ -134,13 +134,15 @@ struct ManualEntrySheet: View {
 
         if let editing {
             editing.project = project
+            if editing.startedAt != startDate || editing.endedAt != endDate {
+                // Flatten any banked break data so duration() equals the new
+                // wall-clock span (startedAt…endedAt). Per-break timestamps are
+                // not stored, so the edited span is the only reliable truth.
+                editing.accumulatedSeconds = 0
+                editing.activeSegmentStartedAt = nil
+            }
             editing.startedAt = startDate
             editing.endedAt = endDate
-            // Flatten any banked break data so duration() equals the new
-            // wall-clock span (startedAt…endedAt). Per-break timestamps are
-            // not stored, so the edited span is the only reliable truth.
-            editing.accumulatedSeconds = 0
-            editing.activeSegmentStartedAt = nil
             editing.notes = storedNotes
             editing.isManual = true
             editing.updatedAt = .now
