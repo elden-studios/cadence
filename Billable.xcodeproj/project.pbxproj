@@ -33,6 +33,7 @@
 		5968C3A45765993AD87D0C98 /* InvoicePreviewLineItemEditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7200BC7FE89C2B41C10DBB39 /* InvoicePreviewLineItemEditUITests.swift */; };
 		5B3E36C7C4F81A453DD76FB0 /* BillableApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5120185E61165F6EB9DFFB00 /* BillableApp.swift */; };
 		5C71AAA78052A9C57E4CC207 /* TimerActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFAB3A0CB21692199A18C94A /* TimerActivityController.swift */; };
+		68BDEEB6CF05CC4EC00B86B5 /* RunningTimerCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE9B6C751BA214067517AB7 /* RunningTimerCard.swift */; };
 		6AD7D08A875EEB4A6FD4B25A /* ClientsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 724FB2203374655998BDFC2A /* ClientsView.swift */; };
 		6E9C293E357F95914B8A0C56 /* BillableWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BFD0B16A9AEBF1189186DEE /* BillableWidgetBundle.swift */; };
 		7C2B1CE0D231A176669A8CAD /* TimelineGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56AC735AE9894CA166F3F644 /* TimelineGeometry.swift */; };
@@ -114,6 +115,7 @@
 		803928EB045F3BBE7B115C1D /* BillableCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = BillableCore; path = Packages/BillableCore; sourceTree = SOURCE_ROOT; };
 		834A2DF7B192A8F0EC56E4F7 /* ManualEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualEntrySheet.swift; sourceTree = "<group>"; };
 		881EC5A08A9EBDAF0F6E586A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		8EE9B6C751BA214067517AB7 /* RunningTimerCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningTimerCard.swift; sourceTree = "<group>"; };
 		91FB284DA23487FF50AD7AFF /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
 		95E9742504A11D397C6528B9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		99E489F7B0F9B68D418ED560 /* LaunchTaglineUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchTaglineUITests.swift; sourceTree = "<group>"; };
@@ -289,6 +291,7 @@
 			isa = PBXGroup;
 			children = (
 				834A2DF7B192A8F0EC56E4F7 /* ManualEntrySheet.swift */,
+				8EE9B6C751BA214067517AB7 /* RunningTimerCard.swift */,
 				E613D2E8B373B5C6EDBF0A4C /* StartTimerSheet.swift */,
 				C1F93E4BD359430AA62CB60E /* TimerActions.swift */,
 			);
@@ -589,6 +592,7 @@
 				CE99BEFA8F985754461255B2 /* RecurringRulesView.swift in Sources */,
 				E0F08E2CAB6A8D93ED4BFD78 /* ReportsView.swift in Sources */,
 				3D9972903CDABD429693066D /* RootView.swift in Sources */,
+				68BDEEB6CF05CC4EC00B86B5 /* RunningTimerCard.swift in Sources */,
 				E3F06B0AA5BB6345101C9E87 /* SettingsView.swift in Sources */,
 				0778280DE88787CCB974D010 /* StartTimerSheet.swift in Sources */,
 				17683A63578279729D6FFD5D /* TimeBlockView.swift in Sources */,
