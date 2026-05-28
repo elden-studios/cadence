@@ -41,7 +41,6 @@
 		7C2B1CE0D231A176669A8CAD /* TimelineGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56AC735AE9894CA166F3F644 /* TimelineGeometry.swift */; };
 		93ACAA836A659BAFF84EC508 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881EC5A08A9EBDAF0F6E586A /* AppDelegate.swift */; };
 		97FBEA7B10420B0ED0942886 /* InvoiceGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A6E72016CCD549BFCBEBE2E /* InvoiceGeneratorView.swift */; };
-		9CDCE66C7273DA012CCF35FD /* FloatingTimerBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA740C5A6A1CD9F4677A5559 /* FloatingTimerBar.swift */; };
 		AC7E0D1860B0B7ACEB0A1F14 /* DayTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40BA4466AFACC0C783C06598 /* DayTimelineView.swift */; };
 		AC9498FDD4C99CCA94517C37 /* IntentRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2886369E15E77C0BF85347CE /* IntentRegistration.swift */; };
 		B1FD44CA0631170789683FB8 /* BillableWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3C50D41C7D1E70A67970DA90 /* BillableWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -137,7 +136,6 @@
 		C1846D95B8BE348E4ACC1081 /* TodaySummaryWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodaySummaryWidget.swift; sourceTree = "<group>"; };
 		C1F93E4BD359430AA62CB60E /* TimerActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActions.swift; sourceTree = "<group>"; };
 		C4E91171FBD2C8986707A0D7 /* CurrentTimerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentTimerWidget.swift; sourceTree = "<group>"; };
-		CA740C5A6A1CD9F4677A5559 /* FloatingTimerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingTimerBar.swift; sourceTree = "<group>"; };
 		CABC4787E325D1EE2FD16329 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		CFAB3A0CB21692199A18C94A /* TimerActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActivityController.swift; sourceTree = "<group>"; };
 		D72980328448F3925BF44ACB /* CurrencyPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyPickerView.swift; sourceTree = "<group>"; };
@@ -305,7 +303,6 @@
 		87E370309299FFC820621BD2 /* Timer */ = {
 			isa = PBXGroup;
 			children = (
-				CA740C5A6A1CD9F4677A5559 /* FloatingTimerBar.swift */,
 				834A2DF7B192A8F0EC56E4F7 /* ManualEntrySheet.swift */,
 				8EE9B6C751BA214067517AB7 /* RunningTimerCard.swift */,
 				E613D2E8B373B5C6EDBF0A4C /* StartTimerSheet.swift */,
@@ -593,7 +590,6 @@
 				2692C3C033FE9ED0FC9435B6 /* CurrencyPickerView.swift in Sources */,
 				AC7E0D1860B0B7ACEB0A1F14 /* DayTimelineView.swift in Sources */,
 				C2262AA7F35DC1505C63AC40 /* DiagnosticsView.swift in Sources */,
-				9CDCE66C7273DA012CCF35FD /* FloatingTimerBar.swift in Sources */,
 				AC9498FDD4C99CCA94517C37 /* IntentRegistration.swift in Sources */,
 				E39562526A4793650B561132 /* InvoiceDetailView.swift in Sources */,
 				97FBEA7B10420B0ED0942886 /* InvoiceGeneratorView.swift in Sources */,

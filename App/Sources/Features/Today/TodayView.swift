@@ -38,6 +38,7 @@ struct TodayView: View {
                         .buttonStyle(.plain)
                         .padding(.horizontal)
                     }
+                    TodayRunningTimerSection()
                     JumpBackInSection()
                     TodaySummarySection(currencyCode: currencyCode)
                 }
@@ -100,6 +101,43 @@ struct TodayView: View {
         !BusinessProfile.canSendInvoice(profile: profiles.first)
     }
 
+}
+
+// MARK: - Running Timer Section
+
+private struct TodayRunningTimerSection: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var profiles: [BusinessProfile]
+    @Query(Self.runningDescriptor) private var runningEntries: [TimeEntry]
+    @State private var showingSwitchSheet = false
+
+    private static var runningDescriptor: FetchDescriptor<TimeEntry> {
+        var d = FetchDescriptor<TimeEntry>(predicate: #Predicate { $0.endedAt == nil })
+        d.fetchLimit = 1
+        return d
+    }
+
+    private var currencyCode: String {
+        profiles.first?.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
+    }
+
+    var body: some View {
+        if let running = runningEntries.first {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                RunningTimerCard(
+                    entry: running, asOf: context.date, currencyCode: currencyCode,
+                    onStop: { TimerActions.stop(in: modelContext) },
+                    onSwitch: { showingSwitchSheet = true },
+                    onTakeBreak: { TimerActions.takeBreak(in: modelContext) },
+                    onResume: { TimerActions.resume(in: modelContext) }
+                )
+                .id(running.persistentModelID)
+            }
+            .sheet(isPresented: $showingSwitchSheet) {
+                StartTimerSheet(isSwitching: true)
+            }
+        }
+    }
 }
 
 // MARK: - Jump Back In
