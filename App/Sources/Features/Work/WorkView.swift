@@ -21,6 +21,8 @@ struct WorkView: View {
 
     @State private var mode: Mode = .projects
     @State private var search = ""
+    @State private var showingNewClient = false
+    @State private var showingNewProject = false
 
     private static var runningDescriptor: FetchDescriptor<TimeEntry> {
         var d = FetchDescriptor<TimeEntry>(predicate: #Predicate { $0.endedAt == nil })
@@ -50,6 +52,30 @@ struct WorkView: View {
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 220)
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    if mode == .projects {
+                        Menu {
+                            Button {
+                                showingNewProject = true
+                            } label: {
+                                Label("New project", systemImage: "folder.badge.plus")
+                            }
+                            Button {
+                                showingNewClient = true
+                            } label: {
+                                Label("New client", systemImage: "person.badge.plus")
+                            }
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $showingNewClient) {
+                NavigationStack { ClientEditorView(client: nil) }
+            }
+            .sheet(isPresented: $showingNewProject) {
+                NewProjectSheet()
             }
         }
     }
@@ -103,6 +129,50 @@ struct WorkView: View {
                 }
             }
             .searchable(text: $search, prompt: "Search projects or clients")
+        }
+    }
+}
+
+private struct NewProjectSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Query(filter: #Predicate<Client> { !$0.isArchived }, sort: \Client.name)
+    private var clients: [Client]
+    @State private var selectedClient: Client?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if clients.isEmpty {
+                    ContentUnavailableView(
+                        "No clients yet",
+                        systemImage: "person.2",
+                        description: Text("Add a client first, then create a project for them.")
+                    )
+                } else {
+                    List(clients) { client in
+                        Button {
+                            selectedClient = client
+                        } label: {
+                            HStack(spacing: 10) {
+                                Circle()
+                                    .fill(client.color.swiftUIColor)
+                                    .frame(width: 10, height: 10)
+                                Text(client.name).foregroundStyle(.primary)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("New project")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+            .navigationDestination(item: $selectedClient) { client in
+                ProjectEditorView(client: client, project: nil)
+            }
         }
     }
 }
