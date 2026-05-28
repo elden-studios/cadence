@@ -4,6 +4,14 @@ import UserNotifications
 import BillableCore
 
 struct ClientsView: View {
+    var body: some View {
+        NavigationStack {
+            ClientsListContent()
+        }
+    }
+}
+
+struct ClientsListContent: View {
     @Environment(\.modelContext) private var modelContext
 
     @Query(filter: #Predicate<Client> { !$0.isArchived }, sort: \Client.name)
@@ -59,59 +67,57 @@ struct ClientsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if activeClients.isEmpty && archivedClients.isEmpty {
-                    ContentUnavailableView {
-                        Label("No clients yet", systemImage: "person.2")
-                    } description: {
-                        Text("Add your first client to start tracking time.")
-                    } actions: {
-                        Button {
-                            startAddClient()
-                        } label: {
-                            Label("Add Client", systemImage: "plus.circle.fill")
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                } else {
-                    listContent
-                }
-            }
-            .navigationTitle("Clients")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+        Group {
+            if activeClients.isEmpty && archivedClients.isEmpty {
+                ContentUnavailableView {
+                    Label("No clients yet", systemImage: "person.2")
+                } description: {
+                    Text("Add your first client to start tracking time.")
+                } actions: {
                     Button {
                         startAddClient()
                     } label: {
-                        Image(systemName: "plus")
+                        Label("Add Client", systemImage: "plus.circle.fill")
                     }
-                    .accessibilityLabel("Add client")
+                    .buttonStyle(.borderedProminent)
                 }
+            } else {
+                listContent
             }
-            .sheet(isPresented: $showingNew) {
-                NavigationStack {
-                    ClientEditorView(client: nil)
+        }
+        .navigationTitle("Clients")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    startAddClient()
+                } label: {
+                    Image(systemName: "plus")
                 }
+                .accessibilityLabel("Add client")
             }
-            .confirmationDialog(
-                deletionCandidate.map { "Delete \($0.name)?" } ?? "Delete?",
-                isPresented: Binding(
-                    get: { deletionCandidate != nil },
-                    set: { if !$0 { deletionCandidate = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                Button("Delete client and all data", role: .destructive) {
-                    if let client = deletionCandidate {
-                        deleteClient(client)
-                    }
-                    deletionCandidate = nil
+        }
+        .sheet(isPresented: $showingNew) {
+            NavigationStack {
+                ClientEditorView(client: nil)
+            }
+        }
+        .confirmationDialog(
+            deletionCandidate.map { "Delete \($0.name)?" } ?? "Delete?",
+            isPresented: Binding(
+                get: { deletionCandidate != nil },
+                set: { if !$0 { deletionCandidate = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete client and all data", role: .destructive) {
+                if let client = deletionCandidate {
+                    deleteClient(client)
                 }
-                Button("Cancel", role: .cancel) { deletionCandidate = nil }
-            } message: {
-                Text("This permanently deletes the client, their projects, and their time entries. Archive instead if you might come back.")
+                deletionCandidate = nil
             }
+            Button("Cancel", role: .cancel) { deletionCandidate = nil }
+        } message: {
+            Text("This permanently deletes the client, their projects, and their time entries. Archive instead if you might come back.")
         }
     }
 
