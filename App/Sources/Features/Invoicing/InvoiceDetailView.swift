@@ -47,11 +47,26 @@ struct InvoiceDetailView: View {
         return nil
     }
 
+    private var scopeBinding: Binding<String> {
+        Binding(
+            get: { invoice.scopeOfWork ?? "" },
+            set: { newValue in
+                let normalized = newValue.isEmpty ? nil : newValue
+                guard invoice.scopeOfWork != normalized else { return }
+                invoice.scopeOfWork = normalized
+                invoice.pdfDataCached = nil
+                invoice.updatedAt = .now
+                modelContext.saveOrLog("edit invoice scope")
+            }
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 reminderBanner
                 statusBanner
+                projectTagAndScope
                 pdfPreview
                 actionButtons
                 metadata
@@ -204,6 +219,50 @@ struct InvoiceDetailView: View {
                 Text("Due \(invoice.dueAt.formatted(date: .abbreviated, time: .omitted))")
                     .font(.caption)
                     .foregroundStyle(invoice.isOverdue() ? .red : .secondary)
+            }
+        }
+    }
+
+    // MARK: - Project tag + scope
+
+    @ViewBuilder
+    private var projectTagAndScope: some View {
+        if let projectName = invoice.projectNameSnapshot {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(invoice.clientColor.swiftUIColor)
+                        .frame(width: 8, height: 8)
+                    Text(projectName)
+                        .font(.subheadline.weight(.semibold))
+                }
+                if invoice.status == .draft {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("SCOPE OF WORK")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.secondary)
+                        TextField("Describe the scope of work…", text: scopeBinding, axis: .vertical)
+                            .lineLimit(2...6)
+                            .padding(10)
+                            .background(.background, in: .rect(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(.quaternary, lineWidth: 1)
+                            )
+                    }
+                } else if let scope = invoice.scopeOfWork, !scope.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("SCOPE OF WORK")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.secondary)
+                        Text(scope)
+                            .font(.subheadline)
+                            .italic()
+                    }
+                    .padding(10)
+                    .background(.yellow.opacity(0.12), in: .rect(cornerRadius: 8))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
     }

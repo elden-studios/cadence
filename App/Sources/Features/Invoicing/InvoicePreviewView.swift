@@ -96,6 +96,9 @@ struct InvoicePreviewView: View {
         data.bankSWIFT = profile.bankSWIFT
         data.taxIDLabel = profile.taxIDLabel
         data.taxIDNumber = profile.taxIDNumber
+        data.projectName = project?.name
+        data.scopeOfWork = scopeOfWork
+        data.projectColorRaw = project?.client?.colorRaw
         return data
     }
 

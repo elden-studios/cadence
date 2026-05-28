@@ -28,6 +28,7 @@ public struct InvoiceTemplate: View {
             VStack(alignment: .leading, spacing: 28) {
                 header
                 billToAndMeta
+                projectTagAndScope
                 lineItemsTable
                 totalsBlock
                 bankDetailsBlock
@@ -122,6 +123,43 @@ public struct InvoiceTemplate: View {
             Text(value)
                 .font(.system(size: 11, weight: .medium))
                 .frame(minWidth: 110, alignment: .trailing)
+        }
+    }
+
+    // MARK: - Project tag + scope of work
+
+    @ViewBuilder
+    private var projectTagAndScope: some View {
+        if let projectName = data.projectName {
+            let dotColor: Color = {
+                if let raw = data.projectColorRaw,
+                   let cc = ClientColor(rawValue: raw) {
+                    return cc.swiftUIColor
+                }
+                return accent
+            }()
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Circle().fill(dotColor).frame(width: 8, height: 8)
+                    Text(projectName)
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                if let scope = data.scopeOfWork, !scope.isEmpty {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("SCOPE OF WORK")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .tracking(1)
+                        Text(scope)
+                            .font(.system(size: 11).italic())
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(Color.yellow.opacity(0.12), in: .rect(cornerRadius: 6))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
         }
     }
 
@@ -368,6 +406,12 @@ public struct InvoiceTemplateData: Sendable {
 
     public var watermark: String?  // nil for Pro/trial, "Sent with Cadence" for free
 
+    /// Project tag fields — nil for client-combined / recurrence / legacy invoices.
+    public var projectName: String?
+    public var scopeOfWork: String?
+    /// Accent dot colour for the project tag row.
+    public var projectColorRaw: String?
+
     public init(
         issuerName: String,
         issuerAddress: String,
@@ -448,6 +492,9 @@ public extension InvoiceTemplateData {
         data.bankSWIFT = invoice.issuerBankSWIFTSnapshot
         data.taxIDLabel = invoice.issuerTaxIDLabelSnapshot
         data.taxIDNumber = invoice.issuerTaxIDNumberSnapshot
+        data.projectName = invoice.projectNameSnapshot
+        data.scopeOfWork = invoice.scopeOfWork
+        data.projectColorRaw = invoice.clientColorRaw
         return data
     }
 }
