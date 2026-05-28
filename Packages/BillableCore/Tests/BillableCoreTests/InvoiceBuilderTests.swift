@@ -302,4 +302,17 @@ struct PerProjectEligibleTests {
         #expect(result.count == 1)
         #expect(result.first?.persistentModelID == ok.persistentModelID)
     }
+
+    @Test("projectsWithEligibleEntries lists only projects that have billable time")
+    func projectsWithWork() throws {
+        let (context, client, a, b) = try fixture()
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        // a has an entry; b has none
+        context.insert(TimeEntry(startedAt: t0, endedAt: t0.addingTimeInterval(3600), project: a))
+        try context.save()
+        let range = InvoiceDateRange(start: t0.addingTimeInterval(-60), end: t0.addingTimeInterval(7200))
+        let projects = InvoiceBuilder.projectsWithEligibleEntries(for: client, in: range, context: context)
+        #expect(projects.map(\.persistentModelID) == [a.persistentModelID])
+        #expect(!projects.map(\.persistentModelID).contains(b.persistentModelID))
+    }
 }

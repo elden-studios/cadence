@@ -88,6 +88,24 @@ public enum InvoiceBuilder {
         return entries.filter { $0.project?.persistentModelID == projectID }
     }
 
+    /// The `client`'s non-archived projects that have ≥1 eligible entry in `range`.
+    /// Sorted by name. Powers the "Invoice all projects" action and picker enablement.
+    @MainActor
+    public static func projectsWithEligibleEntries(
+        for client: Client,
+        in range: InvoiceDateRange,
+        context: ModelContext
+    ) -> [Project] {
+        let entries = eligibleEntries(for: client, in: range, context: context)
+        var seen = Set<PersistentIdentifier>()
+        var projects: [Project] = []
+        for entry in entries {
+            guard let project = entry.project, !project.isArchived else { continue }
+            if seen.insert(project.persistentModelID).inserted { projects.append(project) }
+        }
+        return projects.sorted { $0.name < $1.name }
+    }
+
     /// Build line items WITHOUT persisting anything. Used by the preview screen.
     public static func buildLineItems(
         from entries: [TimeEntry],
