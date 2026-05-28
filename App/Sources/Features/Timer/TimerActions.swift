@@ -22,7 +22,8 @@ enum TimerActions {
         return entry
     }
 
-    /// Atomic stop+start into `project`. No-op if it's already the running project.
+    /// Atomic stop+start into `project`. Returns `nil` if the project is already
+    /// running or if any other error occurs (matches StartTimerSheet's prior behavior).
     @discardableResult
     static func switchTo(project: Project, currencyCode: String, in context: ModelContext) -> TimeEntry? {
         do {

@@ -8,15 +8,15 @@
 
 /* Begin PBXBuildFile section */
 		00137A9F89BDC48EBE9DC927 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DB4C0FB23F77AFC443876011 /* Assets.xcassets */; };
+		02583F94F7865CCCDC462C8D /* TimerActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F93E4BD359430AA62CB60E /* TimerActions.swift */; };
 		0650D70379A6E945B693D897 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FB284DA23487FF50AD7AFF /* TodayView.swift */; };
 		0778280DE88787CCB974D010 /* StartTimerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E613D2E8B373B5C6EDBF0A4C /* StartTimerSheet.swift */; };
-		0A44BD78E6424AF691CE177D /* TimerActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42687B24129E4209A2661C36 /* TimerActions.swift */; };
 		08880CCE2F89200E1C723A26 /* PendingMaterializationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE12ED25B0CCD0F3FC46F7FD /* PendingMaterializationsView.swift */; };
 		13F01DA09E8AAC832ACC171E /* TimelineScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E47D1836002E521CEC4ABED /* TimelineScreen.swift */; };
 		144AE35D12448F09749125F9 /* LaunchTaglineUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99E489F7B0F9B68D418ED560 /* LaunchTaglineUITests.swift */; };
 		17683A63578279729D6FFD5D /* TimeBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB4F85B38816D91407DAFA7 /* TimeBlockView.swift */; };
 		19A13F112D8EAFFECDE19C17 /* SettingsAboutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B9A55293CE419E21F6C2DE /* SettingsAboutUITests.swift */; };
-		B11A5E7E08C04D11A7E5C4E1 /* InvoicePreviewLineItemEditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11A5E7E08C04D11A7E5C4E2 /* InvoicePreviewLineItemEditUITests.swift */; };
+		1A6A4409235EBDA613547AF0 /* MailComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC615DCBCB6A4B17F2603B92 /* MailComposerView.swift */; };
 		215B980EDB0C94CB3C43BDDE /* BillableCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3267A35D1AD7CEA36846D498 /* BillableCore */; };
 		220427E9DC4EDF77A52184D4 /* NotificationTapFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 591084DA183D854DBB380551 /* NotificationTapFlowUITests.swift */; };
 		2692C3C033FE9ED0FC9435B6 /* CurrencyPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72980328448F3925BF44ACB /* CurrencyPickerView.swift */; };
@@ -30,6 +30,7 @@
 		49D52608F66166AA6374F027 /* PaymentRemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784CFBF0D18A69982D67542A /* PaymentRemindersView.swift */; };
 		4AE8C117F5731A8705359060 /* CatchUpBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBADB4F0E80F455CCAE9BBEB /* CatchUpBanner.swift */; };
 		54B2A96BFF44D4D7560DFFCE /* InvoicePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348BBD35CE9E77443AB397E5 /* InvoicePreviewView.swift */; };
+		5968C3A45765993AD87D0C98 /* InvoicePreviewLineItemEditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7200BC7FE89C2B41C10DBB39 /* InvoicePreviewLineItemEditUITests.swift */; };
 		5B3E36C7C4F81A453DD76FB0 /* BillableApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5120185E61165F6EB9DFFB00 /* BillableApp.swift */; };
 		5C71AAA78052A9C57E4CC207 /* TimerActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFAB3A0CB21692199A18C94A /* TimerActivityController.swift */; };
 		6AD7D08A875EEB4A6FD4B25A /* ClientsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 724FB2203374655998BDFC2A /* ClientsView.swift */; };
@@ -41,7 +42,6 @@
 		AC9498FDD4C99CCA94517C37 /* IntentRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2886369E15E77C0BF85347CE /* IntentRegistration.swift */; };
 		B1FD44CA0631170789683FB8 /* BillableWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3C50D41C7D1E70A67970DA90 /* BillableWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		BF665524A4D7640150D356DC /* BillableCore in Frameworks */ = {isa = PBXBuildFile; productRef = 395F2979670525E0A6D0127A /* BillableCore */; };
-		C0FFEE0100000000000000A1 /* MailComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE0100000000000000A2 /* MailComposerView.swift */; };
 		C2262AA7F35DC1505C63AC40 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD383FD631A4DEA4B774CA4C /* DiagnosticsView.swift */; };
 		CB24424A092E9FB3F14CCB6E /* ClientDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70D5726F1FA7DA14C4B5B011 /* ClientDetailView.swift */; };
 		CD8FFD9FDBE064528DE473F3 /* Billable.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 21732C0D814DAE2B28FA1B62 /* Billable.storekit */; };
@@ -106,6 +106,7 @@
 		67186A12889E18CA99C96468 /* ProjectEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectEditorView.swift; sourceTree = "<group>"; };
 		6B4CE4F3496BC81EE3278AA8 /* Billable.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Billable.entitlements; sourceTree = "<group>"; };
 		70D5726F1FA7DA14C4B5B011 /* ClientDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientDetailView.swift; sourceTree = "<group>"; };
+		7200BC7FE89C2B41C10DBB39 /* InvoicePreviewLineItemEditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoicePreviewLineItemEditUITests.swift; sourceTree = "<group>"; };
 		724FB2203374655998BDFC2A /* ClientsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientsView.swift; sourceTree = "<group>"; };
 		768AE800926A4803021129AC /* BillableUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BillableUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		784CFBF0D18A69982D67542A /* PaymentRemindersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentRemindersView.swift; sourceTree = "<group>"; };
@@ -121,14 +122,13 @@
 		9F7C1CF69F915CC96EFAA000 /* InvoicesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoicesView.swift; sourceTree = "<group>"; };
 		A2CB4838C74C817A55DDA825 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A9B9A55293CE419E21F6C2DE /* SettingsAboutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutUITests.swift; sourceTree = "<group>"; };
-		B11A5E7E08C04D11A7E5C4E2 /* InvoicePreviewLineItemEditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoicePreviewLineItemEditUITests.swift; sourceTree = "<group>"; };
 		AE12ED25B0CCD0F3FC46F7FD /* PendingMaterializationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMaterializationsView.swift; sourceTree = "<group>"; };
 		AEEC7C6934436D870B713A6B /* ReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsView.swift; sourceTree = "<group>"; };
 		BBADB4F0E80F455CCAE9BBEB /* CatchUpBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatchUpBanner.swift; sourceTree = "<group>"; };
 		BD383FD631A4DEA4B774CA4C /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		BD3AC7ABEFEA2F890535AE82 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
-		C0FFEE0100000000000000A2 /* MailComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailComposerView.swift; sourceTree = "<group>"; };
 		C1846D95B8BE348E4ACC1081 /* TodaySummaryWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodaySummaryWidget.swift; sourceTree = "<group>"; };
+		C1F93E4BD359430AA62CB60E /* TimerActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActions.swift; sourceTree = "<group>"; };
 		C4E91171FBD2C8986707A0D7 /* CurrentTimerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentTimerWidget.swift; sourceTree = "<group>"; };
 		CABC4787E325D1EE2FD16329 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		CFAB3A0CB21692199A18C94A /* TimerActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActivityController.swift; sourceTree = "<group>"; };
@@ -137,9 +137,9 @@
 		DBB4F85B38816D91407DAFA7 /* TimeBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeBlockView.swift; sourceTree = "<group>"; };
 		E465117F26AD0FBA4BB72F29 /* RecurringRulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurringRulesView.swift; sourceTree = "<group>"; };
 		E613D2E8B373B5C6EDBF0A4C /* StartTimerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartTimerSheet.swift; sourceTree = "<group>"; };
-		42687B24129E4209A2661C36 /* TimerActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActions.swift; sourceTree = "<group>"; };
 		E65B3FEDC45E06FB51538B6B /* Billable.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Billable.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1CF2FCD917839FB1C1B0961 /* TimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerLiveActivity.swift; sourceTree = "<group>"; };
+		FC615DCBCB6A4B17F2603B92 /* MailComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailComposerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -259,10 +259,10 @@
 		7E01ADD86DB3FBD3BB5041B8 /* BillableUITests */ = {
 			isa = PBXGroup;
 			children = (
+				7200BC7FE89C2B41C10DBB39 /* InvoicePreviewLineItemEditUITests.swift */,
 				99E489F7B0F9B68D418ED560 /* LaunchTaglineUITests.swift */,
 				591084DA183D854DBB380551 /* NotificationTapFlowUITests.swift */,
 				A9B9A55293CE419E21F6C2DE /* SettingsAboutUITests.swift */,
-				B11A5E7E08C04D11A7E5C4E2 /* InvoicePreviewLineItemEditUITests.swift */,
 			);
 			path = BillableUITests;
 			sourceTree = "<group>";
@@ -290,7 +290,7 @@
 			children = (
 				834A2DF7B192A8F0EC56E4F7 /* ManualEntrySheet.swift */,
 				E613D2E8B373B5C6EDBF0A4C /* StartTimerSheet.swift */,
-				42687B24129E4209A2661C36 /* TimerActions.swift */,
+				C1F93E4BD359430AA62CB60E /* TimerActions.swift */,
 			);
 			path = Timer;
 			sourceTree = "<group>";
@@ -313,6 +313,13 @@
 				CFAB3A0CB21692199A18C94A /* TimerActivityController.swift */,
 			);
 			path = LiveActivity;
+			sourceTree = "<group>";
+		};
+		89FBA775878A23F16FB91A27 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Theme;
 			sourceTree = "<group>";
 		};
 		92E9171082D2E347A1015AA8 /* Invoicing */ = {
@@ -356,6 +363,14 @@
 			path = Widgets;
 			sourceTree = "<group>";
 		};
+		B53F2F0A7C034C438808B2E1 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				FC615DCBCB6A4B17F2603B92 /* MailComposerView.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		BD16A0569E45B706C438C43C /* Sources */ = {
 			isa = PBXGroup;
 			children = (
@@ -363,17 +378,10 @@
 				F910066D040878FE8AA41098 /* Features */,
 				0662F4701E06673016644274 /* Intents */,
 				89CC7F5CEA7630E592D7B62C /* LiveActivity */,
-				C0FFEE0100000000000000A3 /* Shared */,
+				B53F2F0A7C034C438808B2E1 /* Shared */,
+				89FBA775878A23F16FB91A27 /* Theme */,
 			);
 			path = Sources;
-			sourceTree = "<group>";
-		};
-		C0FFEE0100000000000000A3 /* Shared */ = {
-			isa = PBXGroup;
-			children = (
-				C0FFEE0100000000000000A2 /* MailComposerView.swift */,
-			);
-			path = Shared;
 			sourceTree = "<group>";
 		};
 		C5719DF68801B2C2BB88D7E7 /* Resources */ = {
@@ -570,7 +578,7 @@
 				97FBEA7B10420B0ED0942886 /* InvoiceGeneratorView.swift in Sources */,
 				54B2A96BFF44D4D7560DFFCE /* InvoicePreviewView.swift in Sources */,
 				F66815EDDB470712A3D8EA6F /* InvoicesView.swift in Sources */,
-				C0FFEE0100000000000000A1 /* MailComposerView.swift in Sources */,
+				1A6A4409235EBDA613547AF0 /* MailComposerView.swift in Sources */,
 				F205361A2A1AF33476C14C76 /* ManualEntrySheet.swift in Sources */,
 				E002CC9D3FAFAAFFB473954B /* OnboardingView.swift in Sources */,
 				49D52608F66166AA6374F027 /* PaymentRemindersView.swift in Sources */,
@@ -583,10 +591,10 @@
 				3D9972903CDABD429693066D /* RootView.swift in Sources */,
 				E3F06B0AA5BB6345101C9E87 /* SettingsView.swift in Sources */,
 				0778280DE88787CCB974D010 /* StartTimerSheet.swift in Sources */,
-				0A44BD78E6424AF691CE177D /* TimerActions.swift in Sources */,
 				17683A63578279729D6FFD5D /* TimeBlockView.swift in Sources */,
 				7C2B1CE0D231A176669A8CAD /* TimelineGeometry.swift in Sources */,
 				13F01DA09E8AAC832ACC171E /* TimelineScreen.swift in Sources */,
+				02583F94F7865CCCDC462C8D /* TimerActions.swift in Sources */,
 				5C71AAA78052A9C57E4CC207 /* TimerActivityController.swift in Sources */,
 				0650D70379A6E945B693D897 /* TodayView.swift in Sources */,
 			);
@@ -607,10 +615,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5968C3A45765993AD87D0C98 /* InvoicePreviewLineItemEditUITests.swift in Sources */,
 				144AE35D12448F09749125F9 /* LaunchTaglineUITests.swift in Sources */,
 				220427E9DC4EDF77A52184D4 /* NotificationTapFlowUITests.swift in Sources */,
 				19A13F112D8EAFFECDE19C17 /* SettingsAboutUITests.swift in Sources */,
-				B11A5E7E08C04D11A7E5C4E1 /* InvoicePreviewLineItemEditUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

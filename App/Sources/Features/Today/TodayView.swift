@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import WidgetKit
 import BillableCore
 
 struct TodayView: View {
