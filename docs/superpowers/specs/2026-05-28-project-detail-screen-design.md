@@ -96,7 +96,7 @@ Top-to-bottom:
 3. **Engagement line** — a caption row: `Started May 1 · 5 days worked` for active projects; `May 1 – May 14 · 5 days worked` once completed (start `–` completion). Uses `firstTrackedDay`/`activeDayCount` and `completedAt`.
 4. **Uninvoiced tile** — a single full-width tile (reusing the style of `TodayView`'s `UninvoicedTile`) showing `uninvoicedAmount`. Hidden for non-billable projects.
 5. **Action area** (see §7 and §8) — timer control + Create invoice.
-6. **Recent sessions** — the project's entries, newest first, grouped by month header; each row shows date · worked hours and (billable) the row's amount. Tapping a row opens the existing `ManualEntrySheet(editing:)` for that entry.
+6. **Recent sessions** — the project's entries, newest first, grouped by month header; each row shows date · worked hours and (billable) the row's amount. Tapping a row opens the existing `ManualEntrySheet(editing:)` for that entry. Rendered with a lazy `List`/`LazyVStack`; for very long projects show a recent window (e.g. latest 50) with a "See all" disclosure rather than every row at once. (Lifetime totals still aggregate **all** entries — only the rendered list is windowed.)
 7. **Lifecycle action** — a **Complete project** button (active projects) / **Restore project** button (archived), near the bottom. Completing confirms via dialog, sets `isArchived = true` + `completedAt = .now`, and pops back; restoring reverses both.
 8. **Nav bar** — **Edit** (trailing) presents `ProjectEditorView(client:project:)`; Delete remains available there. The editor's own "Complete project" button is **removed** (lifecycle now lives on this screen).
 
