@@ -42,6 +42,7 @@ The user wants a **Pause/Resume** model where pausing preserves the count, and a
 | Finish vs complete | **Separate concepts.** The timer only logs the session; **Complete Project** is its own action on the project screen, and it alone shows the "are you sure?" confirm. |
 | Resume pill | **Removed** — Break/Resume supersedes it. |
 | Migration | **None required** — manual/legacy entries fall back to wall-clock duration. |
+| Breaks vs timeline | **Accept solid block** — the day-timeline shows one wall-clock block per session (worked-hours label), no break gaps; manual geometry edits flatten breaks. (No per-break timestamps stored.) |
 
 ---
 
@@ -173,7 +174,30 @@ The running timer drives a Live Activity ([TimerActivityController.swift](../../
 
 ---
 
-## 12. Testing
+## 12. Downstream impact (full-flow review)
+
+Redefining `duration()` to mean *worked* time and making `endedAt == nil` cover **Working or On Break** ripples beyond the card. Audit result:
+
+**Automatically correct (already route through `duration()`):** invoice line items + preview total ([InvoiceBuilder.swift](../../../Packages/BillableCore/Sources/BillableCore/Invoicing/InvoiceBuilder.swift), [InvoiceGeneratorView.swift:281](../../../App/Sources/Features/Invoicing/InvoiceGeneratorView.swift)); all Reports aggregates ([ReportsAggregator.swift](../../../Packages/BillableCore/Sources/BillableCore/Reporting/ReportsAggregator.swift)); the Today "Uninvoiced" tile (uses `amount(asOf:)`).
+
+**Must change (bypass `duration()` or assume running ≠ paused):**
+
+- **Today Hours/Earnings tiles** — `TodaySummarySection` ([TodayView.swift:545](../../../App/Sources/Features/Today/TodayView.swift)) sums wall-clock `end − start`, so it would count break time while invoices/reports do not. Switch to per-entry `duration(asOf:)` (worked time). With per-day entries the midnight-clamp is moot; keep a "today" filter.
+- **`TodaySummaryWidget`** ([Widgets/Sources/TodaySummaryWidget.swift](../../../Widgets/Sources/TodaySummaryWidget.swift)) — mirror the same worked-time computation so the widget matches the app.
+- **`CurrentTimerWidget`** ([Widgets/Sources/CurrentTimerWidget.swift](../../../Widgets/Sources/CurrentTimerWidget.swift)) — add an On-Break presentation (frozen elapsed + "On Break"); reload via `WidgetCenter` on break/resume/done.
+- **Day timeline** ([DayTimelineView.swift](../../../App/Sources/Features/Timeline/DayTimelineView.swift), [TimeBlockView.swift](../../../App/Sources/Features/Timeline/TimeBlockView.swift)):
+  - Live/pulse styling must key off `isWorking`, not `isRunning` — On-Break blocks render static with an "On Break" treatment.
+  - **Block geometry stays wall-clock** (`startedAt → endedAt`). Per the *Accept solid block* decision, a session with breaks is one solid block labelled with worked hours; gaps are not drawn.
+  - **Editing flattens breaks**: any drag/resize/split that mutates `startedAt`/`endedAt` sets `accumulatedSeconds = 0` so `duration()` falls back to the new wall-clock span (split already creates fresh wall-clock entries). Editing a live/On-Break entry via the timeline is disallowed (finalize first).
+- **CSV export** ([CSVExporter.swift:90](../../../Packages/BillableCore/Sources/BillableCore/Reporting/CSVExporter.swift)) — the duration column is worked time and can be less than `end − start` when breaks occurred; make the header/notes clear.
+
+**General invariant:** because per-break timestamps are not stored, **any manual mutation of an entry's `startedAt`/`endedAt` must reset `accumulatedSeconds = 0`** (flatten to wall-clock). Applies to the timeline editors and `ManualEntrySheet` edit paths.
+
+**Net trade-off:** the chosen model keeps invoicing/reports clean for free, at the cost of (a) small rework of the dashboard tiles + widgets to use worked time, and (b) the timeline showing breaks as solid blocks. Both accepted; no per-break data is stored, so breaks are invisible to history once a session is logged — by design.
+
+---
+
+## 13. Testing
 
 **BillableCore unit tests (new `TimerServiceBreakTests` + `TimeEntry` duration tests):**
 - Take a Break banks the current segment; `isOnBreak` true; `duration` frozen.
@@ -185,6 +209,10 @@ The running timer drives a Live Activity ([TimerActivityController.swift](../../
 - Stale cross-day active session auto-finalizes to `startedAt + accumulatedSeconds`.
 - `duration()` fallback: manual/legacy finished entry with `accumulatedSeconds == 0` returns wall-clock.
 
+**Consistency (full-flow):**
+- Today Hours/Earnings tiles exclude break time and match the worked total used by Reports/invoicing for the same entries.
+- Editing an entry's `startedAt`/`endedAt` resets `accumulatedSeconds` to 0 → `duration()` equals the new wall-clock span.
+
 **Update / remove:**
 - Update existing stop tests in `TimerServiceTests` for the banked-duration semantics.
 - Remove `shouldShowResumePill` and its tests (pill removed).
@@ -193,20 +221,25 @@ The running timer drives a Live Activity ([TimerActivityController.swift](../../
 
 ---
 
-## 13. Files affected
+## 14. Files affected
 
 | File | Change |
 |---|---|
 | `Packages/BillableCore/.../Models/TimeEntry.swift` | New fields, `isWorking`/`isOnBreak`, `duration()` redefine |
 | `Packages/BillableCore/.../Timing/TimerService.swift` | `takeBreak`/`resume`, `stop`/`switchTo` semantics, stale reconcile, new errors |
-| `App/Sources/Features/Today/TodayView.swift` | Direction-A card, Working/On-Break/Idle, morph transition, remove `ResumePill` |
+| `App/Sources/Features/Today/TodayView.swift` | Direction-A card, Working/On-Break/Idle, morph transition, remove `ResumePill`; **summary Hours/Earnings tiles → worked time** |
 | `App/Sources/Features/Projects/ProjectEditorView.swift` | "Complete project" + confirm |
 | `App/Sources/Features/Clients/ClientDetailView.swift` | Add confirm to existing Archive swipe |
 | `App/Sources/LiveActivity/TimerActivityController.swift` + `TimerActivityAttributes.swift` | Break-aware Live Activity state |
-| `Packages/BillableCore/Tests/...` | New break/duration tests; update stop tests; drop resume-pill tests |
+| `App/Sources/Features/Timeline/DayTimelineView.swift` + `TimeBlockView.swift` | Pulse off `isWorking`; On-Break style; block stays wall-clock; geometry edits flatten `accumulatedSeconds` |
+| `Widgets/Sources/CurrentTimerWidget.swift` | On-Break presentation + reloads |
+| `Widgets/Sources/TodaySummaryWidget.swift` | Worked-time totals (match app) |
+| `App/Sources/Features/Timer/ManualEntrySheet.swift` | Reset `accumulatedSeconds = 0` on any start/end edit |
+| `Packages/BillableCore/Sources/BillableCore/Reporting/CSVExporter.swift` | Clarify duration column is worked time |
+| `Packages/BillableCore/Tests/...` | New break/duration tests; summary/timeline consistency; update stop tests; drop resume-pill tests |
 
 ---
 
-## 14. Implementation note
+## 15. Implementation note
 
 The visual build of the card (Direction A, the morph transition, badges, button styling) should be carried out with the **frontend-design** skill to hit the polish bar the user asked for.
