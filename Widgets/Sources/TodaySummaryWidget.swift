@@ -45,7 +45,8 @@ struct TodaySummaryProvider: TimelineProvider {
         let context = ModelContext(container)
         let cal = Calendar.current
 
-        let allDescriptor = FetchDescriptor<TimeEntry>()
+        var allDescriptor = FetchDescriptor<TimeEntry>()
+        allDescriptor.relationshipKeyPathsForPrefetching = [\.project]
         let all = (try? context.fetch(allDescriptor)) ?? []
 
         // Mirror the Today screen's filter: entries whose startedAt falls on

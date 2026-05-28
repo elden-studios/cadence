@@ -324,20 +324,27 @@ private struct RunningTimerCard: View {
                 .textFieldStyle(.plain)
 
             HStack(alignment: .firstTextBaseline) {
-                Button {
-                    showingAdjustDialog = true
-                } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(elapsedString)
-                            .font(.system(size: 40, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(entry.isOnBreak ? .secondary : .primary)
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.subheadline)
-                            .foregroundStyle(.tertiary)
+                if entry.isWorking && entry.accumulatedSeconds == 0 {
+                    Button {
+                        showingAdjustDialog = true
+                    } label: {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(elapsedString)
+                                .font(.system(size: 40, weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundStyle(.primary)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.subheadline)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
+                    .buttonStyle(.plain)
+                } else {
+                    Text(elapsedString)
+                        .font(.system(size: 40, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(entry.isOnBreak ? .secondary : .primary)
                 }
-                .buttonStyle(.plain)
                 Spacer()
                 Text(amountString)
                     .font(.title3.weight(.semibold).monospacedDigit())
@@ -559,8 +566,14 @@ private struct AdjustStartTimePickerSheet: View {
 // MARK: - Summary numbers
 
 private struct TodaySummarySection: View {
-    @Query private var allEntries: [TimeEntry]
+    @Query(Self.entriesDescriptor) private var allEntries: [TimeEntry]
     let currencyCode: String
+
+    private static var entriesDescriptor: FetchDescriptor<TimeEntry> {
+        var d = FetchDescriptor<TimeEntry>()
+        d.relationshipKeyPathsForPrefetching = [\.project]
+        return d
+    }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in

@@ -75,9 +75,11 @@ struct ProjectEditorView: View {
             titleVisibility: .visible
         ) {
             Button("Complete project", role: .destructive) {
-                project?.isArchived = true
-                project?.updatedAt = .now
-                try? modelContext.save()
+                if let project {
+                    project.isArchived = true
+                    project.updatedAt = .now
+                    modelContext.saveOrLog("complete project")
+                }
                 dismiss()
             }
             Button("Cancel", role: .cancel) {}
