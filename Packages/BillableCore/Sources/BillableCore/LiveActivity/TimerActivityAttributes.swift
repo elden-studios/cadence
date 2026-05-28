@@ -19,8 +19,19 @@ public struct TimerActivityAttributes: ActivityAttributes, Sendable {
         /// system-managed elapsed counter without needing per-second pushes.
         public var startedAt: Date
 
-        public init(startedAt: Date) {
+        /// When `true` the timer is On Break: the elapsed counter must freeze.
+        /// The Live Activity view switches from the live `Text(timerInterval:)`
+        /// to a static display of `frozenElapsed`.
+        public var isOnBreak: Bool
+
+        /// Worked seconds accumulated up to the moment of the break. Only
+        /// meaningful when `isOnBreak == true`; ignored while working.
+        public var frozenElapsed: TimeInterval
+
+        public init(startedAt: Date, isOnBreak: Bool = false, frozenElapsed: TimeInterval = 0) {
             self.startedAt = startedAt
+            self.isOnBreak = isOnBreak
+            self.frozenElapsed = frozenElapsed
         }
     }
 

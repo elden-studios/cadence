@@ -44,8 +44,16 @@ struct TodayView: View {
                         currencyCode: currencyCode,
                         onStop: stopRunning,
                         onSwitch: { showingSwitchSheet = true },
-                        onTakeBreak: { _ = try? TimerService.takeBreak(in: modelContext) },
-                        onResume: { _ = try? TimerService.resume(in: modelContext) },
+                        onTakeBreak: {
+                            if let entry = try? TimerService.takeBreak(in: modelContext) {
+                                let elapsed = entry.duration()
+                                Task { await TimerActivityController.shared.pause(elapsed: elapsed) }
+                            }
+                        },
+                        onResume: {
+                            _ = try? TimerService.resume(in: modelContext)
+                            Task { await TimerActivityController.shared.resumeActivity() }
+                        },
                         onStart: { showingStartSheet = true }
                     )
                     TodaySummarySection(currencyCode: currencyCode)

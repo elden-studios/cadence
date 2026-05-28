@@ -60,6 +60,32 @@ final class TimerActivityController {
         }
     }
 
+    /// Push an On-Break update to the running Activity, freezing the elapsed
+    /// display at `elapsed` seconds of worked time.
+    /// No-ops if there is no current activity.
+    func pause(elapsed: TimeInterval) async {
+        guard let activity = current else { return }
+        let state = TimerActivityAttributes.ContentState(
+            startedAt: activity.content.state.startedAt,
+            isOnBreak: true,
+            frozenElapsed: elapsed
+        )
+        await activity.update(.init(state: state, staleDate: nil))
+    }
+
+    /// Push a resume update to the running Activity, un-freezing the elapsed
+    /// counter so it ticks again from `startedAt`.
+    /// No-ops if there is no current activity.
+    func resumeActivity() async {
+        guard let activity = current else { return }
+        let state = TimerActivityAttributes.ContentState(
+            startedAt: activity.content.state.startedAt,
+            isOnBreak: false,
+            frozenElapsed: 0
+        )
+        await activity.update(.init(state: state, staleDate: nil))
+    }
+
     /// End the Live Activity (timer stop or app teardown).
     func endActivity() async {
         guard let activity = current else { return }
