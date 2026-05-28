@@ -210,7 +210,6 @@ struct InvoiceGeneratorView: View {
             .onChange(of: preset) { _, _ in refreshEligible() }
             .onChange(of: customStart) { _, _ in refreshEligible() }
             .onChange(of: customEnd) { _, _ in refreshEligible() }
-            .onChange(of: grouping) { _, _ in refreshEligible() }
             .navigationTitle("New invoice")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -350,11 +349,18 @@ struct InvoiceGeneratorView: View {
     @MainActor
     private func invoiceAllProjects() {
         guard let client = selectedClient, let profile else { return }
-        let projects = InvoiceBuilder.projectsWithEligibleEntries(for: client, in: resolvedRange, context: modelContext)
+        // Single fetch, then group in memory — avoids an N+1 per-project re-fetch.
+        // `eligibleEntries(for: client)` already restricts to billable projects, so
+        // we only need to drop archived ones (matching projectsWithEligibleEntries).
+        let entries = InvoiceBuilder.eligibleEntries(for: client, in: resolvedRange, context: modelContext)
+        let entriesByProject = Dictionary(grouping: entries) { $0.project }
+        let projects = entriesByProject.keys
+            .compactMap { $0 }
+            .filter { !$0.isArchived }
+            .sorted { $0.name < $1.name }
         var created = 0
         for project in projects {
-            let entries = InvoiceBuilder.eligibleEntries(for: project, in: resolvedRange, context: modelContext)
-            let items = InvoiceBuilder.buildLineItems(from: entries, grouping: grouping)
+            let items = InvoiceBuilder.buildLineItems(from: entriesByProject[project] ?? [], grouping: grouping)
             guard !items.isEmpty else { continue }
             if (try? InvoiceBuilder.createDraft(
                 for: client, lineItems: items, project: project,
