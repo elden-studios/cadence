@@ -56,7 +56,7 @@ struct WorkView: View {
 
     private var grouped: [(client: String, projects: [Project])] {
         let byClient = Dictionary(grouping: filteredProjects) { $0.client?.name ?? "No client" }
-        return byClient.keys.sorted().map { ($0, byClient[$0]!.sorted { $0.name < $1.name }) }
+        return byClient.keys.sorted().map { ($0, (byClient[$0] ?? []).sorted { $0.name < $1.name }) }
     }
 
     @ViewBuilder
@@ -67,6 +67,9 @@ struct WorkView: View {
             } description: {
                 Text("Add a client and a project to start tracking.")
             }
+        } else if filteredProjects.isEmpty {
+            ContentUnavailableView("No results", systemImage: "magnifyingglass",
+                description: Text("No projects or clients match \"\(search)\"."))
         } else {
             List {
                 ForEach(grouped, id: \.client) { group in
@@ -79,8 +82,8 @@ struct WorkView: View {
                                 anotherRunning: runningEntries.first != nil
                                     && runningEntries.first?.project?.persistentModelID != project.persistentModelID,
                                 onPlay: {
-                                    if runningEntries.first != nil
-                                        && runningEntries.first?.project?.persistentModelID != project.persistentModelID {
+                                    if let running = runningEntries.first,
+                                       running.project?.persistentModelID != project.persistentModelID {
                                         TimerActions.switchTo(project: project, currencyCode: currencyCode, in: modelContext)
                                     } else {
                                         TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
@@ -127,7 +130,7 @@ private struct ProjectBrowserRow: View {
                     .foregroundStyle(.white)
                     .frame(width: 30, height: 30)
                     .background(
-                        (isRunning ? Color.green : Color(red: 0.98, green: 0.49, blue: 0.13)),
+                        (isRunning ? Color.green : timerAccent),
                         in: .circle
                     )
             }

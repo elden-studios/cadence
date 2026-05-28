@@ -3,14 +3,6 @@ import SwiftData
 import UserNotifications
 import BillableCore
 
-struct ClientsView: View {
-    var body: some View {
-        NavigationStack {
-            ClientsListContent()
-        }
-    }
-}
-
 struct ClientsListContent: View {
     @Environment(\.modelContext) private var modelContext
 
