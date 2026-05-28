@@ -216,7 +216,14 @@ struct InvoiceGeneratorView: View {
                 refreshProjectsAndActive()
             }
             .onChange(of: selectedProject) { _, _ in refreshEligibleEntries() }
-            .onChange(of: selectedClient) { _, _ in refreshProjectsAndActive() }
+            .onChange(of: selectedClient) { _, _ in
+                // Clear the project selection on any client change so a prior
+                // client's project (and its entries) can't linger. The picker also
+                // clears it, but centralizing here covers programmatic changes too.
+                selectedProject = nil
+                eligibleEntries = []
+                refreshProjectsAndActive()
+            }
             .onChange(of: preset) { _, _ in refreshForDateRange() }
             // Debounce the custom-date pickers: spinning the wheel emits a burst
             // of changes, and each refresh hits SwiftData on the main thread.
