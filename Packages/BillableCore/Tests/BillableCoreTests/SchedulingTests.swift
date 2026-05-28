@@ -610,6 +610,10 @@ struct SchedulingTests {
         let expectedNext = cal.date(from: DateComponents(year: 2026, month: 7, day: 1, hour: 8))!
         #expect(template.nextFireDate == expectedNext)
         #expect(entry.invoiceID == draft.uuid)
+        // Recurrence stays client-combined: the materialized draft carries no project/scope.
+        #expect(draft.project == nil)
+        #expect(draft.projectNameSnapshot == nil)
+        #expect(draft.scopeOfWork == nil)
     }
 
     @Test("materializeDraft creates zero-amount draft when no eligible entries")
@@ -642,6 +646,10 @@ struct SchedulingTests {
         #expect(draft.subtotal == 0)
         #expect(draft.lineItems.count == 1)
         #expect(draft.lineItems.first?.description == "No tracked time for this period")
+        // Recurrence stays client-combined even with zero entries: no project/scope.
+        #expect(draft.project == nil)
+        #expect(draft.projectNameSnapshot == nil)
+        #expect(draft.scopeOfWork == nil)
     }
 
     @Test("materializeDraft throws .ended when template's endDate has passed")

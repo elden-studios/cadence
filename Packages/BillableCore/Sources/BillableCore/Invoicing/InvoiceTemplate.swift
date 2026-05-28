@@ -28,6 +28,7 @@ public struct InvoiceTemplate: View {
             VStack(alignment: .leading, spacing: 28) {
                 header
                 billToAndMeta
+                projectTagAndScope
                 lineItemsTable
                 totalsBlock
                 bankDetailsBlock
@@ -44,6 +45,10 @@ public struct InvoiceTemplate: View {
         .frame(width: Self.pageWidth, height: Self.pageHeight, alignment: .top)
         .background(Color.white)
         .foregroundStyle(Color(red: 0.1, green: 0.12, blue: 0.16))
+        // The document always renders on white (preview + PDF), so pin it to the
+        // light scheme — otherwise `.primary`/`.secondary` invert under device
+        // Dark Mode and the text disappears against the white page.
+        .environment(\.colorScheme, .light)
     }
 
     // MARK: - Header
@@ -122,6 +127,58 @@ public struct InvoiceTemplate: View {
             Text(value)
                 .font(.system(size: 11, weight: .medium))
                 .frame(minWidth: 110, alignment: .trailing)
+        }
+    }
+
+    // MARK: - Project tag + scope of work
+
+    @ViewBuilder
+    private var projectTagAndScope: some View {
+        if let projectName = data.projectName {
+            let dotColor: Color = {
+                if let raw = data.projectColorRaw,
+                   let cc = ClientColor(rawValue: raw) {
+                    return cc.swiftUIColor
+                }
+                return accent
+            }()
+            VStack(alignment: .leading, spacing: 11) {
+                // Project — a clean labeled field, consistent with the BILL TO / ISSUED labels.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("PROJECT")
+                        .font(.system(size: 9, weight: .semibold))
+                        .tracking(1.2)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 7) {
+                        Circle().fill(dotColor).frame(width: 8, height: 8)
+                        Text(projectName)
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                }
+
+                // Scope of work — refined neutral callout; the blue total stays the doc's single accent.
+                if let scope = data.scopeOfWork, !scope.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("SCOPE OF WORK")
+                            .font(.system(size: 9, weight: .semibold))
+                            .tracking(1.2)
+                            .foregroundStyle(.secondary)
+                        Text(scope)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.primary.opacity(0.8))
+                            .lineSpacing(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 11)
+                    .padding(.horizontal, 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.primary.opacity(0.035))
+                    .overlay(alignment: .leading) {
+                        Rectangle().fill(Color.primary.opacity(0.28)).frame(width: 2.5)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            }
         }
     }
 
@@ -368,6 +425,12 @@ public struct InvoiceTemplateData: Sendable {
 
     public var watermark: String?  // nil for Pro/trial, "Sent with Cadence" for free
 
+    /// Project tag fields — nil for client-combined / recurrence / legacy invoices.
+    public var projectName: String?
+    public var scopeOfWork: String?
+    /// Accent dot colour for the project tag row.
+    public var projectColorRaw: String?
+
     public init(
         issuerName: String,
         issuerAddress: String,
@@ -448,6 +511,9 @@ public extension InvoiceTemplateData {
         data.bankSWIFT = invoice.issuerBankSWIFTSnapshot
         data.taxIDLabel = invoice.issuerTaxIDLabelSnapshot
         data.taxIDNumber = invoice.issuerTaxIDNumberSnapshot
+        data.projectName = invoice.projectNameSnapshot
+        data.scopeOfWork = invoice.scopeOfWork
+        data.projectColorRaw = invoice.clientColorRaw
         return data
     }
 }

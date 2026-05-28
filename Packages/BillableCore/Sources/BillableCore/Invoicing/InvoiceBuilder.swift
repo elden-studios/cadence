@@ -63,6 +63,49 @@ public enum InvoiceBuilder {
         }
     }
 
+    /// Like `eligibleEntries(for client:)` but scoped to a single `project`.
+    @MainActor
+    public static func eligibleEntries(
+        for project: Project,
+        in range: InvoiceDateRange,
+        context: ModelContext
+    ) -> [TimeEntry] {
+        let start = range.start
+        let end = range.end
+        let projectID = project.persistentModelID
+        guard project.isBillable else { return [] }
+
+        let descriptor = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate { entry in
+                entry.invoiceID == nil
+                && entry.endedAt != nil
+                && entry.startedAt < end
+                && entry.startedAt >= start
+            },
+            sortBy: [SortDescriptor(\.startedAt)]
+        )
+        let entries = (try? context.fetch(descriptor)) ?? []
+        return entries.filter { $0.project?.persistentModelID == projectID }
+    }
+
+    /// The `client`'s non-archived projects that have ≥1 eligible entry in `range`.
+    /// Sorted by name. Powers the "Invoice all projects" action and picker enablement.
+    @MainActor
+    public static func projectsWithEligibleEntries(
+        for client: Client,
+        in range: InvoiceDateRange,
+        context: ModelContext
+    ) -> [Project] {
+        let entries = eligibleEntries(for: client, in: range, context: context)
+        var seen = Set<PersistentIdentifier>()
+        var projects: [Project] = []
+        for entry in entries {
+            guard let project = entry.project, !project.isArchived else { continue }
+            if seen.insert(project.persistentModelID).inserted { projects.append(project) }
+        }
+        return projects.sorted { $0.name < $1.name }
+    }
+
     /// Build line items WITHOUT persisting anything. Used by the preview screen.
     public static func buildLineItems(
         from entries: [TimeEntry],
@@ -110,6 +153,8 @@ public enum InvoiceBuilder {
     public static func createDraft(
         for client: Client,
         lineItems: [InvoiceLineItem],
+        project: Project? = nil,
+        scopeOfWork: String? = nil,
         notes: String? = nil,
         issuedAt: Date = .now,
         profile: BusinessProfile,
@@ -149,7 +194,10 @@ public enum InvoiceBuilder {
             currencyCodeSnapshot: profile.currencyCode,
             lineItems: lineItems,
             notes: notes,
-            client: client
+            client: client,
+            project: project,
+            projectNameSnapshot: project?.name,
+            scopeOfWork: scopeOfWork
         )
         context.insert(invoice)
         try context.save()

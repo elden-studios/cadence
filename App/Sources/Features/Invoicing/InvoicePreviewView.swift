@@ -12,6 +12,8 @@ struct InvoicePreviewView: View {
     @Environment(\.dismiss) private var dismiss
 
     let client: Client
+    let project: Project?
+    let scopeOfWork: String?
     let profile: BusinessProfile
     @State private var lineItems: [InvoiceLineItem]
     @State private var pendingDescriptionEdits: [UUID: String] = [:]
@@ -37,13 +39,17 @@ struct InvoicePreviewView: View {
 
     init(
         client: Client,
+        project: Project? = nil,
         profile: BusinessProfile,
         lineItems: [InvoiceLineItem],
         sourceEntries: [TimeEntry],
+        scopeOfWork: String? = nil,
         notes: String?,
         onDone: @escaping () -> Void
     ) {
         self.client = client
+        self.project = project
+        self.scopeOfWork = scopeOfWork
         self.profile = profile
         _lineItems = State(initialValue: lineItems)
         self.sourceEntries = sourceEntries
@@ -90,6 +96,9 @@ struct InvoicePreviewView: View {
         data.bankSWIFT = profile.bankSWIFT
         data.taxIDLabel = profile.taxIDLabel
         data.taxIDNumber = profile.taxIDNumber
+        data.projectName = project?.name
+        data.scopeOfWork = scopeOfWork
+        data.projectColorRaw = project?.client?.colorRaw
         return data
     }
 
@@ -356,6 +365,8 @@ struct InvoicePreviewView: View {
             let draft = try InvoiceBuilder.createDraft(
                 for: client,
                 lineItems: lineItems,
+                project: project,
+                scopeOfWork: scopeOfWork,
                 notes: notes,
                 profile: profile,
                 context: modelContext
@@ -512,6 +523,8 @@ struct InvoicePreviewView: View {
             let draft = try InvoiceBuilder.createDraft(
                 for: client,
                 lineItems: lineItems,
+                project: project,
+                scopeOfWork: scopeOfWork,
                 notes: notes,
                 profile: profile,
                 context: modelContext

@@ -24,6 +24,8 @@ struct InvoiceDetailView: View {
     @State private var mailComposerAttachment: Data?
     @State private var mailComposerRecipients: [String] = []
     @State private var showingNoClientEmailAlert = false
+    @State private var scopeDraft: String = ""
+    @State private var lastSavedScope: String = ""
 
     private var subscriptions: SubscriptionManager { SubscriptionManager.shared }
 
@@ -52,6 +54,7 @@ struct InvoiceDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 reminderBanner
                 statusBanner
+                projectTagAndScope
                 pdfPreview
                 actionButtons
                 metadata
@@ -208,6 +211,78 @@ struct InvoiceDetailView: View {
         }
     }
 
+    // MARK: - Project tag + scope
+
+    @ViewBuilder
+    private var projectTagAndScope: some View {
+        if let projectName = invoice.projectNameSnapshot {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(invoice.clientColor.swiftUIColor)
+                        .frame(width: 8, height: 8)
+                    Text(projectName)
+                        .font(.subheadline.weight(.semibold))
+                }
+                if invoice.status == .draft {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("SCOPE OF WORK")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.secondary)
+                        TextField("Describe the scope of work…", text: $scopeDraft, axis: .vertical)
+                            .lineLimit(2...6)
+                            .padding(10)
+                            .background(.background, in: .rect(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(.quaternary, lineWidth: 1)
+                            )
+                    }
+                    .task(id: scopeDraft) { [invoice] in
+                        guard scopeDraft != lastSavedScope else { return }
+                        try? await Task.sleep(for: .milliseconds(400))
+                        guard !Task.isCancelled else { return }
+                        guard scopeDraft != lastSavedScope else { return }
+                        // Capture the invoice the edit started on, so a debounced
+                        // commit can't land on a different invoice after a swap.
+                        commitScope(for: invoice)
+                    }
+                    .onAppear {
+                        scopeDraft = invoice.scopeOfWork ?? ""
+                        lastSavedScope = scopeDraft
+                    }
+                    .onChange(of: invoice) { oldInvoice, newInvoice in
+                        // Detail-reuse (e.g. iPad split view): flush the previous
+                        // invoice before loading the new one, so a pending edit
+                        // isn't written onto the wrong invoice or lost.
+                        if scopeDraft != lastSavedScope { commitScope(for: oldInvoice) }
+                        scopeDraft = newInvoice.scopeOfWork ?? ""
+                        lastSavedScope = scopeDraft
+                    }
+                    .onDisappear { [invoice] in
+                        if scopeDraft != lastSavedScope { commitScope(for: invoice) }
+                    }
+                } else if let scope = invoice.scopeOfWork, !scope.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("SCOPE OF WORK")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.secondary)
+                        Text(scope)
+                            .font(.subheadline)
+                            .foregroundStyle(.primary.opacity(0.8))
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.primary.opacity(0.04))
+                    .overlay(alignment: .leading) {
+                        Rectangle().fill(Color.primary.opacity(0.25)).frame(width: 2.5)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            }
+        }
+    }
+
     // MARK: - PDF preview
 
     /// Template data for the live-render fallback (used when pdfDataCached is nil).
@@ -301,6 +376,18 @@ struct InvoiceDetailView: View {
             Spacer()
             Text(value).font(.subheadline)
         }
+    }
+
+    // MARK: - Scope debounce
+
+    @MainActor
+    private func commitScope(for targetInvoice: Invoice) {
+        let trimmed = scopeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        targetInvoice.scopeOfWork = trimmed.isEmpty ? nil : trimmed
+        targetInvoice.pdfDataCached = nil
+        targetInvoice.updatedAt = .now
+        modelContext.saveOrLog("edit invoice scope")
+        lastSavedScope = scopeDraft
     }
 
     // MARK: - Behavior

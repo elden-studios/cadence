@@ -15,6 +15,8 @@ struct InvoiceGeneratorView: View {
     @Query private var profiles: [BusinessProfile]
 
     @State private var selectedClient: Client?
+    @State private var selectedProject: Project?
+    @State private var scopeOfWork: String = ""
     @State private var preset: InvoicePeriodPreset = .lastMonth
     @State private var customStart: Date = Calendar.current.date(byAdding: .month, value: -1, to: .now) ?? .now
     @State private var customEnd: Date = .now
@@ -30,6 +32,7 @@ struct InvoiceGeneratorView: View {
     @State private var recurrenceEndDate: Date? = nil
     @State private var savingRecurrence = false
     @State private var permissionDeniedAlert = false
+    @State private var invoiceAllResult: Int?
 
     init(defaultClient: Client? = nil) {
         _selectedClient = State(initialValue: defaultClient)
@@ -51,17 +54,23 @@ struct InvoiceGeneratorView: View {
         return preset.range() ?? InvoiceDateRange(start: customStart, end: customEnd)
     }
 
-    private var eligibleEntries: [TimeEntry] {
-        guard let client = selectedClient else { return [] }
-        return InvoiceBuilder.eligibleEntries(for: client, in: resolvedRange, context: modelContext)
-    }
+    @State private var eligibleEntries: [TimeEntry] = []
+    @State private var projectsWithEligible: [Project] = []
+    @State private var activeProjects: [Project] = []
 
     private var lineItems: [InvoiceLineItem] {
         InvoiceBuilder.buildLineItems(from: eligibleEntries, grouping: grouping)
     }
 
+    /// Scope text with surrounding whitespace stripped; nil when blank so a
+    /// whitespace-only entry never renders an empty Scope block on the invoice.
+    private var trimmedScope: String? {
+        let trimmed = scopeOfWork.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     private var canPreview: Bool {
-        selectedClient != nil && profile != nil && !lineItems.isEmpty
+        selectedClient != nil && selectedProject != nil && profile != nil && !lineItems.isEmpty
             && Self.canSendInvoice(profile: profile)
     }
 
@@ -74,6 +83,31 @@ struct InvoiceGeneratorView: View {
             Form {
                 Section("Client") {
                     clientPicker
+                }
+
+                Section("Project") {
+                    if selectedClient != nil {
+                        if activeProjects.isEmpty {
+                            Text("This client has no active projects.").foregroundStyle(.secondary)
+                        } else {
+                            Picker("Project", selection: $selectedProject) {
+                                Text("Choose").tag(Project?.none)
+                                ForEach(activeProjects) { p in Text(p.name).tag(Project?.some(p)) }
+                            }
+                            if !projectsWithEligible.isEmpty {
+                                Button { invoiceAllProjects() } label: {
+                                    Label("Invoice all projects (separate drafts)", systemImage: "doc.on.doc")
+                                }
+                            }
+                        }
+                    } else {
+                        Text("Pick a client first.").foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("Scope of work (optional)") {
+                    TextField("e.g. Build the v1 analytics dashboard", text: $scopeOfWork, axis: .vertical)
+                        .lineLimit(2...6)
                 }
 
                 Section("Period") {
@@ -177,6 +211,32 @@ struct InvoiceGeneratorView: View {
                     }
                 }
             }
+            .onAppear {
+                refreshEligibleEntries()
+                refreshProjectsAndActive()
+            }
+            .onChange(of: selectedProject) { _, _ in refreshEligibleEntries() }
+            .onChange(of: selectedClient) { _, _ in
+                // Clear the project selection on any client change so a prior
+                // client's project (and its entries) can't linger. The picker also
+                // clears it, but centralizing here covers programmatic changes too.
+                selectedProject = nil
+                eligibleEntries = []
+                refreshProjectsAndActive()
+            }
+            .onChange(of: preset) { _, _ in refreshForDateRange() }
+            // Debounce the custom-date pickers: spinning the wheel emits a burst
+            // of changes, and each refresh hits SwiftData on the main thread.
+            .task(id: customStart) {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                refreshForDateRange()
+            }
+            .task(id: customEnd) {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                refreshForDateRange()
+            }
             .navigationTitle("New invoice")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -207,13 +267,20 @@ struct InvoiceGeneratorView: View {
                 if let client = selectedClient, let profile {
                     InvoicePreviewView(
                         client: client,
+                        project: selectedProject,
                         profile: profile,
                         lineItems: lineItems,
                         sourceEntries: eligibleEntries,
+                        scopeOfWork: trimmedScope,
                         notes: notes.isEmpty ? nil : notes,
                         onDone: { dismiss() }
                     )
                 }
+            }
+            .alert("Drafts created", isPresented: Binding(get: { invoiceAllResult != nil }, set: { if !$0 { invoiceAllResult = nil } })) {
+                Button("OK") { invoiceAllResult = nil; dismiss() }
+            } message: {
+                Text("Created \(invoiceAllResult ?? 0) draft invoice(s) — one per project with billable time. Open each from Invoices to add a scope and send.")
             }
             .alert("Notifications are off", isPresented: $permissionDeniedAlert) {
                 Button("Open Settings") {
@@ -238,6 +305,7 @@ struct InvoiceGeneratorView: View {
                 ForEach(clients) { client in
                     Button {
                         selectedClient = client
+                        selectedProject = nil
                     } label: {
                         HStack {
                             Text(client.name)
@@ -289,6 +357,77 @@ struct InvoiceGeneratorView: View {
         let subtotal = lineItems.reduce(into: Decimal(0)) { $0 += $1.amount }
         let code = profile?.currencyCode ?? "USD"
         return subtotal.formatted(.currency(code: code))
+    }
+
+    // MARK: – Eligible-entry + project cache
+
+    /// Recompute the selected project's eligible entries. Depends on
+    /// `selectedProject` and the resolved range only.
+    @MainActor
+    private func refreshEligibleEntries() {
+        eligibleEntries = selectedProject.map {
+            InvoiceBuilder.eligibleEntries(for: $0, in: resolvedRange, context: modelContext)
+        } ?? []
+    }
+
+    /// Recompute the client's pickable projects and the subset with eligible
+    /// entries. Depends on `selectedClient` and the resolved range only — kept
+    /// separate so a client change doesn't redundantly re-fetch entries.
+    @MainActor
+    private func refreshProjectsAndActive() {
+        activeProjects = selectedClient.map {
+            $0.projects.filter { !$0.isArchived && $0.isBillable }.sorted { $0.name < $1.name }
+        } ?? []
+        projectsWithEligible = selectedClient.map {
+            InvoiceBuilder.projectsWithEligibleEntries(for: $0, in: resolvedRange, context: modelContext)
+        } ?? []
+    }
+
+    /// A date-range change moves both `eligibleEntries` and `projectsWithEligible`,
+    /// and both derive from the same client fetch — so fetch once and group in
+    /// memory rather than firing two queries. (`activeProjects` is range-independent
+    /// and is left untouched.)
+    @MainActor
+    private func refreshForDateRange() {
+        guard let client = selectedClient else {
+            eligibleEntries = []
+            projectsWithEligible = []
+            return
+        }
+        let clientEntries = InvoiceBuilder.eligibleEntries(for: client, in: resolvedRange, context: modelContext)
+        let byProject = Dictionary(grouping: clientEntries) { $0.project }
+        projectsWithEligible = byProject.keys
+            .compactMap { $0 }
+            .filter { !$0.isArchived }
+            .sorted { $0.name < $1.name }
+        eligibleEntries = selectedProject.flatMap { byProject[$0] } ?? []
+    }
+
+    // MARK: – Invoice all projects
+
+    @MainActor
+    private func invoiceAllProjects() {
+        guard let client = selectedClient, let profile else { return }
+        // Single fetch, then group in memory — avoids an N+1 per-project re-fetch.
+        // `eligibleEntries(for: client)` already restricts to billable projects, so
+        // we only need to drop archived ones (matching projectsWithEligibleEntries).
+        let entries = InvoiceBuilder.eligibleEntries(for: client, in: resolvedRange, context: modelContext)
+        let entriesByProject = Dictionary(grouping: entries) { $0.project }
+        let projects = entriesByProject.keys
+            .compactMap { $0 }
+            .filter { !$0.isArchived }
+            .sorted { $0.name < $1.name }
+        var created = 0
+        for project in projects {
+            let items = InvoiceBuilder.buildLineItems(from: entriesByProject[project] ?? [], grouping: grouping)
+            guard !items.isEmpty else { continue }
+            if (try? InvoiceBuilder.createDraft(
+                for: client, lineItems: items, project: project,
+                scopeOfWork: nil, notes: notes.isEmpty ? nil : notes,
+                profile: profile, context: modelContext
+            )) != nil { created += 1 }
+        }
+        invoiceAllResult = created
     }
 
     // MARK: – Save recurrence
