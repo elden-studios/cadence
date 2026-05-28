@@ -238,12 +238,14 @@ struct InvoiceDetailView: View {
                                     .stroke(.quaternary, lineWidth: 1)
                             )
                     }
-                    .task(id: scopeDraft) {
+                    .task(id: scopeDraft) { [invoice] in
                         guard scopeDraft != lastSavedScope else { return }
                         try? await Task.sleep(for: .milliseconds(400))
                         guard !Task.isCancelled else { return }
                         guard scopeDraft != lastSavedScope else { return }
-                        commitScope()
+                        // Capture the invoice the edit started on, so a debounced
+                        // commit can't land on a different invoice after a swap.
+                        commitScope(for: invoice)
                     }
                     .onAppear {
                         scopeDraft = invoice.scopeOfWork ?? ""
@@ -257,8 +259,8 @@ struct InvoiceDetailView: View {
                         scopeDraft = newInvoice.scopeOfWork ?? ""
                         lastSavedScope = scopeDraft
                     }
-                    .onDisappear {
-                        if scopeDraft != lastSavedScope { commitScope() }
+                    .onDisappear { [invoice] in
+                        if scopeDraft != lastSavedScope { commitScope(for: invoice) }
                     }
                 } else if let scope = invoice.scopeOfWork, !scope.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
@@ -378,10 +380,7 @@ struct InvoiceDetailView: View {
 
     // MARK: - Scope debounce
 
-    private func commitScope() {
-        commitScope(for: invoice)
-    }
-
+    @MainActor
     private func commitScope(for targetInvoice: Invoice) {
         let trimmed = scopeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         targetInvoice.scopeOfWork = trimmed.isEmpty ? nil : trimmed
