@@ -97,7 +97,7 @@ struct ProjectDetailView: View {
                 Button {
                     showingInvoiceGenerator = true
                 } label: {
-                    Label(invoiceLabel(stats: stats), systemImage: "doc.text")
+                    Label("Create invoice", systemImage: "doc.text")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -289,12 +289,6 @@ struct ProjectDetailView: View {
     }
 
     // MARK: Helpers
-
-    private func invoiceLabel(stats: ProjectStats) -> String {
-        stats.uninvoicedAmount > 0
-            ? "Create invoice · \(stats.uninvoicedAmount.formatted(.currency(code: currencyCode)))"
-            : "Create invoice"
-    }
 
     private func hoursString(_ seconds: TimeInterval) -> String {
         let totalMinutes = Int(seconds / 60)
