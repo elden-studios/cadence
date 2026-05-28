@@ -16,6 +16,14 @@ public final class TimeEntry {
     /// store re-creation, CloudKit sync, and CSV export cleanly.
     public var invoiceID: UUID?
 
+    /// Worked seconds banked from completed work segments (before the current
+    /// active segment / before each break). The source of truth for billable
+    /// time once breaks exist. 0 for manual/legacy entries (see `duration`).
+    public var accumulatedSeconds: Double = 0
+
+    /// Start of the current *working* segment. `nil` while On Break or finished.
+    public var activeSegmentStartedAt: Date? = nil
+
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -27,6 +35,8 @@ public final class TimeEntry {
         notes: String? = nil,
         isManual: Bool = false,
         project: Project? = nil,
+        accumulatedSeconds: Double = 0,
+        activeSegmentStartedAt: Date? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -35,16 +45,38 @@ public final class TimeEntry {
         self.notes = notes
         self.isManual = isManual
         self.project = project
+        self.accumulatedSeconds = accumulatedSeconds
+        self.activeSegmentStartedAt = activeSegmentStartedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
 
     public var isRunning: Bool { endedAt == nil }
+    /// Active session, currently counting.
+    public var isWorking: Bool { endedAt == nil && activeSegmentStartedAt != nil }
+    /// Active session, paused (count frozen).
+    public var isOnBreak: Bool { endedAt == nil && activeSegmentStartedAt == nil }
 
-    /// Duration in seconds. For running timers, computed against `referenceDate` (default = now).
+    /// WORKED duration in seconds, breaks excluded.
+    /// - Finished: banked worked time; manual/legacy entries (no banking) fall
+    ///   back to wall-clock end-start.
+    /// - Working: banked + the live segment.
+    /// - On break: banked (frozen).
+    /// - Legacy running (no segment, no banked): falls back to wall-clock from
+    ///   startedAt, preserving behaviour for entries created before breaks.
     public func duration(asOf referenceDate: Date = .now) -> TimeInterval {
-        let end = endedAt ?? referenceDate
-        return max(0, end.timeIntervalSince(startedAt))
+        if let end = endedAt {
+            return accumulatedSeconds > 0 ? accumulatedSeconds : max(0, end.timeIntervalSince(startedAt))
+        }
+        if let segStart = activeSegmentStartedAt {
+            return accumulatedSeconds + max(0, referenceDate.timeIntervalSince(segStart))
+        }
+        // On Break: return frozen banked total.
+        // Legacy running (pre-break): no segment set yet, fall back to wall-clock.
+        if accumulatedSeconds > 0 {
+            return accumulatedSeconds
+        }
+        return max(0, referenceDate.timeIntervalSince(startedAt))
     }
 
     /// Amount earned for this entry, computed against the project's current rate.
