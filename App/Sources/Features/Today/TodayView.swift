@@ -49,13 +49,14 @@ struct TodayView: View {
                             if let entry = try? TimerService.takeBreak(in: modelContext) {
                                 let elapsed = entry.duration()
                                 Task { await TimerActivityController.shared.pause(elapsed: elapsed) }
+                                WidgetCenter.shared.reloadAllTimelines()
                             }
-                            WidgetCenter.shared.reloadAllTimelines()
                         },
                         onResume: {
-                            _ = try? TimerService.resume(in: modelContext)
-                            Task { await TimerActivityController.shared.resumeActivity() }
-                            WidgetCenter.shared.reloadAllTimelines()
+                            if (try? TimerService.resume(in: modelContext)) != nil {
+                                Task { await TimerActivityController.shared.resumeActivity() }
+                                WidgetCenter.shared.reloadAllTimelines()
+                            }
                         },
                         onStart: { showingStartSheet = true }
                     )

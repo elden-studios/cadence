@@ -46,7 +46,11 @@ final class TimerActivityController {
         } else {
             anchor = entry.startedAt
         }
-        let state = TimerActivityAttributes.ContentState(startedAt: anchor)
+        let state = TimerActivityAttributes.ContentState(
+            startedAt: anchor,
+            isOnBreak: entry.isOnBreak,
+            frozenElapsed: entry.isOnBreak ? entry.duration() : 0
+        )
 
         // End any in-flight activity first — a switch shouldn't leave two open.
         if let previous = current {
