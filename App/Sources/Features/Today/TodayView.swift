@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import WidgetKit
 import BillableCore
 
 struct TodayView: View {
@@ -49,10 +50,12 @@ struct TodayView: View {
                                 let elapsed = entry.duration()
                                 Task { await TimerActivityController.shared.pause(elapsed: elapsed) }
                             }
+                            WidgetCenter.shared.reloadAllTimelines()
                         },
                         onResume: {
                             _ = try? TimerService.resume(in: modelContext)
                             Task { await TimerActivityController.shared.resumeActivity() }
+                            WidgetCenter.shared.reloadAllTimelines()
                         },
                         onStart: { showingStartSheet = true }
                     )
@@ -127,6 +130,7 @@ struct TodayView: View {
         _ = try? TimerService.stop(in: modelContext)
         Task { await TimerActivityController.shared.endActivity() }
         Task { try? await StopTimerIntent().donate() }
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
 }

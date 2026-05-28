@@ -44,26 +44,21 @@ struct TodaySummaryProvider: TimelineProvider {
         }
         let context = ModelContext(container)
         let cal = Calendar.current
-        let dayStart = cal.startOfDay(for: now)
-        let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) ?? now
 
         let allDescriptor = FetchDescriptor<TimeEntry>()
         let all = (try? context.fetch(allDescriptor)) ?? []
 
+        // Mirror the Today screen's filter: entries whose startedAt falls on
+        // today. Uses `duration(asOf:)` so breaks are excluded and running
+        // entries frozen on a break don't keep ticking.
         let todays = all.filter { entry in
-            entry.startedAt < dayEnd && (entry.endedAt ?? now) > dayStart
+            cal.isDate(entry.startedAt, inSameDayAs: now)
         }
         let todaysSeconds = todays.reduce(into: TimeInterval(0)) { acc, e in
-            let start = max(e.startedAt, dayStart)
-            let end = min(e.endedAt ?? now, dayEnd)
-            acc += max(0, end.timeIntervalSince(start))
+            acc += e.duration(asOf: now)   // worked time, breaks excluded
         }
         let todaysAmount = todays.reduce(into: Decimal(0)) { acc, e in
-            guard let project = e.project, project.isBillable else { return }
-            let start = max(e.startedAt, dayStart)
-            let end = min(e.endedAt ?? now, dayEnd)
-            let hours = Decimal(max(0, end.timeIntervalSince(start)) / 3600)
-            acc += hours * project.hourlyRate
+            acc += e.amount(asOf: now)     // uses duration() internally
         }
         let uninvoiced = all
             .filter { $0.invoiceID == nil }
