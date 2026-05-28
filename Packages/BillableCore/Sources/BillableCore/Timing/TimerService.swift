@@ -174,6 +174,35 @@ public enum TimerService {
         return entry
     }
 
+    /// Call once on app launch. Prevents multi-day sessions and repairs
+    /// pre-break-fields running entries.
+    /// - Cross-day active session → finalize to its banked worked time
+    ///   (`endedAt = startedAt + accumulatedSeconds`), discarding any open
+    ///   segment (its true end is unknown).
+    /// - Same-day running entry with no segment and 0 banked → treat as Working
+    ///   (legacy entry created before break fields existed).
+    /// - Genuine same-day On-Break sessions (banked > 0) are left alone.
+    @MainActor
+    public static func reconcileActiveSessionOnLaunch(
+        now: Date = .now,
+        calendar: Calendar = .current,
+        in context: ModelContext
+    ) throws {
+        guard let active = currentRunningEntry(in: context) else { return }
+        if !calendar.isDate(active.startedAt, inSameDayAs: now) {
+            active.activeSegmentStartedAt = nil
+            active.endedAt = max(
+                active.startedAt.addingTimeInterval(active.accumulatedSeconds),
+                active.startedAt.addingTimeInterval(1)
+            )
+            active.updatedAt = now
+        } else if active.activeSegmentStartedAt == nil && active.accumulatedSeconds == 0 {
+            active.activeSegmentStartedAt = active.startedAt
+            active.updatedAt = now
+        }
+        try context.save()
+    }
+
     /// Shift a running entry's startedAt backward (or forward, within constraints).
     /// Throws if `newStart >= Date.now` (would create negative duration) or if
     /// the entry is no longer running.
