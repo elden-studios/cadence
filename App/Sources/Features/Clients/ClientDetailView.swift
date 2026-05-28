@@ -10,6 +10,7 @@ struct ClientDetailView: View {
     @State private var showingNewProject = false
     @State private var editingProject: Project?
     @State private var deletionCandidate: Project?
+    @State private var projectToComplete: Project?
 
     private var activeProjects: [Project] {
         client.projects.filter { !$0.isArchived }.sorted { $0.name < $1.name }
@@ -66,9 +67,7 @@ struct ClientDetailView: View {
                                 Label("Delete", systemImage: "trash")
                             }
                             Button {
-                                project.isArchived = true
-                                project.updatedAt = .now
-                                modelContext.saveOrLog("archive project")
+                                projectToComplete = project
                             } label: {
                                 Label("Archive", systemImage: "archivebox")
                             }
@@ -140,6 +139,20 @@ struct ClientDetailView: View {
             Button("Cancel", role: .cancel) { deletionCandidate = nil }
         } message: {
             Text("This permanently removes the project and all of its time entries.")
+        }
+        .confirmationDialog(
+            "Are you sure you're done with this project?",
+            isPresented: Binding(get: { projectToComplete != nil }, set: { if !$0 { projectToComplete = nil } }),
+            titleVisibility: .visible,
+            presenting: projectToComplete
+        ) { project in
+            Button("Complete project", role: .destructive) {
+                project.isArchived = true
+                project.updatedAt = .now
+                modelContext.saveOrLog("complete project")
+                projectToComplete = nil
+            }
+            Button("Cancel", role: .cancel) { projectToComplete = nil }
         }
     }
 }
