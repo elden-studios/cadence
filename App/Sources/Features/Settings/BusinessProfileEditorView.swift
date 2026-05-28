@@ -39,6 +39,8 @@ struct BusinessProfileEditorView: View {
 
     @State private var logoData: Data?
     @State private var logoPickerItem: PhotosPickerItem?
+    @State private var logoUIImage: UIImage?
+    @State private var logoLoadError: String?
 
     @State private var hasLoaded = false
 
@@ -109,7 +111,7 @@ struct BusinessProfileEditorView: View {
             }
 
             Section {
-                if let data = logoData, let image = uiImageFromData(data) {
+                if let image = logoUIImage {
                     HStack {
                         Image(uiImage: image)
                             .resizable()
@@ -120,6 +122,8 @@ struct BusinessProfileEditorView: View {
                         Spacer()
                         Button(role: .destructive) {
                             logoData = nil
+                            logoUIImage = nil
+                            logoLoadError = nil
                             // Reset picker selection so re-picking the same photo
                             // changes the .task(id:) value and re-runs processing.
                             logoPickerItem = nil
@@ -138,6 +142,11 @@ struct BusinessProfileEditorView: View {
                 }
                 .task(id: logoPickerItem) {
                     await loadAndProcessLogo(from: logoPickerItem)
+                }
+                if let logoLoadError {
+                    Text(logoLoadError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
             } header: {
                 Text("Logo")
@@ -174,6 +183,22 @@ struct BusinessProfileEditorView: View {
             }
         }
         .onAppear { loadIfNeeded() }
+        .task(id: logoData) {
+            guard let data = logoData else {
+                logoUIImage = nil
+                return
+            }
+            let image = await Task.detached(priority: .userInitiated) {
+                UIImage(data: data)
+            }.value
+            guard !Task.isCancelled else { return }
+            logoUIImage = image
+            if image == nil {
+                // Stored bytes won't decode (e.g. CloudKit sync corruption, format
+                // regression). Surface so the user can recover by re-picking.
+                logoLoadError = "Couldn't display the saved logo. Pick a new one."
+            }
+        }
     }
 
     private func loadIfNeeded() {
@@ -200,6 +225,12 @@ struct BusinessProfileEditorView: View {
         bankIBAN = profile.bankIBAN
         bankSWIFT = profile.bankSWIFT
         logoData = profile.logoData
+        // Synchronously decode the saved logo on first mount so the preview
+        // appears on the first body render — otherwise .task(id: logoData)'s
+        // off-main decode produces a visible flicker on every editor open.
+        if let data = profile.logoData {
+            logoUIImage = UIImage(data: data)
+        }
     }
 
     private func save() {
@@ -214,15 +245,15 @@ struct BusinessProfileEditorView: View {
         profile.nextInvoiceNumber = nextInvoiceNumber
         profile.taxLabel = taxLabel
         profile.taxRate = Decimal(taxRatePercent / 100)
-        profile.taxIDLabel = taxIDLabel
-        profile.taxIDNumber = taxIDNumber
-        // Trim invoice email templates on save so the stored value matches
-        // what the email composer actually sends. Otherwise a trailing newline
-        // from a paste (extremely common from Apple Mail / wrapped sources)
-        // is silently stripped by `effectiveInvoiceEmail*Template` at send
-        // time — the editor showed the user one string but the email used
-        // another, with no way to reconcile without reading source.
-        // Trimming at save makes the editor's stored value the ground truth.
+        // Trim tax ID + email templates on save so the stored value matches
+        // what's displayed/sent. For the email templates specifically: a
+        // trailing newline from a paste (common from Apple Mail / wrapped
+        // sources) would otherwise be silently stripped by
+        // `effectiveInvoiceEmail*Template` at send time — the editor showed the
+        // user one string but the email used another. Trimming at save makes
+        // the editor's stored value the ground truth.
+        profile.taxIDLabel = taxIDLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        profile.taxIDNumber = taxIDNumber.trimmingCharacters(in: .whitespacesAndNewlines)
         profile.invoiceEmailSubjectTemplate = invoiceEmailSubjectTemplate
             .trimmingCharacters(in: .whitespacesAndNewlines)
         profile.invoiceEmailBodyTemplate = invoiceEmailBodyTemplate
@@ -238,23 +269,38 @@ struct BusinessProfileEditorView: View {
         dismiss()
     }
 
+    @MainActor
     private func loadAndProcessLogo(from item: PhotosPickerItem?) async {
         guard let item else { return }
-        guard let rawData = try? await item.loadTransferable(type: Data.self) else { return }
+        logoLoadError = nil
+
+        let rawData: Data
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else {
+                logoLoadError = "Couldn't load that photo. Try another."
+                return
+            }
+            rawData = data
+        } catch {
+            // Distinguish cancellation (user picked again mid-load) from real
+            // failure — try? would swallow CancellationError and surface a lie.
+            if !Task.isCancelled {
+                logoLoadError = "Couldn't load that photo. Try another."
+            }
+            return
+        }
+
         guard !Task.isCancelled else { return }
         // Process off the main actor to avoid blocking the UI on a large source image.
         let processed = await Task.detached(priority: .userInitiated) {
             LogoImageProcessor.process(rawData)
         }.value
-        guard let processed, !Task.isCancelled else { return }
+        guard !Task.isCancelled else { return }
+        guard let processed else {
+            logoLoadError = "That image format isn't supported. Try a JPEG or PNG."
+            return
+        }
         logoData = processed
-    }
-
-    private func uiImageFromData(_ data: Data) -> UIImage? {
-        // UIImage is only used here on the main actor for the editor's read-only
-        // display. The off-main encoding path uses pure CoreGraphics via
-        // LogoImageProcessor.
-        UIImage(data: data)
     }
 
     private func newProfile() -> BusinessProfile {
