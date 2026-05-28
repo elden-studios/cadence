@@ -72,21 +72,27 @@ final class InvoicePreviewLineItemEditUITests: XCTestCase {
         // clients (Acme Corp, Zen Garden) appear instead — both seed sets
         // include billable entries for the current day, so either client
         // satisfies the Preview gate.
-        let candidates = ["Northwind Design", "Acme Corp", "Zen Garden",
-                          "Apex Analytics", "Helio Labs", "Pinecone Studio"]
-        var pickedClient: XCUIElement?
-        for label in candidates {
-            let candidate = app.buttons[label]
-            if candidate.waitForExistence(timeout: 1) {
-                pickedClient = candidate
-                break
-            }
-        }
-        guard let clientToTap = pickedClient else {
-            XCTFail("No known seed client appeared in the picker. Tree:\n\(app.debugDescription)")
-            return
-        }
-        clientToTap.tap()
+        // --reset-store + --seed-marketing always seeds Northwind Design, whose
+        // "Website Refresh" project has a billable entry on the current day, so
+        // pin to it for a deterministic per-project Preview path.
+        let northwind = app.buttons["Northwind Design"]
+        XCTAssertTrue(northwind.waitForExistence(timeout: 3),
+                      "Northwind Design must appear in the client picker. Tree:\n\(app.debugDescription)")
+        northwind.tap()
+
+        // ── Pick a project — per-project invoicing requires one for Preview ──
+        // The Project picker (Section("Project")) only appears once a client is
+        // selected. Its row label begins with "Project," (value "Choose" until set).
+        let projectMenu = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Project,'")
+        ).firstMatch
+        XCTAssertTrue(projectMenu.waitForExistence(timeout: 3),
+                      "Project picker must appear after a client is chosen")
+        projectMenu.tap()
+        let projectOption = app.buttons["Website Refresh"]
+        XCTAssertTrue(projectOption.waitForExistence(timeout: 2),
+                      "'Website Refresh' must appear in the project menu. Tree:\n\(app.debugDescription)")
+        projectOption.tap()
 
         // Default preset is .lastMonth — seed entries (both marketing + demo)
         // live in the current day/week, so switch to "This week". The Range
