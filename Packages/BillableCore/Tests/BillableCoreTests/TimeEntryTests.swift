@@ -12,11 +12,11 @@ struct TimeEntryTests {
         #expect(entry.duration() == 3600)
     }
 
-    @Test("Running entry duration is computed against reference date")
+    @Test("Running entry with active segment duration is computed against reference date")
     func runningDuration() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         let now = start.addingTimeInterval(1800) // +30 min
-        let entry = TimeEntry(startedAt: start, endedAt: nil)
+        let entry = TimeEntry(startedAt: start, endedAt: nil, activeSegmentStartedAt: start)
         #expect(entry.duration(asOf: now) == 1800)
         #expect(entry.isRunning)
     }
@@ -61,7 +61,7 @@ struct TimeEntryTests {
         let project = Project(name: "Site", hourlyRate: 100)
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         let now = start.addingTimeInterval(1800) // 30 min
-        let entry = TimeEntry(startedAt: start, endedAt: nil, project: project)
+        let entry = TimeEntry(startedAt: start, endedAt: nil, project: project, activeSegmentStartedAt: start)
         #expect(entry.amount(asOf: now) == 50)
     }
 }

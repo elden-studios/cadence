@@ -62,8 +62,6 @@ public final class TimeEntry {
     ///   back to wall-clock end-start.
     /// - Working: banked + the live segment.
     /// - On break: banked (frozen).
-    /// - Legacy running (no segment, no banked): falls back to wall-clock from
-    ///   startedAt, preserving behaviour for entries created before breaks.
     public func duration(asOf referenceDate: Date = .now) -> TimeInterval {
         if let end = endedAt {
             return accumulatedSeconds > 0 ? accumulatedSeconds : max(0, end.timeIntervalSince(startedAt))
@@ -71,12 +69,8 @@ public final class TimeEntry {
         if let segStart = activeSegmentStartedAt {
             return accumulatedSeconds + max(0, referenceDate.timeIntervalSince(segStart))
         }
-        // On Break: return frozen banked total.
-        // Legacy running (pre-break): no segment set yet, fall back to wall-clock.
-        if accumulatedSeconds > 0 {
-            return accumulatedSeconds
-        }
-        return max(0, referenceDate.timeIntervalSince(startedAt))
+        // On Break: count is frozen at the banked worked total.
+        return accumulatedSeconds
     }
 
     /// Amount earned for this entry, computed against the project's current rate.

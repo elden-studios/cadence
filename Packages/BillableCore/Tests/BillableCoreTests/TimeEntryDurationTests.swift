@@ -33,4 +33,10 @@ struct TimeEntryDurationTests {
         let e = TimeEntry(startedAt: t0, endedAt: t0.addingTimeInterval(3600), accumulatedSeconds: 0)
         #expect(e.duration() == 3600)
     }
+
+    @Test("On break with zero banked stays frozen at 0 (not wall-clock)")
+    func onBreakZeroBankedFrozen() {
+        let e = TimeEntry(startedAt: t0, accumulatedSeconds: 0, activeSegmentStartedAt: nil)
+        #expect(e.duration(asOf: t0.addingTimeInterval(9999)) == 0)
+    }
 }
