@@ -56,6 +56,7 @@ struct InvoiceGeneratorView: View {
 
     @State private var eligibleEntries: [TimeEntry] = []
     @State private var projectsWithEligible: [Project] = []
+    @State private var activeProjects: [Project] = []
 
     private var lineItems: [InvoiceLineItem] {
         InvoiceBuilder.buildLineItems(from: eligibleEntries, grouping: grouping)
@@ -78,14 +79,13 @@ struct InvoiceGeneratorView: View {
                 }
 
                 Section("Project") {
-                    if let client = selectedClient {
-                        let projects = client.projects.filter { !$0.isArchived && $0.isBillable }.sorted { $0.name < $1.name }
-                        if projects.isEmpty {
+                    if selectedClient != nil {
+                        if activeProjects.isEmpty {
                             Text("This client has no active projects.").foregroundStyle(.secondary)
                         } else {
                             Picker("Project", selection: $selectedProject) {
                                 Text("Choose").tag(Project?.none)
-                                ForEach(projects) { p in Text(p.name).tag(Project?.some(p)) }
+                                ForEach(activeProjects) { p in Text(p.name).tag(Project?.some(p)) }
                             }
                             if !projectsWithEligible.isEmpty {
                                 Button { invoiceAllProjects() } label: {
@@ -204,12 +204,24 @@ struct InvoiceGeneratorView: View {
                     }
                 }
             }
-            .onAppear { refreshEligible() }
-            .onChange(of: selectedProject) { _, _ in refreshEligible() }
-            .onChange(of: selectedClient) { _, _ in refreshEligible() }
-            .onChange(of: preset) { _, _ in refreshEligible() }
-            .onChange(of: customStart) { _, _ in refreshEligible() }
-            .onChange(of: customEnd) { _, _ in refreshEligible() }
+            .onAppear {
+                refreshEligibleEntries()
+                refreshProjectsAndActive()
+            }
+            .onChange(of: selectedProject) { _, _ in refreshEligibleEntries() }
+            .onChange(of: selectedClient) { _, _ in refreshProjectsAndActive() }
+            .onChange(of: preset) { _, _ in
+                refreshEligibleEntries()
+                refreshProjectsAndActive()
+            }
+            .onChange(of: customStart) { _, _ in
+                refreshEligibleEntries()
+                refreshProjectsAndActive()
+            }
+            .onChange(of: customEnd) { _, _ in
+                refreshEligibleEntries()
+                refreshProjectsAndActive()
+            }
             .navigationTitle("New invoice")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -332,12 +344,24 @@ struct InvoiceGeneratorView: View {
         return subtotal.formatted(.currency(code: code))
     }
 
-    // MARK: – Eligible-entry cache
+    // MARK: – Eligible-entry + project cache
 
+    /// Recompute the selected project's eligible entries. Depends on
+    /// `selectedProject` and the resolved range only.
     @MainActor
-    private func refreshEligible() {
+    private func refreshEligibleEntries() {
         eligibleEntries = selectedProject.map {
             InvoiceBuilder.eligibleEntries(for: $0, in: resolvedRange, context: modelContext)
+        } ?? []
+    }
+
+    /// Recompute the client's pickable projects and the subset with eligible
+    /// entries. Depends on `selectedClient` and the resolved range only — kept
+    /// separate so a client change doesn't redundantly re-fetch entries.
+    @MainActor
+    private func refreshProjectsAndActive() {
+        activeProjects = selectedClient.map {
+            $0.projects.filter { !$0.isArchived && $0.isBillable }.sorted { $0.name < $1.name }
         } ?? []
         projectsWithEligible = selectedClient.map {
             InvoiceBuilder.projectsWithEligibleEntries(for: $0, in: resolvedRange, context: modelContext)
