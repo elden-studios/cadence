@@ -71,6 +71,14 @@ public final class Invoice {
 
     public var client: Client?
 
+    /// The project this invoice is for. `nil` for client-combined invoices
+    /// (recurrence materializations + legacy invoices created before per-project).
+    public var project: Project?
+    /// Frozen project name for rendering (mirrors `clientNameSnapshot`). `nil` = combined.
+    public var projectNameSnapshot: String?
+    /// Optional scope-of-work text rendered above the line items.
+    public var scopeOfWork: String?
+
     public init(
         uuid: UUID = UUID(),
         number: String,
@@ -99,6 +107,9 @@ public final class Invoice {
         lineItems: [InvoiceLineItem] = [],
         notes: String? = nil,
         client: Client? = nil,
+        project: Project? = nil,
+        projectNameSnapshot: String? = nil,
+        scopeOfWork: String? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -129,6 +140,9 @@ public final class Invoice {
         self.lineItemsData = (try? JSONEncoder().encode(lineItems)) ?? Data("[]".utf8)
         self.notes = notes
         self.client = client
+        self.project = project
+        self.projectNameSnapshot = projectNameSnapshot
+        self.scopeOfWork = scopeOfWork
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
