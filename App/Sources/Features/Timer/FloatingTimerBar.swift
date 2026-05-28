@@ -24,17 +24,21 @@ struct FloatingTimerBar: View {
     }
 
     var body: some View {
-        if let running = runningEntries.first {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                bar(running, asOf: context.date)
-            }
-            .sheet(isPresented: $expanded) {
-                expandedSheet(running)
-            }
-            .sheet(isPresented: $showingSwitchSheet) {
-                StartTimerSheet(isSwitching: true)
+        Group {
+            if let running = runningEntries.first {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    bar(running, asOf: context.date)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .sheet(isPresented: $expanded) {
+                    expandedSheet(running)
+                }
+                .sheet(isPresented: $showingSwitchSheet) {
+                    StartTimerSheet(isSwitching: true)
+                }
             }
         }
+        .animation(.snappy(duration: 0.28), value: runningEntries.first?.persistentModelID)
     }
 
     private func bar(_ entry: TimeEntry, asOf: Date) -> some View {
@@ -65,6 +69,12 @@ struct FloatingTimerBar: View {
             .padding(.bottom, 4)
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(entry.isOnBreak
+            ? "Timer paused — \(entry.project?.name ?? "Timer"), \(elapsedString(entry, asOf: asOf))"
+            : "Timer running — \(entry.project?.name ?? "Timer"), \(elapsedString(entry, asOf: asOf))")
+        .accessibilityHint("Expands timer controls")
+        .accessibilityAddTraits(.updatesFrequently)
     }
 
     private func expandedSheet(_ entry: TimeEntry) -> some View {
