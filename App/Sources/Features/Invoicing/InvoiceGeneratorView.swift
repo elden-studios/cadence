@@ -32,6 +32,7 @@ struct InvoiceGeneratorView: View {
     @State private var recurrenceEndDate: Date? = nil
     @State private var savingRecurrence = false
     @State private var permissionDeniedAlert = false
+    @State private var invoiceAllResult: Int?
 
     init(defaultClient: Client? = nil) {
         _selectedClient = State(initialValue: defaultClient)
@@ -87,6 +88,11 @@ struct InvoiceGeneratorView: View {
                             Picker("Project", selection: $selectedProject) {
                                 Text("Choose").tag(Project?.none)
                                 ForEach(projects) { p in Text(p.name).tag(Project?.some(p)) }
+                            }
+                            if !InvoiceBuilder.projectsWithEligibleEntries(for: client, in: resolvedRange, context: modelContext).isEmpty {
+                                Button { invoiceAllProjects() } label: {
+                                    Label("Invoice all projects (separate drafts)", systemImage: "doc.on.doc")
+                                }
                             }
                         }
                     } else {
@@ -240,6 +246,11 @@ struct InvoiceGeneratorView: View {
                     )
                 }
             }
+            .alert("Drafts created", isPresented: Binding(get: { invoiceAllResult != nil }, set: { if !$0 { invoiceAllResult = nil } })) {
+                Button("OK") { invoiceAllResult = nil; dismiss() }
+            } message: {
+                Text("Created \(invoiceAllResult ?? 0) draft invoice(s) — one per project with billable time. Open each from Invoices to add a scope and send.")
+            }
             .alert("Notifications are off", isPresented: $permissionDeniedAlert) {
                 Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -315,6 +326,26 @@ struct InvoiceGeneratorView: View {
         let subtotal = lineItems.reduce(into: Decimal(0)) { $0 += $1.amount }
         let code = profile?.currencyCode ?? "USD"
         return subtotal.formatted(.currency(code: code))
+    }
+
+    // MARK: – Invoice all projects
+
+    @MainActor
+    private func invoiceAllProjects() {
+        guard let client = selectedClient, let profile else { return }
+        let projects = InvoiceBuilder.projectsWithEligibleEntries(for: client, in: resolvedRange, context: modelContext)
+        var created = 0
+        for project in projects {
+            let entries = InvoiceBuilder.eligibleEntries(for: project, in: resolvedRange, context: modelContext)
+            let items = InvoiceBuilder.buildLineItems(from: entries, grouping: grouping)
+            guard !items.isEmpty else { continue }
+            if (try? InvoiceBuilder.createDraft(
+                for: client, lineItems: items, project: project,
+                scopeOfWork: nil, notes: notes.isEmpty ? nil : notes,
+                profile: profile, context: modelContext
+            )) != nil { created += 1 }
+        }
+        invoiceAllResult = created
     }
 
     // MARK: – Save recurrence
