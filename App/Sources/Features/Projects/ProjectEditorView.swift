@@ -17,7 +17,6 @@ struct ProjectEditorView: View {
     @State private var notes: String = ""
 
     @State private var hasLoaded = false
-    @State private var showingCompleteConfirm = false
 
     var body: some View {
         Form {
@@ -46,15 +45,6 @@ struct ProjectEditorView: View {
                 TextField("Notes", text: $notes, axis: .vertical)
                     .lineLimit(2...8)
             }
-
-            if let project, !project.isArchived {
-                Section {
-                    Button("Complete project") { showingCompleteConfirm = true }
-                        .frame(maxWidth: .infinity)
-                } footer: {
-                    Text("Marks the project complete and moves it to Archived. Logged time stays on past invoices and reports.")
-                }
-            }
         }
         .navigationTitle(project == nil ? "New project" : "Edit project")
         .navigationBarTitleDisplayMode(.inline)
@@ -69,21 +59,6 @@ struct ProjectEditorView: View {
             }
         }
         .onAppear { loadIfNeeded() }
-        .confirmationDialog(
-            "Are you sure you're done with this project?",
-            isPresented: $showingCompleteConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Complete project", role: .destructive) {
-                if let project {
-                    project.isArchived = true
-                    project.updatedAt = .now
-                    modelContext.saveOrLog("complete project")
-                }
-                dismiss()
-            }
-            Button("Cancel", role: .cancel) {}
-        }
     }
 
     private func loadIfNeeded() {
