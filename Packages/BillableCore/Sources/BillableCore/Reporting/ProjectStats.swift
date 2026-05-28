@@ -32,9 +32,7 @@ public struct ProjectStats: Equatable, Sendable {
             value += amount
             if entry.invoiceID == nil { uninvoiced += amount }
             days.insert(calendar.startOfDay(for: entry.startedAt))
-            if earliest == nil || entry.startedAt < earliest! {
-                earliest = entry.startedAt
-            }
+            earliest = earliest.map { Swift.min($0, entry.startedAt) } ?? entry.startedAt
         }
 
         return ProjectStats(

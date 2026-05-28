@@ -127,7 +127,7 @@ struct ProjectDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
         .background(
-            LinearGradient(colors: [timerAccent, timerAccent.opacity(0.85)],
+            LinearGradient(colors: [.timerAccent, Color.timerAccent.opacity(0.85)],
                            startPoint: .topLeading, endPoint: .bottomTrailing),
             in: .rect(cornerRadius: 18)
         )
@@ -201,7 +201,7 @@ struct ProjectDetailView: View {
                     .padding(.vertical, 4)
             }
             .buttonStyle(.borderedProminent)
-            .tint(timerAccent)
+            .tint(.timerAccent)
         }
     }
 
@@ -211,7 +211,7 @@ struct ProjectDetailView: View {
     private func recentSessions(asOf: Date) -> some View {
         let sorted = project.entries.sorted { $0.startedAt > $1.startedAt }
         let shown = Array(sorted.prefix(sessionLimit))
-        VStack(alignment: .leading, spacing: 10) {
+        LazyVStack(alignment: .leading, spacing: 10) {
             Text("Sessions").font(.headline)
             if shown.isEmpty {
                 Text("No time tracked yet.")
@@ -296,13 +296,17 @@ struct ProjectDetailView: View {
     }
 
     private func groupedByMonth(_ entries: [TimeEntry]) -> [(String, [TimeEntry])] {
-        var order: [String] = []
-        var buckets: [String: [TimeEntry]] = [:]
+        let calendar = Calendar.current
+        var order: [DateComponents] = []
+        var buckets: [DateComponents: [TimeEntry]] = [:]
         for entry in entries {
-            let key = entry.startedAt.formatted(.dateTime.month(.wide).year())
-            if buckets[key] == nil { order.append(key); buckets[key] = [] }
-            buckets[key]?.append(entry)
+            let comps = calendar.dateComponents([.year, .month], from: entry.startedAt)
+            if buckets[comps] == nil { order.append(comps); buckets[comps] = [] }
+            buckets[comps]?.append(entry)
         }
-        return order.map { ($0, buckets[$0] ?? []) }
+        return order.map { comps in
+            let label = (calendar.date(from: comps) ?? .now).formatted(.dateTime.month(.wide).year())
+            return (label, buckets[comps] ?? [])
+        }
     }
 }

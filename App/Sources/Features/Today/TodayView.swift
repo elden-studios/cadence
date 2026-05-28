@@ -232,7 +232,7 @@ private struct JumpBackInSection: View {
                     .foregroundStyle(.white)
                     .frame(width: 26, height: 26)
                     .background(
-                        (isThisProjectRunning(project) ? Color.green : timerAccent),
+                        (isThisProjectRunning(project) ? Color.green : .timerAccent),
                         in: .circle
                     )
             }

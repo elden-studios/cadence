@@ -5,7 +5,9 @@ import BillableCore
 // MARK: - Timer card styling (frontend-design polish)
 
 /// Warm accent used for the Working/Start primary action, matching the brand mark.
-let timerAccent = Color(red: 0.98, green: 0.49, blue: 0.13)
+extension Color {
+    static let timerAccent = Color(red: 0.98, green: 0.49, blue: 0.13)
+}
 
 /// Status pill with a leading state dot (WORKING / ON BREAK).
 struct TimerStatusBadge: View {
@@ -156,7 +158,7 @@ struct RunningTimerCard: View {
                 Button(action: onTakeBreak) {
                     Label("Take a Break", systemImage: "cup.and.saucer.fill")
                 }
-                .buttonStyle(TimerPrimaryButtonStyle(tint: timerAccent))
+                .buttonStyle(TimerPrimaryButtonStyle(tint: .timerAccent))
             }
             HStack(spacing: 10) {
                 Button(action: onSwitch) {

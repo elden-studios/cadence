@@ -102,10 +102,11 @@ struct StartTimerSheet: View {
 
     private var recentProjects: [Project] {
         let cutoff = Date.now.addingTimeInterval(-30 * 24 * 3600)
-        let descriptor = FetchDescriptor<TimeEntry>(
+        var descriptor = FetchDescriptor<TimeEntry>(
             predicate: #Predicate { entry in entry.startedAt > cutoff },
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
+        descriptor.relationshipKeyPathsForPrefetching = [\.project]
         let entries = (try? modelContext.fetch(descriptor)) ?? []
         return RecentProjects.rank(from: entries, limit: 3)
     }

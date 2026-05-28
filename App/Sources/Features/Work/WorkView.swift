@@ -7,8 +7,16 @@ struct WorkView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Query private var profiles: [BusinessProfile]
-    @Query(filter: #Predicate<Project> { !$0.isArchived }, sort: \Project.name)
-    private var activeProjects: [Project]
+    @Query(Self.projectsDescriptor) private var activeProjects: [Project]
+
+    private static var projectsDescriptor: FetchDescriptor<Project> {
+        var descriptor = FetchDescriptor<Project>(
+            predicate: #Predicate<Project> { !$0.isArchived },
+            sortBy: [SortDescriptor(\.name)]
+        )
+        descriptor.relationshipKeyPathsForPrefetching = [\.client]
+        return descriptor
+    }
     @Query(Self.runningDescriptor) private var runningEntries: [TimeEntry]
 
     @State private var mode: Mode = .projects
@@ -130,7 +138,7 @@ private struct ProjectBrowserRow: View {
                     .foregroundStyle(.white)
                     .frame(width: 30, height: 30)
                     .background(
-                        (isRunning ? Color.green : timerAccent),
+                        (isRunning ? Color.green : .timerAccent),
                         in: .circle
                     )
             }
