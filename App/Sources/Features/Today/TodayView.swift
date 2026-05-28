@@ -496,23 +496,14 @@ private struct TodaySummarySection: View {
     @ViewBuilder
     private func content(asOf referenceDate: Date) -> some View {
         let cal = Calendar.current
-        let dayStart = cal.startOfDay(for: referenceDate)
-        let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) ?? referenceDate
-
         let todays = allEntries.filter { entry in
-            entry.startedAt < dayEnd && (entry.endedAt ?? referenceDate) > dayStart
+            cal.isDate(entry.startedAt, inSameDayAs: referenceDate)
         }
         let todaysSeconds = todays.reduce(into: TimeInterval(0)) { acc, e in
-            let start = max(e.startedAt, dayStart)
-            let end = min(e.endedAt ?? referenceDate, dayEnd)
-            acc += max(0, end.timeIntervalSince(start))
+            acc += e.duration(asOf: referenceDate)   // worked time, breaks excluded
         }
         let todaysAmount = todays.reduce(into: Decimal(0)) { acc, e in
-            guard let project = e.project, project.isBillable else { return }
-            let start = max(e.startedAt, dayStart)
-            let end = min(e.endedAt ?? referenceDate, dayEnd)
-            let hours = Decimal(max(0, end.timeIntervalSince(start)) / 3600)
-            acc += hours * project.hourlyRate
+            acc += e.amount(asOf: referenceDate)      // uses duration() internally
         }
         let uninvoiced = allEntries
             .filter { $0.invoiceID == nil }
