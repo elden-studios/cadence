@@ -138,39 +138,41 @@ public struct InvoiceTemplate: View {
                 }
                 return accent
             }()
-            let scopeAccent = Color(red: 0.85, green: 0.67, blue: 0.18)
-            VStack(alignment: .leading, spacing: 9) {
-                // Project — a refined tinted pill in the client's color.
-                HStack(spacing: 6) {
-                    Circle().fill(dotColor).frame(width: 7, height: 7)
-                    Text(projectName)
-                        .font(.system(size: 11.5, weight: .semibold))
-                }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 4)
-                .background(dotColor.opacity(0.10), in: Capsule())
-                .overlay(Capsule().strokeBorder(dotColor.opacity(0.22), lineWidth: 0.5))
-
-                // Scope of work — left-accent bar on a soft cream field.
-                if let scope = data.scopeOfWork, !scope.isEmpty {
-                    HStack(alignment: .top, spacing: 0) {
-                        Rectangle().fill(scopeAccent).frame(width: 3)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("SCOPE OF WORK")
-                                .font(.system(size: 9, weight: .semibold))
-                                .tracking(1)
-                                .foregroundStyle(scopeAccent.opacity(0.9))
-                            Text(scope)
-                                .font(.system(size: 11).italic())
-                                .foregroundStyle(.primary.opacity(0.75))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 8)
+            VStack(alignment: .leading, spacing: 11) {
+                // Project — a clean labeled field, consistent with the BILL TO / ISSUED labels.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("PROJECT")
+                        .font(.system(size: 9, weight: .semibold))
+                        .tracking(1.2)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 7) {
+                        Circle().fill(dotColor).frame(width: 8, height: 8)
+                        Text(projectName)
+                            .font(.system(size: 13, weight: .semibold))
                     }
-                    .background(Color(red: 0.99, green: 0.975, blue: 0.88))
-                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                }
+
+                // Scope of work — refined neutral callout; the blue total stays the doc's single accent.
+                if let scope = data.scopeOfWork, !scope.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("SCOPE OF WORK")
+                            .font(.system(size: 9, weight: .semibold))
+                            .tracking(1.2)
+                            .foregroundStyle(.secondary)
+                        Text(scope)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.primary.opacity(0.8))
+                            .lineSpacing(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 11)
+                    .padding(.horizontal, 14)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.primary.opacity(0.035))
+                    .overlay(alignment: .leading) {
+                        Rectangle().fill(Color.primary.opacity(0.28)).frame(width: 2.5)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
         }
