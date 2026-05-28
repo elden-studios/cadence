@@ -44,11 +44,10 @@ struct TodayView: View {
                         currencyCode: currencyCode,
                         onStop: stopRunning,
                         onSwitch: { showingSwitchSheet = true },
-                        onResume: resumeLastTimer
+                        onTakeBreak: { _ = try? TimerService.takeBreak(in: modelContext) },
+                        onResume: { _ = try? TimerService.resume(in: modelContext) },
+                        onStart: { showingStartSheet = true }
                     )
-                    if !hasRunningTimer {
-                        startActions
-                    }
                     TodaySummarySection(currencyCode: currencyCode)
                 }
                 .padding()
@@ -108,10 +107,6 @@ struct TodayView: View {
         }
     }
 
-    private var hasRunningTimer: Bool {
-        TimerService.currentRunningEntry(in: modelContext) != nil
-    }
-
     private var currencyCode: String {
         profiles.first?.currencyCode ?? "USD"
     }
@@ -120,45 +115,12 @@ struct TodayView: View {
         !BusinessProfile.canSendInvoice(profile: profiles.first)
     }
 
-    @ViewBuilder
-    private var startActions: some View {
-        Button {
-            showingStartSheet = true
-        } label: {
-            Label("Start timer", systemImage: "play.fill")
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .disabled(!hasAnyProject)
-    }
-
-    private var hasAnyProject: Bool {
-        allClients.contains { !$0.activeProjects.isEmpty }
-    }
-
     private func stopRunning() {
         _ = try? TimerService.stop(in: modelContext)
         Task { await TimerActivityController.shared.endActivity() }
         Task { try? await StopTimerIntent().donate() }
     }
 
-    private func resumeLastTimer(project: Project) {
-        do {
-            let entry = try TimerService.start(project: project, in: modelContext)
-            Task { await TimerActivityController.shared.startActivity(for: entry, currencyCode: currencyCode) }
-            if let entity = ProjectEntity(from: project) {
-                Task { try? await StartTimerIntent(project: entity).donate() }
-            }
-        } catch TimerService.TimerError.projectIsArchived {
-            // The project was archived since the last stop. Silently fail —
-            // the pill will disappear on next refresh once the state settles.
-        } catch {
-            // Other errors are no-ops. The pill remains; user can tap again.
-        }
-    }
 }
 
 // MARK: - Active timer card
@@ -166,9 +128,6 @@ struct TodayView: View {
 private struct TodayActiveTimerSection: View {
     @Query(Self.runningDescriptor)
     private var runningEntries: [TimeEntry]
-
-    @Query(Self.lastStoppedDescriptor)
-    private var stoppedEntries: [TimeEntry]
 
     private static var runningDescriptor: FetchDescriptor<TimeEntry> {
         var descriptor = FetchDescriptor<TimeEntry>(
@@ -178,26 +137,21 @@ private struct TodayActiveTimerSection: View {
         return descriptor
     }
 
-    private static var lastStoppedDescriptor: FetchDescriptor<TimeEntry> {
-        var descriptor = FetchDescriptor<TimeEntry>(
-            predicate: #Predicate<TimeEntry> { $0.endedAt != nil },
-            sortBy: [SortDescriptor(\.endedAt, order: .reverse)]
-        )
-        descriptor.fetchLimit = 1
-        return descriptor
-    }
-
     let currencyCode: String
     let onStop: () -> Void
     let onSwitch: () -> Void
-    let onResume: (Project) -> Void
-
-    private var lastStopped: TimeEntry? { stoppedEntries.first }
+    let onTakeBreak: () -> Void
+    let onResume: () -> Void
+    let onStart: () -> Void
 
     var body: some View {
-        if let running = runningEntries.first {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                RunningTimerCard(entry: running, asOf: context.date, currencyCode: currencyCode, onStop: onStop, onSwitch: onSwitch)
+        Group {
+            if let running = runningEntries.first {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    RunningTimerCard(
+                        entry: running, asOf: context.date, currencyCode: currencyCode,
+                        onStop: onStop, onSwitch: onSwitch, onTakeBreak: onTakeBreak, onResume: onResume
+                    )
                     // Tag identity by the running entry's persistent ID so that
                     // an atomic Switch (TimerService.switchTo stops the old
                     // entry and inserts a new one in one save) produces a
@@ -208,49 +162,35 @@ private struct TodayActiveTimerSection: View {
                     // first .task fire (its notes are nil but the baseline
                     // remembers the old entry's saved value).
                     .id(running.persistentModelID)
-            }
-        } else {
-            // No running timer — maybe show the Resume pill.
-            TimelineView(.periodic(from: .now, by: 60)) { context in
-                if TimeEntry.shouldShowResumePill(lastStopped: lastStopped, now: context.date),
-                   let last = lastStopped,
-                   let project = last.project {
-                    ResumePill(project: project, onTap: { onResume(project) })
-                } else {
-                    EmptyView()
                 }
+            } else {
+                IdleTimerCard(onStart: onStart)
             }
         }
+        .animation(.snappy(duration: 0.28), value: runningEntries.first?.persistentModelID)
+        .animation(.snappy(duration: 0.28), value: runningEntries.first?.activeSegmentStartedAt)
     }
 }
 
-private struct ResumePill: View {
-    let project: Project
-    let onTap: () -> Void
 
+private struct IdleTimerCard: View {
+    let onStart: () -> Void
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 8) {
-                Image(systemName: "play.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.tint)
-                Circle()
-                    .fill(project.client?.color.swiftUIColor ?? .gray)
-                    .frame(width: 8, height: 8)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Resume \(project.client?.name ?? "—") · \(project.name)")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                    Text("Continue tracking where you left off")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
+        VStack(spacing: 10) {
+            Text("00:00:00")
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.tertiary)
+            Text("No timer running").font(.subheadline).foregroundStyle(.secondary)
+            Button(action: onStart) {
+                Label("Start timer", systemImage: "play.fill")
+                    .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 10)
             }
-            .padding(12)
-            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 12))
+            .buttonStyle(.borderedProminent)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(.thinMaterial, in: .rect(cornerRadius: 16))
     }
 }
 
@@ -258,8 +198,10 @@ private struct RunningTimerCard: View {
     @Bindable var entry: TimeEntry
     let asOf: Date
     let currencyCode: String
-    let onStop: () -> Void
+    let onStop: () -> Void          // "Done for now"
     let onSwitch: () -> Void
+    let onTakeBreak: () -> Void
+    let onResume: () -> Void
 
     @Environment(\.modelContext) private var modelContext
 
@@ -280,11 +222,19 @@ private struct RunningTimerCard: View {
                 Text(entry.project?.client?.name ?? "—")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
-                Text("Running")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(.green.opacity(0.18), in: .capsule)
-                    .foregroundStyle(.green)
+                if entry.isOnBreak {
+                    Text("ON BREAK")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(.orange.opacity(0.18), in: .capsule)
+                        .foregroundStyle(.orange)
+                } else {
+                    Text("WORKING")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(.green.opacity(0.18), in: .capsule)
+                        .foregroundStyle(.green)
+                }
             }
             Text(entry.project?.name ?? "Project")
                 .font(.title2.weight(.semibold))
@@ -304,6 +254,7 @@ private struct RunningTimerCard: View {
                         Text(elapsedString)
                             .font(.system(size: 40, weight: .semibold, design: .rounded))
                             .monospacedDigit()
+                            .foregroundStyle(entry.isOnBreak ? .secondary : .primary)
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.subheadline)
                             .foregroundStyle(.tertiary)
@@ -316,17 +267,26 @@ private struct RunningTimerCard: View {
                     .foregroundStyle(.secondary)
             }
 
-            HStack(spacing: 10) {
-                Button(role: .destructive, action: onStop) {
-                    Label("Stop", systemImage: "stop.fill")
-                        .frame(maxWidth: .infinity)
+            if entry.isOnBreak {
+                Button(action: onResume) {
+                    Label("Resume", systemImage: "play.fill").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.red)
-
+                .tint(.green)
+            } else {
+                Button(action: onTakeBreak) {
+                    Label("Take a Break", systemImage: "cup.and.saucer.fill").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+            }
+            HStack(spacing: 10) {
                 Button(action: onSwitch) {
-                    Label("Switch", systemImage: "arrow.triangle.2.circlepath")
-                        .frame(maxWidth: .infinity)
+                    Label("Switch", systemImage: "arrow.triangle.2.circlepath").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                Button(action: onStop) {
+                    Text("Done for now").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
             }
