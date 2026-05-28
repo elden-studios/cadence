@@ -60,8 +60,7 @@ public enum TimerService {
                 // Treat as a no-op — the running entry continues uninterrupted.
                 return running
             }
-            running.endedAt = start
-            running.updatedAt = start
+            finalize(running, at: start)
         }
 
         let entry = TimeEntry(
@@ -88,12 +87,22 @@ public enum TimerService {
         guard let running = currentRunningEntry(in: context) else {
             throw TimerError.noRunningTimer
         }
-        // Guard against a stop time earlier than start (clock skew, manual edits)
-        let safeEnd = max(end, running.startedAt.addingTimeInterval(1))
-        running.endedAt = safeEnd
-        running.updatedAt = safeEnd
+        finalize(running, at: end)
         try context.save()
         return running
+    }
+
+    /// Finalize an active entry at `end`: bank any open working segment, clear
+    /// the segment marker, and set `endedAt`. Clamps `end` to ≥ startedAt+1s.
+    @MainActor
+    private static func finalize(_ entry: TimeEntry, at end: Date) {
+        let safeEnd = max(end, entry.startedAt.addingTimeInterval(1))
+        if let segStart = entry.activeSegmentStartedAt {
+            entry.accumulatedSeconds += max(0, safeEnd.timeIntervalSince(segStart))
+            entry.activeSegmentStartedAt = nil
+        }
+        entry.endedAt = safeEnd
+        entry.updatedAt = safeEnd
     }
 
     /// Pause the active session: bank the current working segment and freeze the

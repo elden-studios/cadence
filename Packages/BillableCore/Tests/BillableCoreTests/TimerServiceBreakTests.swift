@@ -71,4 +71,41 @@ struct TimerServiceBreakTests {
         let onBreak = try TimerService.takeBreak(at: t0.addingTimeInterval(-60), in: context)
         #expect(onBreak.accumulatedSeconds == 0)
     }
+
+    @Test("start sets the first working segment")
+    func startSetsSegment() throws {
+        let (context, p) = try ctx()
+        let e = try TimerService.start(project: p, at: t0, in: context)
+        #expect(e.isWorking)
+        #expect(e.activeSegmentStartedAt == t0)
+    }
+
+    @Test("Done-for-now from Working banks final segment as worked time")
+    func stopFromWorking() throws {
+        let (context, p) = try ctx()
+        _ = try TimerService.start(project: p, at: t0, in: context)
+        let done = try TimerService.stop(at: t0.addingTimeInterval(900), in: context)
+        #expect(done.endedAt == t0.addingTimeInterval(900))
+        #expect(done.duration() == 900)
+        #expect(done.isOnBreak == false)
+    }
+
+    @Test("Done-for-now after breaks totals banked only (excludes break gap)")
+    func stopAfterBreaks() throws {
+        let (context, p) = try ctx()
+        _ = try TimerService.start(project: p, at: t0, in: context)
+        _ = try TimerService.takeBreak(at: t0.addingTimeInterval(600), in: context)
+        _ = try TimerService.resume(at: t0.addingTimeInterval(1800), in: context)
+        let done = try TimerService.stop(at: t0.addingTimeInterval(2400), in: context)
+        #expect(done.duration() == 1200)
+    }
+
+    @Test("Done-for-now while On Break finalizes banked total, no extra segment")
+    func stopWhileOnBreak() throws {
+        let (context, p) = try ctx()
+        _ = try TimerService.start(project: p, at: t0, in: context)
+        _ = try TimerService.takeBreak(at: t0.addingTimeInterval(600), in: context)
+        let done = try TimerService.stop(at: t0.addingTimeInterval(1200), in: context)
+        #expect(done.duration() == 600)
+    }
 }
