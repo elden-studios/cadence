@@ -316,12 +316,10 @@ struct OnboardingView: View {
         modelContext.insert(client)
         modelContext.insert(project)
         modelContext.saveOrLog("complete onboarding")
-        if let entry = try? TimerService.start(project: project, in: modelContext) {
-            var profileFetch = FetchDescriptor<BusinessProfile>()
-            profileFetch.fetchLimit = 1
-            let profileCode = (try? modelContext.fetch(profileFetch))?.first?.currencyCode ?? "USD"
-            Task { await TimerActivityController.shared.startActivity(for: entry, currencyCode: profileCode) }
-        }
+        var profileFetch = FetchDescriptor<BusinessProfile>()
+        profileFetch.fetchLimit = 1
+        let profileCode = (try? modelContext.fetch(profileFetch))?.first?.currencyCode ?? "USD"
+        TimerActions.start(project: project, currencyCode: profileCode, in: modelContext)
         UserDefaults.standard.set(true, forKey: OnboardingFlags.completedKey)
         onFinish()
     }

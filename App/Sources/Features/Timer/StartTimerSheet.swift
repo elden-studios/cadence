@@ -123,29 +123,10 @@ struct StartTimerSheet: View {
     }
 
     private func startOrSwitch(to project: Project) {
-        do {
-            let entry: TimeEntry
-            if isSwitching {
-                entry = try TimerService.switchTo(project: project, in: modelContext)
-            } else {
-                entry = try TimerService.start(project: project, in: modelContext)
-            }
-            Task { await TimerActivityController.shared.startActivity(for: entry, currencyCode: currencyCode) }
-            if let entity = ProjectEntity(from: project) {
-                if isSwitching {
-                    Task { try? await SwitchTimerIntent(project: entity).donate() }
-                } else {
-                    Task { try? await StartTimerIntent(project: entity).donate() }
-                }
-            }
-            onStarted(entry)
-            dismiss()
-        } catch TimerService.TimerError.alreadyTrackingSameProject {
-            // Same project — just dismiss; the existing entry keeps going.
-            dismiss()
-        } catch {
-            // For now, swallow other errors silently. Step 5 hooks in real surfacing.
-            dismiss()
-        }
+        let entry = isSwitching
+            ? TimerActions.switchTo(project: project, currencyCode: currencyCode, in: modelContext)
+            : TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
+        if let entry { onStarted(entry) }
+        dismiss()
     }
 }

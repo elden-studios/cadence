@@ -10,6 +10,7 @@
 		00137A9F89BDC48EBE9DC927 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DB4C0FB23F77AFC443876011 /* Assets.xcassets */; };
 		0650D70379A6E945B693D897 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FB284DA23487FF50AD7AFF /* TodayView.swift */; };
 		0778280DE88787CCB974D010 /* StartTimerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E613D2E8B373B5C6EDBF0A4C /* StartTimerSheet.swift */; };
+		0A44BD78E6424AF691CE177D /* TimerActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42687B24129E4209A2661C36 /* TimerActions.swift */; };
 		08880CCE2F89200E1C723A26 /* PendingMaterializationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE12ED25B0CCD0F3FC46F7FD /* PendingMaterializationsView.swift */; };
 		13F01DA09E8AAC832ACC171E /* TimelineScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E47D1836002E521CEC4ABED /* TimelineScreen.swift */; };
 		144AE35D12448F09749125F9 /* LaunchTaglineUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99E489F7B0F9B68D418ED560 /* LaunchTaglineUITests.swift */; };
@@ -136,6 +137,7 @@
 		DBB4F85B38816D91407DAFA7 /* TimeBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeBlockView.swift; sourceTree = "<group>"; };
 		E465117F26AD0FBA4BB72F29 /* RecurringRulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurringRulesView.swift; sourceTree = "<group>"; };
 		E613D2E8B373B5C6EDBF0A4C /* StartTimerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartTimerSheet.swift; sourceTree = "<group>"; };
+		42687B24129E4209A2661C36 /* TimerActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActions.swift; sourceTree = "<group>"; };
 		E65B3FEDC45E06FB51538B6B /* Billable.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Billable.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1CF2FCD917839FB1C1B0961 /* TimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerLiveActivity.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -288,6 +290,7 @@
 			children = (
 				834A2DF7B192A8F0EC56E4F7 /* ManualEntrySheet.swift */,
 				E613D2E8B373B5C6EDBF0A4C /* StartTimerSheet.swift */,
+				42687B24129E4209A2661C36 /* TimerActions.swift */,
 			);
 			path = Timer;
 			sourceTree = "<group>";
@@ -580,6 +583,7 @@
 				3D9972903CDABD429693066D /* RootView.swift in Sources */,
 				E3F06B0AA5BB6345101C9E87 /* SettingsView.swift in Sources */,
 				0778280DE88787CCB974D010 /* StartTimerSheet.swift in Sources */,
+				0A44BD78E6424AF691CE177D /* TimerActions.swift in Sources */,
 				17683A63578279729D6FFD5D /* TimeBlockView.swift in Sources */,
 				7C2B1CE0D231A176669A8CAD /* TimelineGeometry.swift in Sources */,
 				13F01DA09E8AAC832ACC171E /* TimelineScreen.swift in Sources */,

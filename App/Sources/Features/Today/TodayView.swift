@@ -45,19 +45,8 @@ struct TodayView: View {
                         currencyCode: currencyCode,
                         onStop: stopRunning,
                         onSwitch: { showingSwitchSheet = true },
-                        onTakeBreak: {
-                            if let entry = try? TimerService.takeBreak(in: modelContext) {
-                                let elapsed = entry.duration()
-                                Task { await TimerActivityController.shared.pause(elapsed: elapsed) }
-                                WidgetCenter.shared.reloadAllTimelines()
-                            }
-                        },
-                        onResume: {
-                            if let entry = try? TimerService.resume(in: modelContext) {
-                                Task { await TimerActivityController.shared.resumeActivity(runningEntry: entry) }
-                                WidgetCenter.shared.reloadAllTimelines()
-                            }
-                        },
+                        onTakeBreak: { TimerActions.takeBreak(in: modelContext) },
+                        onResume: { TimerActions.resume(in: modelContext) },
                         onStart: { showingStartSheet = true }
                     )
                     TodaySummarySection(currencyCode: currencyCode)
@@ -128,10 +117,7 @@ struct TodayView: View {
     }
 
     private func stopRunning() {
-        _ = try? TimerService.stop(in: modelContext)
-        Task { await TimerActivityController.shared.endActivity() }
-        Task { try? await StopTimerIntent().donate() }
-        WidgetCenter.shared.reloadAllTimelines()
+        TimerActions.stop(in: modelContext)
     }
 
 }
