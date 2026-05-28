@@ -46,7 +46,6 @@ struct TodayView: View {
                         onStop: stopRunning,
                         onSwitch: { showingSwitchSheet = true },
                         onTakeBreak: {
-                        onTakeBreak: {
                             if let entry = try? TimerService.takeBreak(in: modelContext) {
                                 let elapsed = entry.duration()
                                 Task { await TimerActivityController.shared.pause(elapsed: elapsed) }

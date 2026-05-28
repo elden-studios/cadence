@@ -10,7 +10,7 @@ private func formattedElapsed(_ seconds: TimeInterval) -> String {
     let h = total / 3600
     let m = (total % 3600) / 60
     let s = total % 60
-    return String(format: "%d:%02d:%02d", h, m, s)
+    return String(format: "%02d:%02d:%02d", h, m, s)
 }
 
 // MARK: - Widget
