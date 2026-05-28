@@ -31,7 +31,7 @@ struct ProjectStatsTests {
         return entry
     }
 
-    private let day1 = Date(timeIntervalSince1970: 1_779_793_200) // 2026-05-21 ~12:00 UTC
+    private let day1 = Date(timeIntervalSince1970: 1_779_793_200) // 2026-05-26 11:00 UTC
 
     @Test("sums hours and current-rate value across this project's entries")
     func totals() throws {
@@ -57,7 +57,8 @@ struct ProjectStatsTests {
     @Test("activeDayCount counts distinct calendar days, not sessions")
     func dayCount() throws {
         let (context, project) = try fixture()
-        let cal = Calendar(identifier: .gregorian)
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
         try addEntry(context, project, start: day1, hours: 1)                       // day A
         try addEntry(context, project, start: day1.addingTimeInterval(3 * 3600), hours: 1) // same day A
         try addEntry(context, project, start: day1.addingTimeInterval(2 * 86_400), hours: 1) // day B
@@ -96,5 +97,18 @@ struct ProjectStatsTests {
         project.hourlyRate = 90
         try context.save()
         #expect(ProjectStats.compute(for: project, asOf: asOf).lifetimeValue == Decimal(2 * 90))
+    }
+
+    @Test("a running (unfinished) entry contributes its live duration at asOf")
+    func runningEntry() throws {
+        let (context, project) = try fixture()
+        // No endedAt → a live working session that began at day1.
+        let entry = TimeEntry(startedAt: day1, project: project, activeSegmentStartedAt: day1)
+        context.insert(entry)
+        try context.save()
+        let stats = ProjectStats.compute(for: project, asOf: day1.addingTimeInterval(3600))
+        #expect(stats.lifetimeSeconds == 3600)
+        #expect(stats.lifetimeValue == Decimal(60))   // 1h * $60
+        #expect(stats.sessionCount == 1)
     }
 }
