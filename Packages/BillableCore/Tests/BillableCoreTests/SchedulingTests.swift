@@ -646,6 +646,10 @@ struct SchedulingTests {
         #expect(draft.subtotal == 0)
         #expect(draft.lineItems.count == 1)
         #expect(draft.lineItems.first?.description == "No tracked time for this period")
+        // Recurrence stays client-combined even with zero entries: no project/scope.
+        #expect(draft.project == nil)
+        #expect(draft.projectNameSnapshot == nil)
+        #expect(draft.scopeOfWork == nil)
     }
 
     @Test("materializeDraft throws .ended when template's endDate has passed")
