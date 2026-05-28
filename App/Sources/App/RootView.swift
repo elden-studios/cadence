@@ -59,6 +59,9 @@ struct RootView: View {
                     .tabItem { Label("Settings", systemImage: "gearshape") }
                     .tag(4)
             }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                FloatingTimerBar()
+            }
             .sheet(isPresented: $showingReportsPaywall) {
                 PaywallView(trigger: .reports)
             }
