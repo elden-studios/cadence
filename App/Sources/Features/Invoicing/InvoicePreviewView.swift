@@ -165,16 +165,29 @@ struct InvoicePreviewView: View {
                     .disabled(hasInvalidDescriptions || finalized != nil)
                 }
             }
-            .sheet(isPresented: $showingShare) {
+            .sheet(isPresented: $showingShare, onDismiss: {
+                // CRITICAL: dismiss the preview when the share sheet closes,
+                // regardless of what was inside. Previously this lived as
+                // `.onDisappear` on the inner ShareSheet — but that's inside
+                // the `if let pdfData, let url = writeToTemp(...)` conditional.
+                // If writeToTemp returned nil (disk full, sandbox issue),
+                // the sheet rendered empty, user swiped to dismiss, but
+                // .onDisappear never registered → user stranded on the
+                // preview with a finalized invoice underneath, no way out.
+                // The `onDismiss:` parameter of .sheet(isPresented:onDismiss:content:)
+                // fires reliably regardless of content state.
+                dismiss()
+                onDone()
+            }) {
                 if let pdfData,
                    let url = writeToTemp(pdfData, suggestedName: templateData.invoiceNumber) {
                     ShareSheet(items: [url])
                         .ignoresSafeArea()
-                        .onDisappear {
-                            dismiss()
-                            onDone()
-                        }
                 }
+                // If writeToTemp returned nil, content is empty. The user
+                // sees a blank sheet briefly, swipes down, and the onDismiss
+                // above runs — they land at the parent cleanly. Not ideal
+                // UX but deterministic and recoverable.
             }
             .sheet(isPresented: $showingMailComposer) {
                 // Only present when we have something real to attach. Replaces
@@ -193,9 +206,15 @@ struct InvoicePreviewView: View {
                             // main actor before invoking onDismiss; assumeIsolated
                             // lets us call the @MainActor-bound dismiss() and the
                             // @MainActor-captured onDone closure from inside the
-                            // @Sendable closure type.
+                            // @Sendable closure type. We also clear the captured
+                            // PDF attachment buffer (often hundreds of KB to
+                            // several MB) so it's not held during the ~300ms
+                            // dismiss animation. Matches the symmetric
+                            // dismissMailComposer() helper in InvoiceDetailView.
                             MainActor.assumeIsolated {
                                 showingMailComposer = false
+                                mailComposerAttachment = nil
+                                mailComposerRecipients = []
                                 dismiss()
                                 onDone()
                             }
@@ -411,9 +430,13 @@ struct InvoicePreviewView: View {
                     dismiss()
                     onDone()
                 } else {
-                    // mailto build failed — surface the share sheet instead of
-                    // silent dismiss. ShareSheet.onDisappear handles
-                    // dismiss()+onDone() for us.
+                    // mailto build failed (URLComponents rejected an exotic
+                    // recipient or rendered subject/body) — surface the share
+                    // sheet so the user still has a delivery path for the
+                    // already-finalized PDF. The .sheet(isPresented:onDismiss:)
+                    // above guarantees dismiss()+onDone() will fire regardless
+                    // of whether the user actually shares, cancels, or
+                    // writeToTemp inside the share content returns nil.
                     showingShare = true
                 }
             }

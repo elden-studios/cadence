@@ -198,6 +198,16 @@ private struct TodayActiveTimerSection: View {
         if let running = runningEntries.first {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 RunningTimerCard(entry: running, asOf: context.date, currencyCode: currencyCode, onStop: onStop, onSwitch: onSwitch)
+                    // Tag identity by the running entry's persistent ID so that
+                    // an atomic Switch (TimerService.switchTo stops the old
+                    // entry and inserts a new one in one save) produces a
+                    // FRESH view with fresh @State. Without this, the
+                    // @State `lastSavedNotes` (debounce baseline) would
+                    // persist from the OLD entry across into the NEW entry's
+                    // lifetime and trigger a spurious save on the new entry's
+                    // first .task fire (its notes are nil but the baseline
+                    // remembers the old entry's saved value).
+                    .id(running.persistentModelID)
             }
         } else {
             // No running timer — maybe show the Resume pill.
@@ -326,30 +336,53 @@ private struct RunningTimerCard: View {
         // Debounced persistence for the inline note field. The setter mutates
         // entry.notes in memory only; this .task fires once per quiescent
         // 400ms window (Task.sleep is cancelled and re-fired when `entry.notes`
-        // changes again), bumps updatedAt, and saves. Mirrors the descriptionBinding
-        // debounce pattern in InvoicePreviewView. Force-quit window shrinks from
-        // "until next autosave" to ~400ms — acceptable, and keeps the per-keystroke
-        // SwiftData/CloudKit write storm collapsed into one save per pause.
+        // changes again), bumps updatedAt, and saves. Mirrors the
+        // descriptionBinding debounce pattern in InvoicePreviewView.
+        //
+        // The .onAppear and .onDisappear modifiers below close the lifecycle
+        // around this debounce:
+        //   - onAppear seeds the baseline before the user can type.
+        //   - onDisappear flushes any pending edit that the debounce hadn't
+        //     fired yet, so tab-switching (which destroys the view and
+        //     cancels the .task) doesn't strand a typed-but-not-saved note.
+        // The .id(entry.persistentModelID) on the call site ensures Switch
+        // creates a fresh view with fresh @State (no baseline carry-over
+        // across entries).
+        //
+        // Real-world data-loss window: if the user types AND force-quits
+        // within 400ms (debounce hasn't fired) AND before iOS suspends the
+        // app (where SwiftData autosave runs at .background phase) — note
+        // lost. Acceptable for v1.6.
         .task(id: entry.notes) {
             // Skip the initial fire-on-appear: lastSavedNotes is nil at first
             // appear AND matches entry.notes when entry.notes is also nil.
-            // The condition below picks up only real user edits.
+            // The post-sleep guard is the actual race-killer if .onAppear
+            // hasn't yet seeded — by the time the sleep returns, .onAppear
+            // has definitely run and lastSavedNotes is current.
             guard entry.notes != lastSavedNotes else { return }
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
-            // Re-check post-sleep — entry.notes may have been reverted between
-            // the keystroke and the timeout (e.g., user typed then erased back
-            // to the original value).
+            // Re-check post-sleep — handles two cases: (1) user reverted to
+            // the original value within 400ms; (2) .onAppear seed-vs-.task
+            // race where lastSavedNotes is now current.
             guard entry.notes != lastSavedNotes else { return }
-            entry.updatedAt = .now
-            modelContext.saveOrLog("update running entry notes")
-            lastSavedNotes = entry.notes
+            flushNotesSave()
         }
         .onAppear {
-            // Seed the saved-state baseline so the .task above can detect the
-            // first real edit. Without this, the first keystroke wouldn't fire
-            // (lastSavedNotes == nil == entry.notes for a brand-new entry).
+            // Seed the saved-state baseline. Per Apple docs `.task` runs
+            // before .onAppear, but the .task body's post-sleep guard catches
+            // the race window (400ms is plenty of time for .onAppear to fire).
             lastSavedNotes = entry.notes
+        }
+        .onDisappear {
+            // Flush any pending edit the debounce didn't get to. Without
+            // this, a user who types and immediately tab-switches loses
+            // the in-memory mutation when the .task is cancelled by view
+            // teardown — SwiftData's autosave runs at background phase, not
+            // on view destruction. After this flush, lastSavedNotes is
+            // updated so the next reappear's .onAppear seeds correctly.
+            guard entry.notes != lastSavedNotes else { return }
+            flushNotesSave()
         }
         .confirmationDialog(
             "Adjust start time",
@@ -374,6 +407,15 @@ private struct RunningTimerCard: View {
                 onCancel: { showingDatePickerSheet = false }
             )
         }
+    }
+
+    /// Persists the current entry.notes value and updates the debounce
+    /// baseline. Called from both the debounce .task (after 400ms quiescence)
+    /// and .onDisappear (to flush pending edits on view teardown).
+    private func flushNotesSave() {
+        entry.updatedAt = .now
+        modelContext.saveOrLog("update running entry notes")
+        lastSavedNotes = entry.notes
     }
 
     private func shiftStart(byMinutes minutes: Int) {

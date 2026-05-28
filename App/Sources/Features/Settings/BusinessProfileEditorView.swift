@@ -216,8 +216,17 @@ struct BusinessProfileEditorView: View {
         profile.taxRate = Decimal(taxRatePercent / 100)
         profile.taxIDLabel = taxIDLabel
         profile.taxIDNumber = taxIDNumber
+        // Trim invoice email templates on save so the stored value matches
+        // what the email composer actually sends. Otherwise a trailing newline
+        // from a paste (extremely common from Apple Mail / wrapped sources)
+        // is silently stripped by `effectiveInvoiceEmail*Template` at send
+        // time — the editor showed the user one string but the email used
+        // another, with no way to reconcile without reading source.
+        // Trimming at save makes the editor's stored value the ground truth.
         profile.invoiceEmailSubjectTemplate = invoiceEmailSubjectTemplate
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         profile.invoiceEmailBodyTemplate = invoiceEmailBodyTemplate
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         profile.bankBeneficiaryName = bankBeneficiaryName
         profile.bankName = bankName
         profile.bankLocation = bankLocation

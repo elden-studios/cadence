@@ -363,6 +363,7 @@ struct InvoiceDetailView: View {
         // would email a no-watermark PDF (paywall bypass).
         let shouldHaveWatermark = !subscriptions.canRemoveWatermark
         if let cached = invoice.pdfDataCached,
+           !cached.isEmpty,   // 0-byte cache from a prior failed render is treated as "no cache"
            !Self.cacheIsStale(cached, shouldHaveWatermark: shouldHaveWatermark) {
             return cached
         }
@@ -372,8 +373,16 @@ struct InvoiceDetailView: View {
             for: templateData,
             accent: invoice.clientColor.swiftUIColor
         )
-        invoice.pdfDataCached = data
-        modelContext.saveOrLog("cache invoice pdf (email)")
+        // Only cache valid renders. An empty Data here means
+        // CGDataConsumer/CGContext init failed (resource-constrained device or
+        // PDFKit edge case). Caching empty would poison subsequent calls into
+        // returning empty without retrying — and presentMail's 0-byte guard
+        // would silently reject the email-invoice tap forever until cache
+        // staleness flipped.
+        if !data.isEmpty {
+            invoice.pdfDataCached = data
+            modelContext.saveOrLog("cache invoice pdf (email)")
+        }
         return data
     }
 
@@ -416,24 +425,53 @@ struct InvoiceDetailView: View {
         presentMail(to: email, subject: subject, body: body, attachPDF: false)
     }
 
-    /// Shared mail-presentation helper used by both `presentEmailInvoice` and
-    /// `sendReminder`. Captures the attachment + recipients into @State BEFORE
-    /// flipping `showingMailComposer = true` so the sheet content closure
-    /// doesn't have to do any work during view-body evaluation.
-    private func presentMail(to email: String, subject: String, body: String, attachPDF: Bool) {
+    /// Shared mail-presentation helper used by `presentEmailInvoice`,
+    /// `sendReminder`, and `composeReminder`. Captures the attachment +
+    /// recipients into @State BEFORE flipping `showingMailComposer = true` so
+    /// the sheet content closure doesn't have to do any work during view-body
+    /// evaluation.
+    ///
+    /// Returns `true` if an email composition surface was successfully
+    /// presented (MFMailComposer sheet flipped on, OR mailto: URL handed to
+    /// `UIApplication.shared.open`). Returns `false` if both paths failed
+    /// (e.g. canSendMail==false AND URLComponents couldn't build a valid
+    /// mailto: URL). Callers that "consume" an action on success (notably
+    /// `composeReminder` which calls `recordFired`) MUST gate on the return
+    /// value — otherwise a silent URL-build failure would mark the step
+    /// fired without ever showing the user a composer.
+    ///
+    /// Also rejects an attachPDF=true call when ensurePDFData returns 0-byte
+    /// Data (CGContext init failure on resource-constrained devices) — better
+    /// to silently no-op than ship a corrupted attachment. Caller can choose
+    /// to surface an alert when the return is false.
+    @discardableResult
+    private func presentMail(to email: String, subject: String, body: String, attachPDF: Bool) -> Bool {
+        var attachment: Data?
+        if attachPDF {
+            let data = ensurePDFData()
+            // 0-byte Data sneaks through MailComposerView's `if let data`
+            // check (non-nil but empty). Treat as a render failure.
+            guard !data.isEmpty else { return false }
+            attachment = data
+        }
+
         if MFMailComposeViewController.canSendMail() {
             mailComposerRecipients = [email]
             mailComposerSubject = subject
             mailComposerBody = body
-            mailComposerAttachment = attachPDF ? ensurePDFData() : nil
+            mailComposerAttachment = attachment
             showingMailComposer = true
+            return true
         } else {
             // Fallback when Mail isn't configured: open the default mail
             // handler via mailto:. PDF attachment is unavoidably lost on this
             // path (mailto: doesn't support attachments) but the templated
             // subject + body still ride along.
-            guard let url = mailtoURL(to: email, subject: subject, body: body) else { return }
+            guard let url = mailtoURL(to: email, subject: subject, body: body) else {
+                return false
+            }
             UIApplication.shared.open(url)
+            return true
         }
     }
 
@@ -495,21 +533,28 @@ struct InvoiceDetailView: View {
             now: Date()
         )
 
-        // Record fired BEFORE presenting so the step doesn't repeat even if the
-        // user cancels — once we've offered to send, the step is considered
-        // acted on. Pre-flight above guarantees the mail handoff at least
-        // attempts a valid recipient.
+        // Route through the same MailComposerView + mailto fallback path that
+        // sendReminder uses. No PDF attachment — reminders are nudges, not
+        // resends (the recipient already received the original invoice).
+        //
+        // CRITICAL: record fired ONLY after presentMail confirms it actually
+        // presented a composition surface. The previous ordering (recordFired
+        // unconditionally before presentMail) silently consumed the reminder
+        // step whenever canSendMail==false AND mailtoURL construction
+        // returned nil (URLComponents rejected an exotic recipient) — banner
+        // disappeared with no mail surface ever shown to the user. The bool
+        // return from presentMail closes that hole: if no surface presented,
+        // the step stays alive in firedDates and the banner stays so the
+        // user can retry after fixing the underlying issue.
+        let didPresent = presentMail(to: email, subject: subject, body: body, attachPDF: false)
+        guard didPresent else { return }
+
         let scheduler = Scheduler(
             center: UNUserNotificationCenter.current(),
             modelContext: modelContext
         )
         let service = ReminderService(scheduler: scheduler, modelContext: modelContext)
         service.recordFired(invoice: invoice, at: fireDate)
-
-        // Route through the same MailComposerView + mailto fallback path that
-        // sendReminder uses. No PDF attachment — reminders are nudges, not
-        // resends (the recipient already received the original invoice).
-        presentMail(to: email, subject: subject, body: body, attachPDF: false)
     }
 
     private func mailtoURL(to: String, subject: String, body: String) -> URL? {
