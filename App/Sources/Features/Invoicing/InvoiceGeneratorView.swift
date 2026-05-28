@@ -54,10 +54,8 @@ struct InvoiceGeneratorView: View {
         return preset.range() ?? InvoiceDateRange(start: customStart, end: customEnd)
     }
 
-    private var eligibleEntries: [TimeEntry] {
-        guard let project = selectedProject else { return [] }
-        return InvoiceBuilder.eligibleEntries(for: project, in: resolvedRange, context: modelContext)
-    }
+    @State private var eligibleEntries: [TimeEntry] = []
+    @State private var projectsWithEligible: [Project] = []
 
     private var lineItems: [InvoiceLineItem] {
         InvoiceBuilder.buildLineItems(from: eligibleEntries, grouping: grouping)
@@ -89,7 +87,7 @@ struct InvoiceGeneratorView: View {
                                 Text("Choose").tag(Project?.none)
                                 ForEach(projects) { p in Text(p.name).tag(Project?.some(p)) }
                             }
-                            if !InvoiceBuilder.projectsWithEligibleEntries(for: client, in: resolvedRange, context: modelContext).isEmpty {
+                            if !projectsWithEligible.isEmpty {
                                 Button { invoiceAllProjects() } label: {
                                     Label("Invoice all projects (separate drafts)", systemImage: "doc.on.doc")
                                 }
@@ -206,6 +204,13 @@ struct InvoiceGeneratorView: View {
                     }
                 }
             }
+            .onAppear { refreshEligible() }
+            .onChange(of: selectedProject) { _, _ in refreshEligible() }
+            .onChange(of: selectedClient) { _, _ in refreshEligible() }
+            .onChange(of: preset) { _, _ in refreshEligible() }
+            .onChange(of: customStart) { _, _ in refreshEligible() }
+            .onChange(of: customEnd) { _, _ in refreshEligible() }
+            .onChange(of: grouping) { _, _ in refreshEligible() }
             .navigationTitle("New invoice")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -326,6 +331,18 @@ struct InvoiceGeneratorView: View {
         let subtotal = lineItems.reduce(into: Decimal(0)) { $0 += $1.amount }
         let code = profile?.currencyCode ?? "USD"
         return subtotal.formatted(.currency(code: code))
+    }
+
+    // MARK: – Eligible-entry cache
+
+    @MainActor
+    private func refreshEligible() {
+        eligibleEntries = selectedProject.map {
+            InvoiceBuilder.eligibleEntries(for: $0, in: resolvedRange, context: modelContext)
+        } ?? []
+        projectsWithEligible = selectedClient.map {
+            InvoiceBuilder.projectsWithEligibleEntries(for: $0, in: resolvedRange, context: modelContext)
+        } ?? []
     }
 
     // MARK: – Invoice all projects

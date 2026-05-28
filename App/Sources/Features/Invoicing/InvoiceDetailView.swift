@@ -24,6 +24,8 @@ struct InvoiceDetailView: View {
     @State private var mailComposerAttachment: Data?
     @State private var mailComposerRecipients: [String] = []
     @State private var showingNoClientEmailAlert = false
+    @State private var scopeDraft: String = ""
+    @State private var lastSavedScope: String = ""
 
     private var subscriptions: SubscriptionManager { SubscriptionManager.shared }
 
@@ -45,20 +47,6 @@ struct InvoiceDetailView: View {
             }
         }
         return nil
-    }
-
-    private var scopeBinding: Binding<String> {
-        Binding(
-            get: { invoice.scopeOfWork ?? "" },
-            set: { newValue in
-                let normalized = newValue.isEmpty ? nil : newValue
-                guard invoice.scopeOfWork != normalized else { return }
-                invoice.scopeOfWork = normalized
-                invoice.pdfDataCached = nil
-                invoice.updatedAt = .now
-                modelContext.saveOrLog("edit invoice scope")
-            }
-        )
     }
 
     var body: some View {
@@ -241,7 +229,7 @@ struct InvoiceDetailView: View {
                         Text("SCOPE OF WORK")
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(.secondary)
-                        TextField("Describe the scope of work…", text: scopeBinding, axis: .vertical)
+                        TextField("Describe the scope of work…", text: $scopeDraft, axis: .vertical)
                             .lineLimit(2...6)
                             .padding(10)
                             .background(.background, in: .rect(cornerRadius: 10))
@@ -249,6 +237,20 @@ struct InvoiceDetailView: View {
                                 RoundedRectangle(cornerRadius: 10)
                                     .stroke(.quaternary, lineWidth: 1)
                             )
+                    }
+                    .task(id: scopeDraft) {
+                        guard scopeDraft != lastSavedScope else { return }
+                        try? await Task.sleep(for: .milliseconds(400))
+                        guard !Task.isCancelled else { return }
+                        guard scopeDraft != lastSavedScope else { return }
+                        commitScope()
+                    }
+                    .onAppear {
+                        scopeDraft = invoice.scopeOfWork ?? ""
+                        lastSavedScope = scopeDraft
+                    }
+                    .onDisappear {
+                        if scopeDraft != lastSavedScope { commitScope() }
                     }
                 } else if let scope = invoice.scopeOfWork, !scope.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
@@ -364,6 +366,17 @@ struct InvoiceDetailView: View {
             Spacer()
             Text(value).font(.subheadline)
         }
+    }
+
+    // MARK: - Scope debounce
+
+    private func commitScope() {
+        let normalized = scopeDraft.isEmpty ? nil : scopeDraft
+        invoice.scopeOfWork = normalized
+        invoice.pdfDataCached = nil
+        invoice.updatedAt = .now
+        modelContext.saveOrLog("edit invoice scope")
+        lastSavedScope = scopeDraft
     }
 
     // MARK: - Behavior
