@@ -8,8 +8,6 @@ struct TodayView: View {
     @Query private var allClients: [Client]
     @Query private var profiles: [BusinessProfile]
 
-    @State private var showingStartSheet = false
-    @State private var showingSwitchSheet = false
     @State private var showingManualEntry = false
     @State private var editingEntry: TimeEntry?
 
@@ -40,14 +38,7 @@ struct TodayView: View {
                         .buttonStyle(.plain)
                         .padding(.horizontal)
                     }
-                    TodayActiveTimerSection(
-                        currencyCode: currencyCode,
-                        onStop: stopRunning,
-                        onSwitch: { showingSwitchSheet = true },
-                        onTakeBreak: { TimerActions.takeBreak(in: modelContext) },
-                        onResume: { TimerActions.resume(in: modelContext) },
-                        onStart: { showingStartSheet = true }
-                    )
+                    JumpBackInSection()
                     TodaySummarySection(currencyCode: currencyCode)
                 }
                 .padding()
@@ -82,12 +73,6 @@ struct TodayView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingStartSheet) {
-                StartTimerSheet(isSwitching: false)
-            }
-            .sheet(isPresented: $showingSwitchSheet) {
-                StartTimerSheet(isSwitching: true)
-            }
             .sheet(isPresented: $showingManualEntry) {
                 ManualEntrySheet()
             }
@@ -115,80 +100,87 @@ struct TodayView: View {
         !BusinessProfile.canSendInvoice(profile: profiles.first)
     }
 
-    private func stopRunning() {
-        TimerActions.stop(in: modelContext)
-    }
-
 }
 
-// MARK: - Active timer card
+// MARK: - Jump Back In
 
-private struct TodayActiveTimerSection: View {
-    @Query(Self.runningDescriptor)
-    private var runningEntries: [TimeEntry]
+private struct JumpBackInSection: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var profiles: [BusinessProfile]
+    @Query(Self.recentDescriptor) private var recentEntries: [TimeEntry]
 
-    private static var runningDescriptor: FetchDescriptor<TimeEntry> {
-        var descriptor = FetchDescriptor<TimeEntry>(
-            predicate: #Predicate<TimeEntry> { $0.endedAt == nil }
+    private static var recentDescriptor: FetchDescriptor<TimeEntry> {
+        let cutoff = Date.now.addingTimeInterval(-60 * 24 * 3600)
+        var d = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate { $0.startedAt > cutoff },
+            sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
-        descriptor.fetchLimit = 1
-        return descriptor
+        d.relationshipKeyPathsForPrefetching = [\.project]
+        return d
     }
 
-    let currencyCode: String
-    let onStop: () -> Void
-    let onSwitch: () -> Void
-    let onTakeBreak: () -> Void
-    let onResume: () -> Void
-    let onStart: () -> Void
+    private var currencyCode: String {
+        profiles.first?.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
+    }
+
+    private var recents: [Project] {
+        RecentProjects.rank(from: recentEntries, limit: 5)
+    }
 
     var body: some View {
-        Group {
-            if let running = runningEntries.first {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    RunningTimerCard(
-                        entry: running, asOf: context.date, currencyCode: currencyCode,
-                        onStop: onStop, onSwitch: onSwitch, onTakeBreak: onTakeBreak, onResume: onResume
-                    )
-                    // Tag identity by the running entry's persistent ID so that
-                    // an atomic Switch (TimerService.switchTo stops the old
-                    // entry and inserts a new one in one save) produces a
-                    // FRESH view with fresh @State. Without this, the
-                    // @State `lastSavedNotes` (debounce baseline) would
-                    // persist from the OLD entry across into the NEW entry's
-                    // lifetime and trigger a spurious save on the new entry's
-                    // first .task fire (its notes are nil but the baseline
-                    // remembers the old entry's saved value).
-                    .id(running.persistentModelID)
+        if !recents.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Jump back in")
+                    .font(.headline)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(recents) { project in
+                            card(project)
+                        }
+                    }
                 }
-            } else {
-                IdleTimerCard(onStart: onStart)
             }
         }
-        .animation(.snappy(duration: 0.28), value: runningEntries.first?.persistentModelID)
-        .animation(.snappy(duration: 0.28), value: runningEntries.first?.activeSegmentStartedAt)
     }
-}
 
-
-private struct IdleTimerCard: View {
-    let onStart: () -> Void
-    var body: some View {
-        VStack(spacing: 12) {
-            Text("00:00:00")
-                .font(.system(size: 36, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(.quaternary)
-            Text("No timer running").font(.subheadline).foregroundStyle(.secondary)
-            Button(action: onStart) {
-                Label("Start timer", systemImage: "play.fill")
+    private func card(_ project: Project) -> some View {
+        // ZStack (not a Button nested in the NavigationLink label) so the
+        // play button and navigation are independent tap targets.
+        ZStack(alignment: .topTrailing) {
+            NavigationLink {
+                ProjectDetailView(project: project)
+            } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    Circle()
+                        .fill(project.client?.color.swiftUIColor ?? .blue)
+                        .frame(width: 10, height: 10)
+                    Spacer(minLength: 16)
+                    Text(project.name)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(2)
+                        .foregroundStyle(.primary)
+                    if let client = project.client {
+                        Text(client.name).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                .frame(width: 134, height: 104, alignment: .leading)
+                .padding(12)
+                .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 14))
             }
-            .buttonStyle(TimerPrimaryButtonStyle(tint: timerAccent))
-            .padding(.top, 2)
+            .buttonStyle(.plain)
+
+            Button {
+                TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
+            } label: {
+                Image(systemName: "play.fill")
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                    .frame(width: 26, height: 26)
+                    .background(Color(red: 0.98, green: 0.49, blue: 0.13), in: .circle)
+            }
+            .buttonStyle(.plain)
+            .padding(10)
         }
-        .frame(maxWidth: .infinity)
-        .padding(22)
-        .background(TimerCardSurface())
     }
 }
 
