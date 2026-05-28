@@ -45,6 +45,10 @@ public struct InvoiceTemplate: View {
         .frame(width: Self.pageWidth, height: Self.pageHeight, alignment: .top)
         .background(Color.white)
         .foregroundStyle(Color(red: 0.1, green: 0.12, blue: 0.16))
+        // The document always renders on white (preview + PDF), so pin it to the
+        // light scheme — otherwise `.primary`/`.secondary` invert under device
+        // Dark Mode and the text disappears against the white page.
+        .environment(\.colorScheme, .light)
     }
 
     // MARK: - Header

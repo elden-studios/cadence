@@ -62,6 +62,13 @@ struct InvoiceGeneratorView: View {
         InvoiceBuilder.buildLineItems(from: eligibleEntries, grouping: grouping)
     }
 
+    /// Scope text with surrounding whitespace stripped; nil when blank so a
+    /// whitespace-only entry never renders an empty Scope block on the invoice.
+    private var trimmedScope: String? {
+        let trimmed = scopeOfWork.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     private var canPreview: Bool {
         selectedClient != nil && selectedProject != nil && profile != nil && !lineItems.isEmpty
             && Self.canSendInvoice(profile: profile)
@@ -214,11 +221,17 @@ struct InvoiceGeneratorView: View {
                 refreshEligibleEntries()
                 refreshProjectsAndActive()
             }
-            .onChange(of: customStart) { _, _ in
+            // Debounce the custom-date pickers: spinning the wheel emits a burst
+            // of changes, and each refresh hits SwiftData on the main thread.
+            .task(id: customStart) {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
                 refreshEligibleEntries()
                 refreshProjectsAndActive()
             }
-            .onChange(of: customEnd) { _, _ in
+            .task(id: customEnd) {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
                 refreshEligibleEntries()
                 refreshProjectsAndActive()
             }
@@ -256,7 +269,7 @@ struct InvoiceGeneratorView: View {
                         profile: profile,
                         lineItems: lineItems,
                         sourceEntries: eligibleEntries,
-                        scopeOfWork: scopeOfWork.isEmpty ? nil : scopeOfWork,
+                        scopeOfWork: trimmedScope,
                         notes: notes.isEmpty ? nil : notes,
                         onDone: { dismiss() }
                     )

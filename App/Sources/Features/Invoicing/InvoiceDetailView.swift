@@ -249,6 +249,14 @@ struct InvoiceDetailView: View {
                         scopeDraft = invoice.scopeOfWork ?? ""
                         lastSavedScope = scopeDraft
                     }
+                    .onChange(of: invoice) { oldInvoice, newInvoice in
+                        // Detail-reuse (e.g. iPad split view): flush the previous
+                        // invoice before loading the new one, so a pending edit
+                        // isn't written onto the wrong invoice or lost.
+                        if scopeDraft != lastSavedScope { commitScope(for: oldInvoice) }
+                        scopeDraft = newInvoice.scopeOfWork ?? ""
+                        lastSavedScope = scopeDraft
+                    }
                     .onDisappear {
                         if scopeDraft != lastSavedScope { commitScope() }
                     }
@@ -371,10 +379,14 @@ struct InvoiceDetailView: View {
     // MARK: - Scope debounce
 
     private func commitScope() {
-        let normalized = scopeDraft.isEmpty ? nil : scopeDraft
-        invoice.scopeOfWork = normalized
-        invoice.pdfDataCached = nil
-        invoice.updatedAt = .now
+        commitScope(for: invoice)
+    }
+
+    private func commitScope(for targetInvoice: Invoice) {
+        let trimmed = scopeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        targetInvoice.scopeOfWork = trimmed.isEmpty ? nil : trimmed
+        targetInvoice.pdfDataCached = nil
+        targetInvoice.updatedAt = .now
         modelContext.saveOrLog("edit invoice scope")
         lastSavedScope = scopeDraft
     }
