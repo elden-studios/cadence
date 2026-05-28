@@ -90,7 +90,8 @@ public enum MarketingData {
             TimeEntry(startedAt: today13,     endedAt: today14_45, notes: "Landing copy + structure", project: helioSite),
             TimeEntry(startedAt: today15,     endedAt: today15_45, notes: "Color token system", project: northwindBrand),
             // Running timer — most-recent and currently active for the Today screenshot.
-            TimeEntry(startedAt: runningStart, endedAt: nil,       notes: "Empty states pass", project: apexDashboard),
+            // activeSegmentStartedAt makes it a Working session (not On Break) under the break model.
+            TimeEntry(startedAt: runningStart, endedAt: nil,       notes: "Empty states pass", project: apexDashboard, activeSegmentStartedAt: runningStart),
         ]
         todayEntries.forEach(context.insert)
 
