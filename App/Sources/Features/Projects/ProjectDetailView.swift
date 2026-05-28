@@ -41,8 +41,14 @@ struct ProjectDetailView: View {
 
     var body: some View {
         ScrollView {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                content(asOf: context.date)
+            Group {
+                if runningEntryForProject != nil {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        content(asOf: context.date)
+                    }
+                } else {
+                    content(asOf: .now)
+                }
             }
             .padding()
         }
@@ -140,6 +146,8 @@ struct ProjectDetailView: View {
             Image(systemName: "calendar")
             if project.isArchived, let completed = project.completedAt {
                 Text("\(start.formatted(.dateTime.month().day())) – \(completed.formatted(.dateTime.month().day())) · \(daysLabel)")
+            } else if project.isArchived {
+                Text("\(startLabel) · \(daysLabel) · Archived")
             } else {
                 Text("\(startLabel) · \(daysLabel)")
             }
