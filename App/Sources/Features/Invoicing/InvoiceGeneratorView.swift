@@ -217,23 +217,18 @@ struct InvoiceGeneratorView: View {
             }
             .onChange(of: selectedProject) { _, _ in refreshEligibleEntries() }
             .onChange(of: selectedClient) { _, _ in refreshProjectsAndActive() }
-            .onChange(of: preset) { _, _ in
-                refreshEligibleEntries()
-                refreshProjectsAndActive()
-            }
+            .onChange(of: preset) { _, _ in refreshForDateRange() }
             // Debounce the custom-date pickers: spinning the wheel emits a burst
             // of changes, and each refresh hits SwiftData on the main thread.
             .task(id: customStart) {
                 try? await Task.sleep(for: .milliseconds(300))
                 guard !Task.isCancelled else { return }
-                refreshEligibleEntries()
-                refreshProjectsAndActive()
+                refreshForDateRange()
             }
             .task(id: customEnd) {
                 try? await Task.sleep(for: .milliseconds(300))
                 guard !Task.isCancelled else { return }
-                refreshEligibleEntries()
-                refreshProjectsAndActive()
+                refreshForDateRange()
             }
             .navigationTitle("New invoice")
             .navigationBarTitleDisplayMode(.inline)
@@ -379,6 +374,26 @@ struct InvoiceGeneratorView: View {
         projectsWithEligible = selectedClient.map {
             InvoiceBuilder.projectsWithEligibleEntries(for: $0, in: resolvedRange, context: modelContext)
         } ?? []
+    }
+
+    /// A date-range change moves both `eligibleEntries` and `projectsWithEligible`,
+    /// and both derive from the same client fetch — so fetch once and group in
+    /// memory rather than firing two queries. (`activeProjects` is range-independent
+    /// and is left untouched.)
+    @MainActor
+    private func refreshForDateRange() {
+        guard let client = selectedClient else {
+            eligibleEntries = []
+            projectsWithEligible = []
+            return
+        }
+        let clientEntries = InvoiceBuilder.eligibleEntries(for: client, in: resolvedRange, context: modelContext)
+        let byProject = Dictionary(grouping: clientEntries) { $0.project }
+        projectsWithEligible = byProject.keys
+            .compactMap { $0 }
+            .filter { !$0.isArchived }
+            .sorted { $0.name < $1.name }
+        eligibleEntries = selectedProject.flatMap { byProject[$0] } ?? []
     }
 
     // MARK: – Invoice all projects
