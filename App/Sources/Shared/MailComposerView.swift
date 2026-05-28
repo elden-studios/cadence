@@ -8,6 +8,16 @@ import MessageUI
 /// back to a `mailto:` URL via `UIApplication.shared.open(...)` when it
 /// returns false. Apple's MessageUI header explicitly documents this fallback
 /// pattern — see MFMailComposeViewController.h on the iOS 26.5 SDK.
+///
+/// Concurrency: the view + Coordinator are `@MainActor`, so `onDismiss` is a
+/// plain main-isolated closure (NOT `@Sendable`) and call sites need no
+/// `assumeIsolated` wrap. The single unavoidable bridge lives in the delegate
+/// method, which MUST stay `nonisolated` because
+/// `MFMailComposeViewControllerDelegate` is not `@MainActor`-annotated on the
+/// iOS 26.5 SDK. UIKit invokes it on the main thread, so `assumeIsolated`
+/// recovers the MainActor context the compiler can't prove through the
+/// nonisolated protocol requirement.
+@MainActor
 struct MailComposerView: UIViewControllerRepresentable {
     let recipients: [String]
     let subject: String
@@ -15,7 +25,7 @@ struct MailComposerView: UIViewControllerRepresentable {
     let attachmentData: Data?
     let attachmentMimeType: String
     let attachmentFilename: String
-    let onDismiss: @Sendable (MFMailComposeResult) -> Void
+    let onDismiss: (MFMailComposeResult) -> Void
 
     func makeUIViewController(context: Context) -> MFMailComposeViewController {
         let vc = MFMailComposeViewController()
@@ -35,33 +45,25 @@ struct MailComposerView: UIViewControllerRepresentable {
         Coordinator(onDismiss: onDismiss)
     }
 
+    @MainActor
     final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
-        let onDismiss: @Sendable (MFMailComposeResult) -> Void
-        init(onDismiss: @escaping @Sendable (MFMailComposeResult) -> Void) {
+        let onDismiss: (MFMailComposeResult) -> Void
+        init(onDismiss: @escaping (MFMailComposeResult) -> Void) {
             self.onDismiss = onDismiss
         }
+
         nonisolated func mailComposeController(
             _ controller: MFMailComposeViewController,
             didFinishWith result: MFMailComposeResult,
             error: (any Error)?
         ) {
-            // UIKit guarantees this delegate runs on the main thread, but the
-            // @objc protocol isn't @MainActor-annotated, so we hop explicitly
-            // to call dismiss (a @MainActor API).
-            let onDismiss = self.onDismiss
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    // Wrap BOTH the dismiss call AND the completion body in
-                    // assumeIsolated. UIKit guarantees the completion runs on
-                    // the main thread but its closure type isn't declared
-                    // @MainActor — without this inner assumeIsolated, the
-                    // consumer's onDismiss closure (which is @Sendable and
-                    // typically touches @State) would be relying on the
-                    // outer hop alone, which doesn't cover deferred work.
-                    // Future-proofs against SDK annotation changes too.
-                    controller.dismiss(animated: true) {
-                        MainActor.assumeIsolated { onDismiss(result) }
-                    }
+            // Required nonisolated to satisfy the (non-@MainActor) MessageUI
+            // delegate protocol. UIKit guarantees this runs on the main thread,
+            // so assumeIsolated recovers the MainActor context to dismiss and
+            // invoke onDismiss.
+            MainActor.assumeIsolated {
+                controller.dismiss(animated: true) {
+                    self.onDismiss(result)
                 }
             }
         }

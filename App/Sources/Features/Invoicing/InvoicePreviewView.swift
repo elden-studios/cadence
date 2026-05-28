@@ -202,23 +202,17 @@ struct InvoicePreviewView: View {
                         attachmentMimeType: "application/pdf",
                         attachmentFilename: "\(finalized.number).pdf",
                         onDismiss: { _ in
-                            // MailComposerView's coordinator hops to the main
-                            // actor before invoking onDismiss; assumeIsolated
-                            // lets us call the @MainActor-bound dismiss() + the
-                            // @MainActor-captured onDone from inside the
-                            // @Sendable closure type. (Gemini PR #5 suggested
-                            // @MainActor-isolating MailComposerView to drop this
-                            // bridge, but the MessageUI delegate protocol isn't
-                            // @MainActor on iOS 26.5 — see MailComposerView.)
-                            // Also clears the PDF attachment buffer so it isn't
-                            // held during the ~300ms dismiss animation.
-                            MainActor.assumeIsolated {
-                                showingMailComposer = false
-                                mailComposerAttachment = nil
-                                mailComposerRecipients = []
-                                dismiss()
-                                onDone()
-                            }
+                            // MailComposerView is @MainActor with a plain
+                            // (non-@Sendable) onDismiss, so this closure runs on
+                            // the main actor with no assumeIsolated bridge — the
+                            // bridge lives in MailComposerView's Coordinator at
+                            // the UIKit boundary. Clear the PDF attachment buffer
+                            // so it isn't held during the ~300ms dismiss anim.
+                            showingMailComposer = false
+                            mailComposerAttachment = nil
+                            mailComposerRecipients = []
+                            dismiss()
+                            onDone()
                         }
                     )
                 }
