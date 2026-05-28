@@ -81,6 +81,8 @@ struct BillableApp: App {
 
     @MainActor
     private func performStartupWiring() {
+        // Repair any stale (cross-day) or legacy active timer session before the UI reads it.
+        try? TimerService.reconcileActiveSessionOnLaunch(in: container.mainContext)
         AppDelegate.sharedRouter = notificationRouter
         AppDelegate.sharedModelContext = container.mainContext
         AppDelegate.sharedSchedulerFactory = { [container] in
