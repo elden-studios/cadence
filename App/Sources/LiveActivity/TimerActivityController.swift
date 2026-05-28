@@ -40,14 +40,8 @@ final class TimerActivityController {
             hourlyRateString: NSDecimalNumber(decimal: project.hourlyRate).stringValue,
             currencyCode: currencyCode
         )
-        let anchor: Date
-        if entry.isWorking, let seg = entry.activeSegmentStartedAt {
-            anchor = seg.addingTimeInterval(-entry.accumulatedSeconds)
-        } else {
-            anchor = entry.startedAt
-        }
         let state = TimerActivityAttributes.ContentState(
-            startedAt: anchor,
+            startedAt: workedTimeAnchor(for: entry),
             isOnBreak: entry.isOnBreak,
             frozenElapsed: entry.isOnBreak ? entry.duration() : 0
         )
@@ -84,16 +78,28 @@ final class TimerActivityController {
     }
 
     /// Push a resume update to the running Activity, un-freezing the elapsed
-    /// counter so it ticks again from `startedAt`.
+    /// counter so it ticks the WORKED time (break excluded). The anchor is
+    /// recomputed from the resumed entry — reusing the pre-break anchor would
+    /// inflate the displayed time by the break duration.
     /// No-ops if there is no current activity.
-    func resumeActivity() async {
+    func resumeActivity(runningEntry entry: TimeEntry) async {
         guard let activity = current else { return }
         let state = TimerActivityAttributes.ContentState(
-            startedAt: activity.content.state.startedAt,
+            startedAt: workedTimeAnchor(for: entry),
             isOnBreak: false,
             frozenElapsed: 0
         )
         await activity.update(.init(state: state, staleDate: nil))
+    }
+
+    /// Synthetic `Text(timerInterval:)` anchor that makes the Live Activity tick
+    /// WORKED time (banked + current segment), excluding break gaps. Shared by
+    /// `startActivity` and `resumeActivity` so the two can't drift apart.
+    private func workedTimeAnchor(for entry: TimeEntry) -> Date {
+        if entry.isWorking, let seg = entry.activeSegmentStartedAt {
+            return seg.addingTimeInterval(-entry.accumulatedSeconds)
+        }
+        return entry.startedAt
     }
 
     /// End the Live Activity (timer stop or app teardown).

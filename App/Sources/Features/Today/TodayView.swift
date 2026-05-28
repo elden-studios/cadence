@@ -53,8 +53,8 @@ struct TodayView: View {
                             }
                         },
                         onResume: {
-                            if (try? TimerService.resume(in: modelContext)) != nil {
-                                Task { await TimerActivityController.shared.resumeActivity() }
+                            if let entry = try? TimerService.resume(in: modelContext) {
+                                Task { await TimerActivityController.shared.resumeActivity(runningEntry: entry) }
                                 WidgetCenter.shared.reloadAllTimelines()
                             }
                         },
