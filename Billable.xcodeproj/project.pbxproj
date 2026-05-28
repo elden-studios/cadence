@@ -24,6 +24,7 @@
 		2E4E0201847ECA7967521565 /* TimerLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1CF2FCD917839FB1C1B0961 /* TimerLiveActivity.swift */; };
 		37C6C0308B1818FF8998144D /* RecurrenceEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43745976E9C74DF7790C99F6 /* RecurrenceEditorView.swift */; };
 		3D9972903CDABD429693066D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD3AC7ABEFEA2F890535AE82 /* RootView.swift */; };
+		3E4A4F845E80F6CDCA4E772C /* ProjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46168250CF2ADDD5E63A9ED9 /* ProjectDetailView.swift */; };
 		4028699D4BB648227DDCE1A1 /* TodaySummaryWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1846D95B8BE348E4ACC1081 /* TodaySummaryWidget.swift */; };
 		45F34A925B9B048BB38C04E4 /* ProjectEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67186A12889E18CA99C96468 /* ProjectEditorView.swift */; };
 		475BB31EACE4C8818AAA73EF /* CurrentTimerWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E91171FBD2C8986707A0D7 /* CurrentTimerWidget.swift */; };
@@ -100,6 +101,7 @@
 		3C50D41C7D1E70A67970DA90 /* BillableWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BillableWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		40BA4466AFACC0C783C06598 /* DayTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayTimelineView.swift; sourceTree = "<group>"; };
 		43745976E9C74DF7790C99F6 /* RecurrenceEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceEditorView.swift; sourceTree = "<group>"; };
+		46168250CF2ADDD5E63A9ED9 /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
 		5120185E61165F6EB9DFFB00 /* BillableApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillableApp.swift; sourceTree = "<group>"; };
 		56AC735AE9894CA166F3F644 /* TimelineGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineGeometry.swift; sourceTree = "<group>"; };
 		591084DA183D854DBB380551 /* NotificationTapFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationTapFlowUITests.swift; sourceTree = "<group>"; };
@@ -185,6 +187,7 @@
 		2A6770CA3A7FCD3C0387DB6F /* Projects */ = {
 			isa = PBXGroup;
 			children = (
+				46168250CF2ADDD5E63A9ED9 /* ProjectDetailView.swift */,
 				67186A12889E18CA99C96468 /* ProjectEditorView.swift */,
 			);
 			path = Projects;
@@ -587,6 +590,7 @@
 				49D52608F66166AA6374F027 /* PaymentRemindersView.swift in Sources */,
 				EFAE46DE1F000F3FDD237A19 /* PaywallView.swift in Sources */,
 				08880CCE2F89200E1C723A26 /* PendingMaterializationsView.swift in Sources */,
+				3E4A4F845E80F6CDCA4E772C /* ProjectDetailView.swift in Sources */,
 				45F34A925B9B048BB38C04E4 /* ProjectEditorView.swift in Sources */,
 				37C6C0308B1818FF8998144D /* RecurrenceEditorView.swift in Sources */,
 				CE99BEFA8F985754461255B2 /* RecurringRulesView.swift in Sources */,
