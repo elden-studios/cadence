@@ -185,24 +185,97 @@ private struct TodayActiveTimerSection: View {
 }
 
 
+// MARK: - Timer card styling (frontend-design polish)
+
+/// Warm accent used for the Working/Start primary action, matching the brand mark.
+private let timerAccent = Color(red: 0.98, green: 0.49, blue: 0.13)
+
+/// Status pill with a leading state dot (WORKING / ON BREAK).
+private struct TimerStatusBadge: View {
+    let text: String
+    let color: Color
+    var body: some View {
+        HStack(spacing: 5) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(text).font(.caption2.weight(.bold)).tracking(0.6)
+        }
+        .padding(.horizontal, 9).padding(.vertical, 4)
+        .background(color.opacity(0.14), in: .capsule)
+        .foregroundStyle(color)
+    }
+}
+
+/// Elevated card surface. Tints + outlines amber while On Break for state legibility.
+private struct TimerCardSurface: View {
+    var onBreak: Bool = false
+    var body: some View {
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(Color(.secondarySystemBackground))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(onBreak ? Color.orange.opacity(0.06) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(onBreak ? Color.orange.opacity(0.22) : Color.primary.opacity(0.06),
+                                  lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.07), radius: 14, y: 5)
+    }
+}
+
+/// Filled, gradient primary action with a soft tinted shadow and press spring.
+private struct TimerPrimaryButtonStyle: ButtonStyle {
+    let tint: Color
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(
+                LinearGradient(colors: [tint, tint.opacity(0.85)], startPoint: .top, endPoint: .bottom),
+                in: .rect(cornerRadius: 14)
+            )
+            .shadow(color: tint.opacity(0.35), radius: 8, y: 4)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.snappy(duration: 0.18), value: configuration.isPressed)
+    }
+}
+
+/// Subtle filled secondary action (Switch / Done for now).
+private struct TimerSecondaryButtonStyle: ButtonStyle {
+    var tint: Color = .primary
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 12))
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.snappy(duration: 0.18), value: configuration.isPressed)
+    }
+}
+
 private struct IdleTimerCard: View {
     let onStart: () -> Void
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             Text("00:00:00")
-                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .font(.system(size: 36, weight: .bold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.quaternary)
             Text("No timer running").font(.subheadline).foregroundStyle(.secondary)
             Button(action: onStart) {
                 Label("Start timer", systemImage: "play.fill")
-                    .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 10)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(TimerPrimaryButtonStyle(tint: timerAccent))
+            .padding(.top, 2)
         }
         .frame(maxWidth: .infinity)
-        .padding()
-        .background(.thinMaterial, in: .rect(cornerRadius: 16))
+        .padding(22)
+        .background(TimerCardSurface())
     }
 }
 
@@ -235,17 +308,9 @@ private struct RunningTimerCard: View {
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 if entry.isOnBreak {
-                    Text("ON BREAK")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(.orange.opacity(0.18), in: .capsule)
-                        .foregroundStyle(.orange)
+                    TimerStatusBadge(text: "ON BREAK", color: .orange)
                 } else {
-                    Text("WORKING")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(.green.opacity(0.18), in: .capsule)
-                        .foregroundStyle(.green)
+                    TimerStatusBadge(text: "WORKING", color: .green)
                 }
             }
             Text(entry.project?.name ?? "Project")
@@ -281,30 +346,28 @@ private struct RunningTimerCard: View {
 
             if entry.isOnBreak {
                 Button(action: onResume) {
-                    Label("Resume", systemImage: "play.fill").frame(maxWidth: .infinity)
+                    Label("Resume", systemImage: "play.fill")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
+                .buttonStyle(TimerPrimaryButtonStyle(tint: .green))
             } else {
                 Button(action: onTakeBreak) {
-                    Label("Take a Break", systemImage: "cup.and.saucer.fill").frame(maxWidth: .infinity)
+                    Label("Take a Break", systemImage: "cup.and.saucer.fill")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.orange)
+                .buttonStyle(TimerPrimaryButtonStyle(tint: timerAccent))
             }
             HStack(spacing: 10) {
                 Button(action: onSwitch) {
-                    Label("Switch", systemImage: "arrow.triangle.2.circlepath").frame(maxWidth: .infinity)
+                    Label("Switch", systemImage: "arrow.triangle.2.circlepath")
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(TimerSecondaryButtonStyle(tint: .blue))
                 Button(action: onStop) {
-                    Text("Done for now").frame(maxWidth: .infinity)
+                    Text("Done for now")
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(TimerSecondaryButtonStyle())
             }
         }
-        .padding()
-        .background(.thinMaterial, in: .rect(cornerRadius: 16))
+        .padding(18)
+        .background(TimerCardSurface(onBreak: entry.isOnBreak))
         // Debounced persistence for the inline note field. The setter mutates
         // entry.notes in memory only; this .task fires once per quiescent
         // 400ms window (Task.sleep is cancelled and re-fired when `entry.notes`
