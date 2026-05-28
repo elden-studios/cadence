@@ -153,6 +153,8 @@ public enum InvoiceBuilder {
     public static func createDraft(
         for client: Client,
         lineItems: [InvoiceLineItem],
+        project: Project? = nil,
+        scopeOfWork: String? = nil,
         notes: String? = nil,
         issuedAt: Date = .now,
         profile: BusinessProfile,
@@ -192,7 +194,10 @@ public enum InvoiceBuilder {
             currencyCodeSnapshot: profile.currencyCode,
             lineItems: lineItems,
             notes: notes,
-            client: client
+            client: client,
+            project: project,
+            projectNameSnapshot: project?.name,
+            scopeOfWork: scopeOfWork
         )
         context.insert(invoice)
         try context.save()

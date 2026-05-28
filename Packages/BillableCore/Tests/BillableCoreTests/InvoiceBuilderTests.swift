@@ -316,3 +316,42 @@ struct PerProjectEligibleTests {
         #expect(!projects.map(\.persistentModelID).contains(b.persistentModelID))
     }
 }
+
+@Suite("InvoiceBuilder.createDraft project + scope")
+@MainActor
+struct CreateDraftProjectTests {
+    private func setup() throws -> (ModelContext, BusinessProfile, Client, Project) {
+        let container = try BillableModelContainer.inMemory()
+        let context = ModelContext(container)
+        let profile = BusinessProfile(invoiceNumberPrefix: "INV-", nextInvoiceNumber: 5)
+        let client = Client(name: "Acme")
+        let p = Project(name: "Dashboard MVP", hourlyRate: 175, client: client)
+        context.insert(profile); context.insert(client); context.insert(p)
+        try context.save()
+        return (context, profile, client, p)
+    }
+    private let items = [InvoiceLineItem(description: "Work", hours: 2, hourlyRate: 175)]
+
+    @Test("createDraft with project sets project, snapshot, and scope")
+    func setsProjectAndScope() throws {
+        let (context, profile, client, p) = try setup()
+        let inv = try InvoiceBuilder.createDraft(
+            for: client, lineItems: items, project: p, scopeOfWork: "Build v1",
+            profile: profile, context: context
+        )
+        #expect(inv.project?.persistentModelID == p.persistentModelID)
+        #expect(inv.projectNameSnapshot == "Dashboard MVP")
+        #expect(inv.scopeOfWork == "Build v1")
+    }
+
+    @Test("createDraft without project leaves project/snapshot/scope nil (combined path)")
+    func combinedStaysNil() throws {
+        let (context, profile, client, _) = try setup()
+        let inv = try InvoiceBuilder.createDraft(
+            for: client, lineItems: items, profile: profile, context: context
+        )
+        #expect(inv.project == nil)
+        #expect(inv.projectNameSnapshot == nil)
+        #expect(inv.scopeOfWork == nil)
+    }
+}
