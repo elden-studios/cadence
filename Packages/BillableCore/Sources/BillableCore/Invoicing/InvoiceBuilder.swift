@@ -63,6 +63,31 @@ public enum InvoiceBuilder {
         }
     }
 
+    /// Like `eligibleEntries(for client:)` but scoped to a single `project`.
+    @MainActor
+    public static func eligibleEntries(
+        for project: Project,
+        in range: InvoiceDateRange,
+        context: ModelContext
+    ) -> [TimeEntry] {
+        let start = range.start
+        let end = range.end
+        let projectID = project.persistentModelID
+        guard project.isBillable else { return [] }
+
+        let descriptor = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate { entry in
+                entry.invoiceID == nil
+                && entry.endedAt != nil
+                && entry.startedAt < end
+                && entry.startedAt >= start
+            },
+            sortBy: [SortDescriptor(\.startedAt)]
+        )
+        let entries = (try? context.fetch(descriptor)) ?? []
+        return entries.filter { $0.project?.persistentModelID == projectID }
+    }
+
     /// Build line items WITHOUT persisting anything. Used by the preview screen.
     public static func buildLineItems(
         from entries: [TimeEntry],

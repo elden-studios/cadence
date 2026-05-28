@@ -258,3 +258,48 @@ struct InvoiceBuilderTaxIDTests {
         #expect(invoice.issuerLogoSnapshot == logoBytes)
     }
 }
+
+@Suite("InvoiceBuilder per-project")
+@MainActor
+struct PerProjectEligibleTests {
+    private func fixture() throws -> (ModelContext, Client, Project, Project) {
+        let container = try BillableModelContainer.inMemory()
+        let context = ModelContext(container)
+        let client = Client(name: "Acme")
+        let a = Project(name: "Site", hourlyRate: 100, isBillable: true, client: client)
+        let b = Project(name: "Brand", hourlyRate: 150, isBillable: true, client: client)
+        context.insert(client); context.insert(a); context.insert(b)
+        try context.save()
+        return (context, client, a, b)
+    }
+
+    @Test("eligibleEntries(for: project) returns only that project's entries")
+    func filtersByProject() throws {
+        let (context, _, a, b) = try fixture()
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        let ea = TimeEntry(startedAt: t0, endedAt: t0.addingTimeInterval(3600), project: a)
+        let eb = TimeEntry(startedAt: t0, endedAt: t0.addingTimeInterval(3600), project: b)
+        [ea, eb].forEach(context.insert); try context.save()
+
+        let range = InvoiceDateRange(start: t0.addingTimeInterval(-60), end: t0.addingTimeInterval(7200))
+        let result = InvoiceBuilder.eligibleEntries(for: a, in: range, context: context)
+        #expect(result.count == 1)
+        #expect(result.first?.persistentModelID == ea.persistentModelID)
+    }
+
+    @Test("eligibleEntries(for: project) excludes non-billable / running / invoiced")
+    func excludesIneligible() throws {
+        let (context, _, a, _) = try fixture()
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        let ok = TimeEntry(startedAt: t0, endedAt: t0.addingTimeInterval(1800), project: a)
+        let running = TimeEntry(startedAt: t0, endedAt: nil, project: a)
+        let invoiced = TimeEntry(startedAt: t0, endedAt: t0.addingTimeInterval(900), project: a)
+        invoiced.invoiceID = UUID()
+        [ok, running, invoiced].forEach(context.insert); try context.save()
+
+        let range = InvoiceDateRange(start: t0.addingTimeInterval(-60), end: t0.addingTimeInterval(7200))
+        let result = InvoiceBuilder.eligibleEntries(for: a, in: range, context: context)
+        #expect(result.count == 1)
+        #expect(result.first?.persistentModelID == ok.persistentModelID)
+    }
+}
