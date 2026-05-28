@@ -37,5 +37,8 @@ secrets.xcconfig
 # Git worktrees (for parallel feature work)
 .worktrees/
 
+# Superpowers brainstorm/session scratch (mockups, visual companion output)
+.superpowers/
+
 # Xcode SPM cache (auto-managed by Xcode, no need to track)
 *.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
