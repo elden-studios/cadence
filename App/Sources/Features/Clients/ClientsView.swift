@@ -22,9 +22,22 @@ struct ClientsView: View {
     // diverge by arbitrary amounts when a draft is created then finalized
     // later — sorting by issuedAt would let an older-issued-but-recently-sent
     // invoice be masked by a newer-issued-but-earlier-sent one.
-    @Query(filter: #Predicate<Invoice> { $0.sentAt != nil },
-           sort: \Invoice.sentAt, order: .reverse)
+    //
+    // `relationshipKeyPathsForPrefetching = [\.client]` batch-loads the client
+    // relationship with the invoice fetch, eliminating the N+1 fault that would
+    // otherwise occur when `lastInvoiceByClientID` accesses `invoice.client`
+    // per row.
+    @Query(Self.sentInvoicesDescriptor)
     private var sentInvoices: [Invoice]
+
+    private static var sentInvoicesDescriptor: FetchDescriptor<Invoice> {
+        var descriptor = FetchDescriptor<Invoice>(
+            predicate: #Predicate<Invoice> { $0.sentAt != nil },
+            sortBy: [SortDescriptor(\.sentAt, order: .reverse)]
+        )
+        descriptor.relationshipKeyPathsForPrefetching = [\.client]
+        return descriptor
+    }
 
     @State private var showingNew = false
     @State private var deletionCandidate: Client?
@@ -126,7 +139,15 @@ struct ClientsView: View {
     }
 
     private var listContent: some View {
-        List {
+        // Compute the map ONCE per render, not once per row. Accessing
+        // `lastInvoiceByClientID` directly inside the ForEach below would
+        // rebuild the entire dictionary (and re-fault every invoice.client
+        // relationship) for every single active client — O(activeClients ×
+        // sentInvoices) per render pass. Hoisting to a local `let` makes it
+        // O(sentInvoices) per render. (SwiftData caches faulted Client objects
+        // in the context, so repeat renders don't re-fault.)
+        let lastInvoices = lastInvoiceByClientID
+        return List {
             Section {
                 ForEach(activeClients) { client in
                     NavigationLink {
@@ -134,7 +155,7 @@ struct ClientsView: View {
                     } label: {
                         ClientRow(
                             client: client,
-                            lastInvoiceDate: lastInvoiceByClientID[client.persistentModelID]
+                            lastInvoiceDate: lastInvoices[client.persistentModelID]
                         )
                     }
                     .swipeActions(edge: .trailing) {

@@ -484,10 +484,13 @@ struct InvoiceDetailView: View {
     /// KB or several MB) isn't held in @State for the rest of the view's
     /// navigation lifetime.
     ///
-    /// Declared `nonisolated` so the @Sendable onDismiss closure can call it
-    /// directly without the call site needing its own assumeIsolated bridge —
-    /// the helper does the bridging once, here, where it belongs. Safe because
-    /// MailComposerView's Coordinator hops to main before invoking onDismiss.
+    /// Declared `nonisolated` so the `@Sendable` onDismiss closure can call it
+    /// directly. MailComposerView's Coordinator hops to main before invoking
+    /// onDismiss, so the assumeIsolated assertion always holds at runtime.
+    /// (Gemini PR #5 suggested making MailComposerView @MainActor to drop this
+    /// bridge entirely, but MFMailComposeViewControllerDelegate is NOT
+    /// @MainActor-isolated on the iOS 26.5 SDK — a @MainActor Coordinator
+    /// can't satisfy its nonisolated requirement, so the bridge stays.)
     private nonisolated func dismissMailComposer() {
         MainActor.assumeIsolated {
             showingMailComposer = false
