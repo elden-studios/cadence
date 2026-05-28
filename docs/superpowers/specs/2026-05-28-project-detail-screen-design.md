@@ -106,11 +106,19 @@ Live totals via `TimelineView(.periodic)`. The view reads the single running ent
 
 The action area's timer control has two states, both reusing `TimerService` and the side effects that `StartTimerSheet` / `TodayView` already perform (`TimerActivityController`, intent donation, `WidgetCenter.reloadAllTimelines()`):
 
-- **This project is the live timer** (`runningEntry.project == project`): show the inline running state — WORKING/ON BREAK badge, elapsed time, "$X this session", and **Break/Resume** + **Done** controls — calling `TimerService.takeBreak` / `resume` / `stop`. This reuses the same operations as the Today card; the running-card subview should be factored into a shared component so Today and Project Detail render identically rather than duplicating logic.
+- **This project is the live timer** (`runningEntry.project == project`): show the inline running state — WORKING/ON BREAK badge, elapsed time, "$X this session", and **Break/Resume** + **Done** controls. Reuses the shared running-card view and the shared timer-actions helper (see §7.1).
 - **Idle or a different project is running:**
-  - Idle → **Start timer** → `TimerService.start(project:)`.
-  - A different project is running → **Switch to this project** → `TimerService.switchTo(project:)` (atomic stop+start; no silent data loss).
+  - Idle → **Start timer** → `TimerActions.start(project:)`.
+  - A different project is running → **Switch to this project** → `TimerActions.switchTo(project:)` (atomic stop+start; no silent data loss).
   - Archived project → Start/Switch hidden (TimerService would throw `projectIsArchived`).
+
+### 7.1 Refactor: shared running-card view + timer-actions helper
+
+Two extractions let the project timer reuse Today's behavior verbatim. **Both are behavior-preserving refactors**, each landed as its own commit and verified on the simulator (Today + onboarding timer unchanged) **before** `ProjectDetailView` is built on top. They *reduce* risk — they remove duplication that would otherwise drift — rather than add it.
+
+**(a) Shared running-card view.** Move `RunningTimerCard` and the timer UI primitives it depends on — `TimerStatusBadge`, `TimerCardSurface`, `TimerPrimaryButtonStyle`, `TimerSecondaryButtonStyle`, `timerAccent`, `AdjustStartTimePickerSheet` — out of `TodayView.swift` into a new `App/Sources/Features/Timer/RunningTimerCard.swift`, changing `private` → internal (single app target). `TodayView`'s `IdleTimerCard` keeps using the shared primitives. The card stays parameterized exactly as today (`@Bindable entry`, `asOf`, `currencyCode`, `onStop/onSwitch/onTakeBreak/onResume` closures), so its notes-debounce `@State` and adjust-start dialog move with it **unchanged** — no logic edits, just relocation + visibility.
+
+**(b) Shared timer-actions helper.** The Live Activity / widget / Siri-intent side effects around `TimerService` are duplicated today across `TodayView` (break/resume/stop), `StartTimerSheet` (start/switch), and `OnboardingView` (start). Consolidate them into one `@MainActor` helper `TimerActions` (app target) — `start / switchTo / takeBreak / resume / stop`, each wrapping the `TimerService` call plus `TimerActivityController`, `WidgetCenter.reloadAllTimelines()`, and intent donation. Migrate the three existing call sites onto it (behavior-preserving), then `ProjectDetailView` calls the same helper. This is the single source of truth that prevents the screens from drifting.
 
 ## 8. Create-invoice entry point
 
@@ -159,12 +167,16 @@ In `ClientDetailView`:
 | `Packages/BillableCore/Tests/...` | `ProjectStats` tests (totals, `activeDayCount`, `firstTrackedDay`) |
 | `App/Sources/Features/Projects/ProjectDetailView.swift` (new) | The screen (hero, engagement line, stats, timer area, sessions, Complete/Restore, Edit) |
 | `App/Sources/Features/Projects/ProjectEditorView.swift` | Remove the "Complete project" button (lifecycle moves to detail) |
-| `App/Sources/Features/Today/TodayView.swift` | Extract the running-timer card into a shared component reused by Project Detail |
+| `App/Sources/Features/Timer/RunningTimerCard.swift` (new) | Running-card view + timer UI primitives extracted from `TodayView` (internal visibility) — §7.1(a) |
+| `App/Sources/Features/Timer/TimerActions.swift` (new) | `@MainActor` helper wrapping `TimerService` + Live Activity + widget reload + intent donation — §7.1(b) |
+| `App/Sources/Features/Today/TodayView.swift` | Card + primitives move to `RunningTimerCard.swift`; break/resume/stop side-effects move to `TimerActions` |
+| `App/Sources/Features/Timer/StartTimerSheet.swift` | Migrate start/switch side-effects to `TimerActions` |
+| `App/Sources/Features/Onboarding/OnboardingView.swift` | Migrate start side-effects to `TimerActions` |
 | `App/Sources/Features/Clients/ClientDetailView.swift` | Project rows navigate to `ProjectDetailView`; drop edit-on-tap sheet + Archive swipe + `projectToComplete` dialog |
 | `App/Sources/Features/Invoicing/InvoiceGeneratorView.swift` | Add `defaultProject:` init param; seed `selectedProject` |
 
 ## 13. Implementation notes
 
-- The running-timer card extraction (Today ↔ Project Detail) is the one piece of shared UI; keep it a single source of truth so the two screens never drift.
-- Visual polish (hero gradient, tiles, ledger rows) should hit the app's existing timer-card bar; use the **frontend-design** skill at implementation time.
+- The §7.1 refactors (shared `RunningTimerCard` + `TimerActions`) land **first**, each verified on the simulator before `ProjectDetailView` consumes them. They are behavior-preserving and touch three shipped surfaces (Today, StartTimerSheet, Onboarding) — keep each commit mechanical and confirm Today/onboarding timing is unchanged.
+- Visual polish (hero gradient, tiles, ledger rows) is **deferred** — build to functional parity with the existing timer-card styling now; a dedicated frontend-design pass comes later.
 - Base all work on `feature/project-detail` (off `origin/main`); do not touch shared branches.
