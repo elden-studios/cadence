@@ -92,7 +92,7 @@ struct WorkView: View {
 
     private var grouped: [(client: String, projects: [Project])] {
         let byClient = Dictionary(grouping: filteredProjects) { $0.client?.name ?? "No client" }
-        return byClient.keys.sorted().map { ($0, (byClient[$0] ?? []).sorted { $0.name < $1.name }) }
+        return byClient.keys.sorted().map { ($0, byClient[$0] ?? []) }
     }
 
     @ViewBuilder

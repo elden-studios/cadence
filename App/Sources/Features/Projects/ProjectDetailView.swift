@@ -40,18 +40,21 @@ struct ProjectDetailView: View {
     }
 
     var body: some View {
-        // Sort once per real change, not per TimelineView tick: the order is
-        // asOf-independent, so hoisting it out of the per-second content closure
-        // avoids re-sorting every second while a timer is running.
+        // Sort + group once per real change, not per TimelineView tick: the
+        // order and month grouping are asOf-independent (only the per-row
+        // duration/amount values tick), so we hoist them out of the per-second
+        // content closure.
         let sortedEntries = project.entries.sorted { $0.startedAt > $1.startedAt }
+        let groupedEntries = groupedByMonth(Array(sortedEntries.prefix(sessionLimit)))
+        let totalCount = sortedEntries.count
         return ScrollView {
             Group {
                 if runningEntryForProject != nil {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        content(asOf: context.date, sortedEntries: sortedEntries)
+                        content(asOf: context.date, groupedEntries: groupedEntries, totalCount: totalCount)
                     }
                 } else {
-                    content(asOf: .now, sortedEntries: sortedEntries)
+                    content(asOf: .now, groupedEntries: groupedEntries, totalCount: totalCount)
                 }
             }
             .padding()
@@ -88,7 +91,7 @@ struct ProjectDetailView: View {
     }
 
     @ViewBuilder
-    private func content(asOf: Date, sortedEntries: [TimeEntry]) -> some View {
+    private func content(asOf: Date, groupedEntries: [(String, [TimeEntry])], totalCount: Int) -> some View {
         let stats = ProjectStats.compute(for: project, asOf: asOf)
         VStack(alignment: .leading, spacing: 20) {
             hero(stats: stats)
@@ -106,7 +109,7 @@ struct ProjectDetailView: View {
                 }
                 .buttonStyle(.bordered)
             }
-            recentSessions(asOf: asOf, sortedEntries: sortedEntries)
+            recentSessions(asOf: asOf, groupedEntries: groupedEntries, totalCount: totalCount)
             lifecycleButton()
         }
     }
@@ -212,15 +215,15 @@ struct ProjectDetailView: View {
     // MARK: Recent sessions
 
     @ViewBuilder
-    private func recentSessions(asOf: Date, sortedEntries: [TimeEntry]) -> some View {
-        let shown = Array(sortedEntries.prefix(sessionLimit))
+    private func recentSessions(asOf: Date, groupedEntries: [(String, [TimeEntry])], totalCount: Int) -> some View {
+        let shownCount = groupedEntries.reduce(0) { $0 + $1.1.count }
         LazyVStack(alignment: .leading, spacing: 10) {
             Text("Sessions").font(.headline)
-            if shown.isEmpty {
+            if shownCount == 0 {
                 Text("No time tracked yet.")
                     .font(.subheadline).foregroundStyle(.secondary)
             } else {
-                ForEach(groupedByMonth(shown), id: \.0) { month, entries in
+                ForEach(groupedEntries, id: \.0) { month, entries in
                     Text(month)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
@@ -228,8 +231,8 @@ struct ProjectDetailView: View {
                         sessionRow(entry, asOf: asOf)
                     }
                 }
-                if sortedEntries.count > shown.count {
-                    Button("See all \(sortedEntries.count) sessions") { sessionLimit = sortedEntries.count }
+                if totalCount > shownCount {
+                    Button("See all \(totalCount) sessions") { sessionLimit = totalCount }
                         .font(.subheadline)
                 }
             }
