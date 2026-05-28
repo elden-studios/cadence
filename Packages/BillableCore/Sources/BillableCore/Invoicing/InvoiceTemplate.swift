@@ -138,25 +138,38 @@ public struct InvoiceTemplate: View {
                 }
                 return accent
             }()
-            VStack(alignment: .leading, spacing: 6) {
+            let scopeAccent = Color(red: 0.85, green: 0.67, blue: 0.18)
+            VStack(alignment: .leading, spacing: 9) {
+                // Project — a refined tinted pill in the client's color.
                 HStack(spacing: 6) {
-                    Circle().fill(dotColor).frame(width: 8, height: 8)
+                    Circle().fill(dotColor).frame(width: 7, height: 7)
                     Text(projectName)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 11.5, weight: .semibold))
                 }
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(dotColor.opacity(0.10), in: Capsule())
+                .overlay(Capsule().strokeBorder(dotColor.opacity(0.22), lineWidth: 0.5))
+
+                // Scope of work — left-accent bar on a soft cream field.
                 if let scope = data.scopeOfWork, !scope.isEmpty {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("SCOPE OF WORK")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .tracking(1)
-                        Text(scope)
-                            .font(.system(size: 11).italic())
-                            .foregroundStyle(.secondary)
+                    HStack(alignment: .top, spacing: 0) {
+                        Rectangle().fill(scopeAccent).frame(width: 3)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("SCOPE OF WORK")
+                                .font(.system(size: 9, weight: .semibold))
+                                .tracking(1)
+                                .foregroundStyle(scopeAccent.opacity(0.9))
+                            Text(scope)
+                                .font(.system(size: 11).italic())
+                                .foregroundStyle(.primary.opacity(0.75))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 8)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(Color.yellow.opacity(0.12), in: .rect(cornerRadius: 6))
+                    .background(Color(red: 0.99, green: 0.975, blue: 0.88))
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
