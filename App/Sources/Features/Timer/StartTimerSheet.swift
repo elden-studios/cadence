@@ -101,25 +101,13 @@ struct StartTimerSheet: View {
     }
 
     private var recentProjects: [Project] {
-        // Look at the last ~30 days of entries; rank projects by most recent use.
         let cutoff = Date.now.addingTimeInterval(-30 * 24 * 3600)
         let descriptor = FetchDescriptor<TimeEntry>(
-            predicate: #Predicate { entry in
-                entry.startedAt > cutoff
-            },
+            predicate: #Predicate { entry in entry.startedAt > cutoff },
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
         let entries = (try? modelContext.fetch(descriptor)) ?? []
-        var seen = Set<PersistentIdentifier>()
-        var ordered: [Project] = []
-        for entry in entries {
-            guard let project = entry.project, !project.isArchived else { continue }
-            if seen.insert(project.persistentModelID).inserted {
-                ordered.append(project)
-                if ordered.count == 3 { break }
-            }
-        }
-        return ordered
+        return RecentProjects.rank(from: entries, limit: 3)
     }
 
     private func startOrSwitch(to project: Project) {
