@@ -35,8 +35,6 @@ struct ProjectEditorView: View {
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 140)
-                        Text(client.projects.first?.hourlyRate != nil ? "" : "")
-                            .foregroundStyle(.secondary)
                     }
                 }
             }
