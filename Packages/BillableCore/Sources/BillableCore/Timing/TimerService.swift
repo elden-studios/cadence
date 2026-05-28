@@ -207,6 +207,16 @@ public enum TimerService {
     /// Throws if `newStart >= Date.now` (would create negative duration) or if
     /// the entry is no longer running.
     ///
+    /// Because `duration(asOf:)` for a Working entry is anchored on
+    /// `activeSegmentStartedAt`, this method shifts both `startedAt` **and**
+    /// `activeSegmentStartedAt` by the same delta so the displayed elapsed time
+    /// reflects the adjusted start.
+    ///
+    /// Once the user has taken at least one break (`accumulatedSeconds > 0`) the
+    /// mapping between wall-clock start and the current segment is ambiguous, so
+    /// the call is silently treated as a no-op. The same applies while the entry
+    /// is On Break (`activeSegmentStartedAt == nil`).
+    ///
     /// Used by the Today screen's RunningTimerCard to let users correct a
     /// "forgot to start the timer" mistake without stopping the entry.
     @MainActor
@@ -221,7 +231,14 @@ public enum TimerService {
         // invalid. Using `<=` also avoids a millisecond boundary rejection when
         // the caller's captured "now" equals this execution's `.now`.
         guard newStart <= .now else { throw AdjustError.startInFuture }
+        // duration() for a working entry is anchored on activeSegmentStartedAt.
+        // Once breaks exist (accumulatedSeconds > 0) or while On Break
+        // (activeSegmentStartedAt == nil) the start↔segment mapping is ambiguous,
+        // so adjusting is a no-op.
+        guard let seg = entry.activeSegmentStartedAt, entry.accumulatedSeconds == 0 else { return }
+        let delta = newStart.timeIntervalSince(entry.startedAt)
         entry.startedAt = newStart
+        entry.activeSegmentStartedAt = seg.addingTimeInterval(delta)
         entry.updatedAt = .now
         try context.save()
     }

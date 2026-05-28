@@ -40,7 +40,13 @@ final class TimerActivityController {
             hourlyRateString: NSDecimalNumber(decimal: project.hourlyRate).stringValue,
             currencyCode: currencyCode
         )
-        let state = TimerActivityAttributes.ContentState(startedAt: entry.startedAt)
+        let anchor: Date
+        if entry.isWorking, let seg = entry.activeSegmentStartedAt {
+            anchor = seg.addingTimeInterval(-entry.accumulatedSeconds)
+        } else {
+            anchor = entry.startedAt
+        }
+        let state = TimerActivityAttributes.ContentState(startedAt: anchor)
 
         // End any in-flight activity first — a switch shouldn't leave two open.
         if let previous = current {
