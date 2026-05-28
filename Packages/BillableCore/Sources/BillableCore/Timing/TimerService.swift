@@ -20,6 +20,10 @@ public enum TimerService {
         case noRunningTimer
         /// The caller asked to switch into the same project that's already running.
         case alreadyTrackingSameProject
+        /// Caller asked to take a break but the active session is already on break.
+        case alreadyOnBreak
+        /// Caller asked to resume but the active session is not on break.
+        case notOnBreak
     }
 
     public enum AdjustError: Error, Equatable, Sendable {
@@ -65,7 +69,8 @@ public enum TimerService {
             endedAt: nil,
             notes: notes,
             isManual: false,
-            project: project
+            project: project,
+            activeSegmentStartedAt: start
         )
         context.insert(entry)
         try context.save()
@@ -87,6 +92,32 @@ public enum TimerService {
         let safeEnd = max(end, running.startedAt.addingTimeInterval(1))
         running.endedAt = safeEnd
         running.updatedAt = safeEnd
+        try context.save()
+        return running
+    }
+
+    /// Pause the active session: bank the current working segment and freeze the
+    /// count. The entry stays active (`endedAt == nil`) but `isOnBreak`.
+    @MainActor
+    @discardableResult
+    public static func takeBreak(at instant: Date = .now, in context: ModelContext) throws -> TimeEntry {
+        guard let running = currentRunningEntry(in: context) else { throw TimerError.noRunningTimer }
+        guard let segStart = running.activeSegmentStartedAt else { throw TimerError.alreadyOnBreak }
+        running.accumulatedSeconds += max(0, instant.timeIntervalSince(segStart))
+        running.activeSegmentStartedAt = nil
+        running.updatedAt = instant
+        try context.save()
+        return running
+    }
+
+    /// Resume an On-Break session: start a new working segment.
+    @MainActor
+    @discardableResult
+    public static func resume(at instant: Date = .now, in context: ModelContext) throws -> TimeEntry {
+        guard let running = currentRunningEntry(in: context) else { throw TimerError.noRunningTimer }
+        guard running.activeSegmentStartedAt == nil else { throw TimerError.notOnBreak }
+        running.activeSegmentStartedAt = instant
+        running.updatedAt = instant
         try context.save()
         return running
     }
