@@ -147,7 +147,11 @@ public enum TimerService {
         in context: ModelContext
     ) throws {
         guard entry.endedAt == nil else { throw AdjustError.entryNotRunning }
-        guard newStart < .now else { throw AdjustError.startInFuture }
+        // `<=` not `<`: a timer can legitimately start exactly "now" (0 elapsed)
+        // — that's how every timer begins. Only a strictly-FUTURE start is
+        // invalid. Using `<=` also avoids a millisecond boundary rejection when
+        // the caller's captured "now" equals this execution's `.now`.
+        guard newStart <= .now else { throw AdjustError.startInFuture }
         entry.startedAt = newStart
         entry.updatedAt = .now
         try context.save()

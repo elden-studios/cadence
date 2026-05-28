@@ -375,9 +375,25 @@ struct InvoicePreviewView: View {
                 for: templateData,
                 accent: draft.clientColor.swiftUIColor
             )
+            // Mark finalized immediately so the toolbar buttons disable
+            // (idempotency) regardless of what happens below — the invoice IS
+            // sent at this point.
+            finalized = draft
+            // Only cache + present a REAL render. An empty Data means
+            // CGDataConsumer/CGContext init failed (catastrophic-rare); caching
+            // it would poison the cache so future loads return empty without
+            // retrying. On that failure, exit cleanly (dismiss + onDone) rather
+            // than cache 0 bytes or present a 0-byte attachment — the invoice is
+            // sent and can be re-emailed from the detail view, which re-renders.
+            // NB: this guard runs AFTER `finalized = draft`, so a re-tap can't
+            // double-finalize, and dismiss()+onDone() prevents stranding.
+            guard !data.isEmpty else {
+                dismiss()
+                onDone()
+                return
+            }
             draft.pdfDataCached = data
             modelContext.saveOrLog("cache invoice pdf (finalize+email)")
-            finalized = draft
             pdfData = data
 
             // Render templates against the freshly-finalized invoice. Use the
@@ -516,9 +532,17 @@ struct InvoicePreviewView: View {
                 for: templateData,
                 accent: draft.clientColor.swiftUIColor
             )
+            // Mark finalized first (idempotency) — see finalizeAndEmail for the
+            // full rationale. Don't cache or share an empty render; exit cleanly
+            // on the catastrophic-rare CG failure.
+            finalized = draft
+            guard !data.isEmpty else {
+                dismiss()
+                onDone()
+                return
+            }
             draft.pdfDataCached = data
             modelContext.saveOrLog("cache invoice pdf")
-            finalized = draft
             pdfData = data
             showingShare = true
         } catch {

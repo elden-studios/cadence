@@ -424,10 +424,12 @@ private struct RunningTimerCard: View {
     }
 
     private func applyAdjustedStart(_ newStart: Date) {
-        // Defensive guard: never write a future start. The DatePicker sheet
-        // already restricts to .now-or-earlier; the 5/10/15-min offsets always
-        // go backward. This guard is for unforeseen call paths.
-        guard newStart < .now else { return }
+        // Defensive guard: never write a strictly-future start. `<=` mirrors
+        // TimerService.adjustStart — "now" (0 elapsed) is valid; only the future
+        // is rejected. The DatePicker sheet already restricts to .now-or-earlier;
+        // the 5/10/15-min offsets always go backward. This guard is for
+        // unforeseen call paths.
+        guard newStart <= .now else { return }
         do {
             try TimerService.adjustStart(entry: entry, to: newStart, in: modelContext)
         } catch {
@@ -507,7 +509,11 @@ private struct AdjustStartTimePickerSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") { onSave(selection) }
                         .bold()
-                        .disabled(selection >= now)
+                        // `>` not `>=`: disable only for a strictly-future
+                        // selection. Selecting exactly "now" is valid (0 elapsed)
+                        // and matches the `<=` guards in applyAdjustedStart /
+                        // TimerService.adjustStart.
+                        .disabled(selection > now)
                 }
             }
         }

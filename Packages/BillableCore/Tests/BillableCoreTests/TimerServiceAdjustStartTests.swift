@@ -32,7 +32,7 @@ struct TimerServiceAdjustStartTests {
         #expect(entry.startedAt == newStart)
     }
 
-    @Test("Throws startInFuture when newStart is at or after Date.now")
+    @Test("Throws startInFuture when newStart is strictly after Date.now")
     func rejectsFutureStart() throws {
         let (context, _, project) = try freshContext()
         let entry = TimeEntry(startedAt: .now.addingTimeInterval(-300), endedAt: nil, project: project)
@@ -43,6 +43,25 @@ struct TimerServiceAdjustStartTests {
         #expect(throws: TimerService.AdjustError.startInFuture) {
             try TimerService.adjustStart(entry: entry, to: future, in: context)
         }
+    }
+
+    @Test("Accepts a start at the current moment (0-elapsed timer)")
+    func acceptsNowStart() throws {
+        let (context, _, project) = try freshContext()
+        let entry = TimeEntry(startedAt: .now.addingTimeInterval(-300), endedAt: nil, project: project)
+        context.insert(entry)
+        try context.save()
+
+        // `now` is captured here; by the time adjustStart runs, `.now` has
+        // advanced microseconds, so `now <= .now` holds. This is the
+        // "start the timer right now" adjustment (0 elapsed) the `<=` guard
+        // permits. (The exact same-instant boundary that distinguishes `<=`
+        // from `<` can't be tested deterministically — the clock always moves
+        // between capture and execution — so this asserts the user-facing
+        // behavior: a start at the present moment is accepted, not rejected.)
+        let now = Date.now
+        try TimerService.adjustStart(entry: entry, to: now, in: context)
+        #expect(entry.startedAt == now)
     }
 
     @Test("Throws entryNotRunning on stopped entries")
