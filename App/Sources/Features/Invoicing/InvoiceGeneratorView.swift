@@ -15,6 +15,8 @@ struct InvoiceGeneratorView: View {
     @Query private var profiles: [BusinessProfile]
 
     @State private var selectedClient: Client?
+    @State private var selectedProject: Project?
+    @State private var scopeOfWork: String = ""
     @State private var preset: InvoicePeriodPreset = .lastMonth
     @State private var customStart: Date = Calendar.current.date(byAdding: .month, value: -1, to: .now) ?? .now
     @State private var customEnd: Date = .now
@@ -52,8 +54,8 @@ struct InvoiceGeneratorView: View {
     }
 
     private var eligibleEntries: [TimeEntry] {
-        guard let client = selectedClient else { return [] }
-        return InvoiceBuilder.eligibleEntries(for: client, in: resolvedRange, context: modelContext)
+        guard let project = selectedProject else { return [] }
+        return InvoiceBuilder.eligibleEntries(for: project, in: resolvedRange, context: modelContext)
     }
 
     private var lineItems: [InvoiceLineItem] {
@@ -61,7 +63,7 @@ struct InvoiceGeneratorView: View {
     }
 
     private var canPreview: Bool {
-        selectedClient != nil && profile != nil && !lineItems.isEmpty
+        selectedClient != nil && selectedProject != nil && profile != nil && !lineItems.isEmpty
             && Self.canSendInvoice(profile: profile)
     }
 
@@ -74,6 +76,27 @@ struct InvoiceGeneratorView: View {
             Form {
                 Section("Client") {
                     clientPicker
+                }
+
+                Section("Project") {
+                    if let client = selectedClient {
+                        let projects = client.projects.filter { !$0.isArchived }.sorted { $0.name < $1.name }
+                        if projects.isEmpty {
+                            Text("This client has no active projects.").foregroundStyle(.secondary)
+                        } else {
+                            Picker("Project", selection: $selectedProject) {
+                                Text("Choose").tag(Project?.none)
+                                ForEach(projects) { p in Text(p.name).tag(Project?.some(p)) }
+                            }
+                        }
+                    } else {
+                        Text("Pick a client first.").foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("Scope of work (optional)") {
+                    TextField("e.g. Build the v1 analytics dashboard", text: $scopeOfWork, axis: .vertical)
+                        .lineLimit(2...6)
                 }
 
                 Section("Period") {
@@ -207,9 +230,11 @@ struct InvoiceGeneratorView: View {
                 if let client = selectedClient, let profile {
                     InvoicePreviewView(
                         client: client,
+                        project: selectedProject,
                         profile: profile,
                         lineItems: lineItems,
                         sourceEntries: eligibleEntries,
+                        scopeOfWork: scopeOfWork.isEmpty ? nil : scopeOfWork,
                         notes: notes.isEmpty ? nil : notes,
                         onDone: { dismiss() }
                     )
@@ -238,6 +263,7 @@ struct InvoiceGeneratorView: View {
                 ForEach(clients) { client in
                     Button {
                         selectedClient = client
+                        selectedProject = nil
                     } label: {
                         HStack {
                             Text(client.name)
