@@ -257,11 +257,15 @@ struct InvoiceDetailView: View {
                             .foregroundStyle(.secondary)
                         Text(scope)
                             .font(.subheadline)
-                            .italic()
+                            .foregroundStyle(.primary.opacity(0.8))
                     }
                     .padding(10)
-                    .background(.yellow.opacity(0.12), in: .rect(cornerRadius: 8))
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.primary.opacity(0.04))
+                    .overlay(alignment: .leading) {
+                        Rectangle().fill(Color.primary.opacity(0.25)).frame(width: 2.5)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
         }

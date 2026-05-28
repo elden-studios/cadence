@@ -81,7 +81,7 @@ struct InvoiceGeneratorView: View {
 
                 Section("Project") {
                     if let client = selectedClient {
-                        let projects = client.projects.filter { !$0.isArchived }.sorted { $0.name < $1.name }
+                        let projects = client.projects.filter { !$0.isArchived && $0.isBillable }.sorted { $0.name < $1.name }
                         if projects.isEmpty {
                             Text("This client has no active projects.").foregroundStyle(.secondary)
                         } else {
