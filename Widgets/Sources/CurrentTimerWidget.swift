@@ -58,13 +58,36 @@ struct CurrentTimerProvider: TimelineProvider {
         }
         let project = running.project
         let client = project?.client
+        let clientName = client?.name ?? ""
+        let projectName = project?.name ?? "—"
+        let colorRaw = client?.colorRaw ?? ClientColor.blue.rawValue
+
+        if running.isOnBreak {
+            return CurrentTimerEntry(
+                date: now,
+                state: .onBreak(
+                    clientName: clientName,
+                    projectName: projectName,
+                    colorRaw: colorRaw,
+                    frozenElapsed: running.duration(asOf: now)
+                )
+            )
+        }
+
+        // For a working entry, derive a synthetic anchor that makes
+        // Text(timerInterval: anchor...) display total WORKED time (banked +
+        // current segment). Shift the anchor back by `accumulatedSeconds` from
+        // the current segment start so the ticker reads: banked + elapsed-since-
+        // segment-start, matching `entry.duration(asOf:)`.
+        let segmentStart = running.activeSegmentStartedAt ?? running.startedAt
+        let syntheticAnchor = segmentStart.addingTimeInterval(-running.accumulatedSeconds)
         return CurrentTimerEntry(
             date: now,
             state: .running(
-                clientName: client?.name ?? "",
-                projectName: project?.name ?? "—",
-                colorRaw: client?.colorRaw ?? ClientColor.blue.rawValue,
-                startedAt: running.startedAt
+                clientName: clientName,
+                projectName: projectName,
+                colorRaw: colorRaw,
+                startedAt: syntheticAnchor
             )
         )
     }
@@ -74,7 +97,12 @@ struct CurrentTimerProvider: TimelineProvider {
 
 struct CurrentTimerEntry: TimelineEntry {
     enum State {
+        /// Timer is actively counting. `startedAt` is the start of the *current
+        /// working segment* — used by `Text(timerInterval:)` for a live display.
         case running(clientName: String, projectName: String, colorRaw: String, startedAt: Date)
+        /// Timer exists but is paused on a break. `frozenElapsed` is worked
+        /// seconds (breaks excluded) at the moment the break started.
+        case onBreak(clientName: String, projectName: String, colorRaw: String, frozenElapsed: TimeInterval)
         case idle
     }
 
@@ -124,6 +152,25 @@ struct CurrentTimerWidgetView: View {
                      pauseTime: nil, countsDown: false)
                     .font(.title2.weight(.semibold).monospacedDigit())
                     .foregroundStyle(color)
+            case .onBreak(let clientName, let projectName, let colorRaw, let frozenElapsed):
+                let color = ClientColor(rawValue: colorRaw)?.swiftUIColor ?? .blue
+                HStack(spacing: 4) {
+                    Circle().fill(color).frame(width: 8, height: 8)
+                    Text(clientName)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Text(projectName)
+                    .font(.headline)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+                Text(formatElapsed(frozenElapsed))
+                    .font(.title2.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Text("On Break")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.orange)
             case .idle:
                 Image(systemName: "play.circle.fill")
                     .font(.system(size: 28))
@@ -151,6 +198,15 @@ struct CurrentTimerWidgetView: View {
                 Text(timerInterval: startedAt...Date.now.addingTimeInterval(60 * 60 * 24),
                      pauseTime: nil, countsDown: false)
                     .font(.title3.weight(.semibold).monospacedDigit())
+            case .onBreak(_, let projectName, _, let frozenElapsed):
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("On Break").font(.caption2.weight(.semibold)).foregroundStyle(.orange).lineLimit(1)
+                    Text(projectName).font(.headline).lineLimit(1)
+                }
+                Spacer()
+                Text(formatElapsed(frozenElapsed))
+                    .font(.title3.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.secondary)
             case .idle:
                 Image(systemName: "timer")
                 Text("No timer running")
@@ -171,6 +227,15 @@ struct CurrentTimerWidgetView: View {
                          pauseTime: nil, countsDown: false)
                         .font(.caption2.monospacedDigit())
                 }
+            case .onBreak(_, _, _, let frozenElapsed):
+                VStack(spacing: 2) {
+                    Image(systemName: "pause.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                    Text(formatElapsed(frozenElapsed))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
             case .idle:
                 Image(systemName: "timer")
                     .font(.title3)
@@ -185,8 +250,20 @@ struct CurrentTimerWidgetView: View {
             return Text("⏱ \(projectName) · ") +
                 Text(timerInterval: startedAt...Date.now.addingTimeInterval(60 * 60 * 24),
                      pauseTime: nil, countsDown: false)
+        case .onBreak(_, let projectName, _, let frozenElapsed):
+            return Text("⏱ \(projectName) · \(formatElapsed(frozenElapsed)) · On Break")
         case .idle:
             return Text("⏱ No timer running")
         }
+    }
+
+    /// Format a `TimeInterval` (seconds) as HH:MM:SS — matches the
+    /// `elapsedString` format used in `RunningTimerCard`.
+    private func formatElapsed(_ seconds: TimeInterval) -> String {
+        let total = Int(max(0, seconds))
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        return String(format: "%02d:%02d:%02d", h, m, s)
     }
 }

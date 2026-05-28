@@ -158,7 +158,7 @@ struct DayTimelineView: View {
                     subtitle: timeRangeLabel(for: entry),
                     color: entry.project?.client?.color.swiftUIColor ?? .blue,
                     isSelected: isSelected(entry),
-                    isRunning: entry.isRunning,
+                    isRunning: entry.isWorking,
                     onDrag: { mode, delta in
                         activeDrag = ActiveDrag(
                             entryID: entry.persistentModelID,
@@ -232,6 +232,9 @@ struct DayTimelineView: View {
     private func commitActiveDrag(for entry: TimeEntry) {
         defer { activeDrag = nil }
         guard let drag = activeDrag, drag.entryID == entry.persistentModelID else { return }
+        // Only finished entries are editable on the timeline; live sessions are
+        // managed via the Today card.
+        guard entry.endedAt != nil else { return }
 
         let deltaSeconds = TimeInterval(drag.deltaPoints / geometry.pointsPerSecond)
 
@@ -254,6 +257,9 @@ struct DayTimelineView: View {
                 entry.endedAt = snapped
             }
         }
+        // Geometry was changed manually — flatten banked breaks so duration()
+        // falls back to the new wall-clock span (endedAt − startedAt).
+        entry.accumulatedSeconds = 0
         entry.updatedAt = .now
         modelContext.saveOrLog("drag/resize entry")
     }
@@ -267,6 +273,7 @@ struct DayTimelineView: View {
         guard snapped > entry.startedAt.addingTimeInterval(60),
               snapped < endedAt.addingTimeInterval(-60) else { return }
 
+        // New entry always has accumulatedSeconds == 0 by default.
         let second = TimeEntry(
             startedAt: snapped,
             endedAt: endedAt,
@@ -275,6 +282,9 @@ struct DayTimelineView: View {
             project: entry.project
         )
         entry.endedAt = snapped
+        // Flatten the original entry: geometry changed, duration() should use
+        // the new wall-clock span (endedAt − startedAt).
+        entry.accumulatedSeconds = 0
         entry.updatedAt = .now
         modelContext.insert(second)
         modelContext.saveOrLog("split entry")

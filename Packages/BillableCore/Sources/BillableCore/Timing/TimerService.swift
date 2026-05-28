@@ -20,6 +20,10 @@ public enum TimerService {
         case noRunningTimer
         /// The caller asked to switch into the same project that's already running.
         case alreadyTrackingSameProject
+        /// Caller asked to take a break but the active session is already on break.
+        case alreadyOnBreak
+        /// Caller asked to resume but the active session is not on break.
+        case notOnBreak
     }
 
     public enum AdjustError: Error, Equatable, Sendable {
@@ -56,8 +60,7 @@ public enum TimerService {
                 // Treat as a no-op — the running entry continues uninterrupted.
                 return running
             }
-            running.endedAt = start
-            running.updatedAt = start
+            finalize(running, at: start)
         }
 
         let entry = TimeEntry(
@@ -65,7 +68,8 @@ public enum TimerService {
             endedAt: nil,
             notes: notes,
             isManual: false,
-            project: project
+            project: project,
+            activeSegmentStartedAt: start
         )
         context.insert(entry)
         try context.save()
@@ -83,10 +87,46 @@ public enum TimerService {
         guard let running = currentRunningEntry(in: context) else {
             throw TimerError.noRunningTimer
         }
-        // Guard against a stop time earlier than start (clock skew, manual edits)
-        let safeEnd = max(end, running.startedAt.addingTimeInterval(1))
-        running.endedAt = safeEnd
-        running.updatedAt = safeEnd
+        finalize(running, at: end)
+        try context.save()
+        return running
+    }
+
+    /// Finalize an active entry at `end`: bank any open working segment, clear
+    /// the segment marker, and set `endedAt`. Clamps `end` to ≥ startedAt+1s.
+    @MainActor
+    private static func finalize(_ entry: TimeEntry, at end: Date) {
+        let safeEnd = max(end, entry.startedAt.addingTimeInterval(1))
+        if let segStart = entry.activeSegmentStartedAt {
+            entry.accumulatedSeconds += max(0, safeEnd.timeIntervalSince(segStart))
+            entry.activeSegmentStartedAt = nil
+        }
+        entry.endedAt = safeEnd
+        entry.updatedAt = safeEnd
+    }
+
+    /// Pause the active session: bank the current working segment and freeze the
+    /// count. The entry stays active (`endedAt == nil`) but `isOnBreak`.
+    @MainActor
+    @discardableResult
+    public static func takeBreak(at instant: Date = .now, in context: ModelContext) throws -> TimeEntry {
+        guard let running = currentRunningEntry(in: context) else { throw TimerError.noRunningTimer }
+        guard let segStart = running.activeSegmentStartedAt else { throw TimerError.alreadyOnBreak }
+        running.accumulatedSeconds += max(0, instant.timeIntervalSince(segStart))
+        running.activeSegmentStartedAt = nil
+        running.updatedAt = instant
+        try context.save()
+        return running
+    }
+
+    /// Resume an On-Break session: start a new working segment.
+    @MainActor
+    @discardableResult
+    public static func resume(at instant: Date = .now, in context: ModelContext) throws -> TimeEntry {
+        guard let running = currentRunningEntry(in: context) else { throw TimerError.noRunningTimer }
+        guard running.activeSegmentStartedAt == nil else { throw TimerError.notOnBreak }
+        running.activeSegmentStartedAt = instant
+        running.updatedAt = instant
         try context.save()
         return running
     }
@@ -134,9 +174,48 @@ public enum TimerService {
         return entry
     }
 
+    /// Call once on app launch. Prevents multi-day sessions and repairs
+    /// pre-break-fields running entries.
+    /// - Cross-day active session → finalize to its banked worked time
+    ///   (`endedAt = startedAt + accumulatedSeconds`), discarding any open
+    ///   segment (its true end is unknown).
+    /// - Same-day running entry with no segment and 0 banked → treat as Working
+    ///   (legacy entry created before break fields existed).
+    /// - Genuine same-day On-Break sessions (banked > 0) are left alone.
+    @MainActor
+    public static func reconcileActiveSessionOnLaunch(
+        now: Date = .now,
+        calendar: Calendar = .current,
+        in context: ModelContext
+    ) throws {
+        guard let active = currentRunningEntry(in: context) else { return }
+        if !calendar.isDate(active.startedAt, inSameDayAs: now) {
+            active.activeSegmentStartedAt = nil
+            active.endedAt = max(
+                active.startedAt.addingTimeInterval(active.accumulatedSeconds),
+                active.startedAt.addingTimeInterval(1)
+            )
+            active.updatedAt = now
+        } else if active.activeSegmentStartedAt == nil && active.accumulatedSeconds == 0 {
+            active.activeSegmentStartedAt = active.startedAt
+            active.updatedAt = now
+        }
+        try context.save()
+    }
+
     /// Shift a running entry's startedAt backward (or forward, within constraints).
     /// Throws if `newStart >= Date.now` (would create negative duration) or if
     /// the entry is no longer running.
+    ///
+    /// Because `duration(asOf:)` for a Working entry is anchored on
+    /// `activeSegmentStartedAt`, this method shifts both `startedAt` **and**
+    /// `activeSegmentStartedAt` by the same delta so the displayed elapsed time
+    /// reflects the adjusted start.
+    ///
+    /// Once the user has taken at least one break (`accumulatedSeconds > 0`) the
+    /// mapping between wall-clock start and the current segment is ambiguous, so
+    /// the call is silently treated as a no-op. The same applies while the entry
+    /// is On Break (`activeSegmentStartedAt == nil`).
     ///
     /// Used by the Today screen's RunningTimerCard to let users correct a
     /// "forgot to start the timer" mistake without stopping the entry.
@@ -152,7 +231,14 @@ public enum TimerService {
         // invalid. Using `<=` also avoids a millisecond boundary rejection when
         // the caller's captured "now" equals this execution's `.now`.
         guard newStart <= .now else { throw AdjustError.startInFuture }
+        // duration() for a working entry is anchored on activeSegmentStartedAt.
+        // Once breaks exist (accumulatedSeconds > 0) or while On Break
+        // (activeSegmentStartedAt == nil) the start↔segment mapping is ambiguous,
+        // so adjusting is a no-op.
+        guard let seg = entry.activeSegmentStartedAt, entry.accumulatedSeconds == 0 else { return }
+        let delta = newStart.timeIntervalSince(entry.startedAt)
         entry.startedAt = newStart
+        entry.activeSegmentStartedAt = seg.addingTimeInterval(delta)
         entry.updatedAt = .now
         try context.save()
     }

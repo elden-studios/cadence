@@ -6,7 +6,7 @@ import Testing
 struct CSVExporterTests {
     @Test("Header row is the documented schema")
     func headerIsStable() {
-        #expect(CSVExporter.header == "date,client,project,start,end,duration_hours,hourly_rate,amount,billable,invoice_number,notes")
+        #expect(CSVExporter.header == "date,client,project,start,end,worked_hours,hourly_rate,amount,billable,invoice_number,notes")
     }
 
     @Test("Quotes wrap values containing commas, quotes, and newlines")

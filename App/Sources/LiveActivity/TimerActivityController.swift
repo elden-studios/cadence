@@ -40,7 +40,11 @@ final class TimerActivityController {
             hourlyRateString: NSDecimalNumber(decimal: project.hourlyRate).stringValue,
             currencyCode: currencyCode
         )
-        let state = TimerActivityAttributes.ContentState(startedAt: entry.startedAt)
+        let state = TimerActivityAttributes.ContentState(
+            startedAt: workedTimeAnchor(for: entry),
+            isOnBreak: entry.isOnBreak,
+            frozenElapsed: entry.isOnBreak ? entry.duration() : 0
+        )
 
         // End any in-flight activity first — a switch shouldn't leave two open.
         if let previous = current {
@@ -58,6 +62,44 @@ final class TimerActivityController {
             // Live Activity startup can fail (system busy, too many open). We
             // swallow the error here — the timer itself is the source of truth.
         }
+    }
+
+    /// Push an On-Break update to the running Activity, freezing the elapsed
+    /// display at `elapsed` seconds of worked time.
+    /// No-ops if there is no current activity.
+    func pause(elapsed: TimeInterval) async {
+        guard let activity = current else { return }
+        let state = TimerActivityAttributes.ContentState(
+            startedAt: activity.content.state.startedAt,
+            isOnBreak: true,
+            frozenElapsed: elapsed
+        )
+        await activity.update(.init(state: state, staleDate: nil))
+    }
+
+    /// Push a resume update to the running Activity, un-freezing the elapsed
+    /// counter so it ticks the WORKED time (break excluded). The anchor is
+    /// recomputed from the resumed entry — reusing the pre-break anchor would
+    /// inflate the displayed time by the break duration.
+    /// No-ops if there is no current activity.
+    func resumeActivity(runningEntry entry: TimeEntry) async {
+        guard let activity = current else { return }
+        let state = TimerActivityAttributes.ContentState(
+            startedAt: workedTimeAnchor(for: entry),
+            isOnBreak: false,
+            frozenElapsed: 0
+        )
+        await activity.update(.init(state: state, staleDate: nil))
+    }
+
+    /// Synthetic `Text(timerInterval:)` anchor that makes the Live Activity tick
+    /// WORKED time (banked + current segment), excluding break gaps. Shared by
+    /// `startActivity` and `resumeActivity` so the two can't drift apart.
+    private func workedTimeAnchor(for entry: TimeEntry) -> Date {
+        if entry.isWorking, let seg = entry.activeSegmentStartedAt {
+            return seg.addingTimeInterval(-entry.accumulatedSeconds)
+        }
+        return entry.startedAt
     }
 
     /// End the Live Activity (timer stop or app teardown).
