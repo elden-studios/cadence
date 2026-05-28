@@ -200,7 +200,10 @@ public enum MarketingData {
                     hourlyRate: 175
                 ),
             ],
-            client: apex
+            client: apex,
+            project: apexDashboard,
+            projectNameSnapshot: apexDashboard.name,
+            scopeOfWork: "Design & build the v1 analytics dashboard — filter UI, chart components, and empty-state handling."
         )
         context.insert(draftInvoice)
 
