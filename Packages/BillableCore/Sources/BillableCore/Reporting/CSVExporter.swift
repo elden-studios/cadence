@@ -4,7 +4,11 @@ import Foundation
 /// "TimeEntries.csv" to hand off to an accountant or spreadsheet.
 ///
 /// Format (one header row + N data rows):
-/// `date,client,project,start,end,duration_hours,hourly_rate,amount,billable,invoice_number,notes`
+/// `date,client,project,start,end,worked_hours,hourly_rate,amount,billable,invoice_number,notes`
+///
+/// `worked_hours` is the net worked time with break gaps excluded (mirrors
+/// `TimeEntry.duration()`). Manual/legacy entries (no break data) fall back to
+/// wall-clock end−start.
 ///
 /// Decimal values use the user's locale-free representation (`.`-separator)
 /// so the output opens cleanly in Numbers, Excel, and Google Sheets.
@@ -50,7 +54,7 @@ public enum CSVExporter {
         }
     }
 
-    public static let header = "date,client,project,start,end,duration_hours,hourly_rate,amount,billable,invoice_number,notes"
+    public static let header = "date,client,project,start,end,worked_hours,hourly_rate,amount,billable,invoice_number,notes"
 
     public static func csv(for rows: [Row]) -> String {
         csv(for: rows, dateFormatter: makeISOFormatter())
