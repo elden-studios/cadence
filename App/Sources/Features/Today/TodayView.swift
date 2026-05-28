@@ -93,7 +93,7 @@ struct TodayView: View {
     }
 
     private var currencyCode: String {
-        profiles.first?.currencyCode ?? "USD"
+        profiles.first?.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
     }
 
     private var showEmptyBusinessBanner: Bool {
