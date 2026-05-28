@@ -12,8 +12,9 @@ public final class Project {
     public var updatedAt: Date
 
     /// When the user tapped "Complete project"; `nil` while the project is active.
-    /// Cleared on restore. Display-only — `isArchived` remains the source of truth
-    /// for whether a project is active.
+    /// The complete/restore actions are responsible for keeping this in sync
+    /// (set on complete, cleared on restore). Display-only — `isArchived` remains
+    /// the source of truth for whether a project is active.
     public var completedAt: Date?
 
     public var client: Client?
