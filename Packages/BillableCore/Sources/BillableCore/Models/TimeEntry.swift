@@ -81,30 +81,3 @@ public final class TimeEntry {
         return hours * project.hourlyRate
     }
 }
-
-// MARK: - Resume pill visibility
-
-extension TimeEntry {
-    /// Whether the "Resume Last" pill should appear on Today, given the most-recently
-    /// stopped TimeEntry. Returns false in any of:
-    /// - lastStopped is nil
-    /// - lastStopped has no endedAt (still running)
-    /// - lastStopped has no project (data corruption edge case)
-    /// - lastStopped ended more than 60 min ago
-    /// - lastStopped ended on a different calendar day than `now`
-    ///
-    /// Pure function — pass an explicit calendar for tests across time zones.
-    public static func shouldShowResumePill(
-        lastStopped: TimeEntry?,
-        now: Date,
-        calendar: Calendar = .current
-    ) -> Bool {
-        guard let entry = lastStopped else { return false }
-        guard let endedAt = entry.endedAt else { return false }
-        guard entry.project != nil else { return false }
-        let secondsSince = now.timeIntervalSince(endedAt)
-        guard secondsSince >= 0, secondsSince < 60 * 60 else { return false }
-        guard calendar.isDate(now, inSameDayAs: endedAt) else { return false }
-        return true
-    }
-}
