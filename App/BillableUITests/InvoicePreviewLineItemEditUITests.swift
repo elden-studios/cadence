@@ -146,7 +146,10 @@ final class InvoicePreviewLineItemEditUITests: XCTestCase {
         firstDescription.typeText("Edited description")
 
         // Finalize should remain enabled — the field still has content.
-        let finalize = app.buttons["Finalize & share"]
+        // The primary trailing toolbar button is "Finalize & email"; the
+        // overflow menu also exposes "Finalize & share", but both bind to
+        // the same hasInvalidDescriptions disable.
+        let finalize = app.buttons["Finalize & email"]
         XCTAssertTrue(finalize.waitForExistence(timeout: 2),
                       "Finalize button must exist on the preview screen")
         XCTAssertTrue(finalize.isEnabled,

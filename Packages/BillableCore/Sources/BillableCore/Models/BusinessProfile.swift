@@ -52,6 +52,11 @@ public final class BusinessProfile {
         !taxIDNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    // MARK: - Invoice email templates (v1.6 / Phase 2)
+
+    public var invoiceEmailSubjectTemplate: String = BusinessProfile.defaultInvoiceEmailSubject
+    public var invoiceEmailBodyTemplate: String = BusinessProfile.defaultInvoiceEmailBody
+
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -75,6 +80,8 @@ public final class BusinessProfile {
         bankSWIFT: String = "",
         taxIDLabel: String = "",
         taxIDNumber: String = "",
+        invoiceEmailSubjectTemplate: String = BusinessProfile.defaultInvoiceEmailSubject,
+        invoiceEmailBodyTemplate: String = BusinessProfile.defaultInvoiceEmailBody,
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -97,6 +104,8 @@ public final class BusinessProfile {
         self.bankSWIFT = bankSWIFT
         self.taxIDLabel = taxIDLabel
         self.taxIDNumber = taxIDNumber
+        self.invoiceEmailSubjectTemplate = invoiceEmailSubjectTemplate
+        self.invoiceEmailBodyTemplate = invoiceEmailBodyTemplate
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -124,6 +133,47 @@ public final class BusinessProfile {
     public static func canSendInvoice(profile: BusinessProfile?) -> Bool {
         guard let profile else { return false }
         return !profile.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    public static let defaultInvoiceEmailSubject =
+        "Invoice {invoiceNumber} from {senderName}"
+
+    public static let defaultInvoiceEmailBody = """
+Hi {clientFirstName},
+
+Please find invoice {invoiceNumber} for {amount} attached. It's due {dueDate}.
+
+Let me know if you have any questions.
+
+Thanks,
+{senderName}
+"""
+
+    /// The subject template the email composer should actually use.
+    ///
+    /// If the user has cleared the stored template (or it's whitespace-only), the
+    /// raw `??` fallback at call sites does NOT trigger — `??` only fires on nil,
+    /// not empty strings — so the renderer would produce a blank subject. This
+    /// computed property closes that gap by treating whitespace-only as "use the
+    /// default" at the model layer, so every caller is protected.
+    ///
+    /// The non-empty branch returns the TRIMMED value so a stored
+    /// `"Invoice {invoiceNumber}\n"` (e.g. trailing newline from a paste) doesn't
+    /// leak through to `MFMailComposeViewController.setSubject(...)` — RFC 5322
+    /// subjects are single-line and many SMTP gateways treat embedded newlines
+    /// as the start of a new header.
+    public var effectiveInvoiceEmailSubjectTemplate: String {
+        let trimmed = invoiceEmailSubjectTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? Self.defaultInvoiceEmailSubject : trimmed
+    }
+
+    /// The body template the email composer should actually use. Same
+    /// whitespace-only-falls-back-to-default semantics as
+    /// `effectiveInvoiceEmailSubjectTemplate`. Returns the trimmed value so
+    /// surrounding whitespace doesn't render into the email body.
+    public var effectiveInvoiceEmailBodyTemplate: String {
+        let trimmed = invoiceEmailBodyTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? Self.defaultInvoiceEmailBody : trimmed
     }
 }
 

@@ -152,6 +152,20 @@ public enum MarketingData {
             notes: "Thanks for the partnership.",
             client: northwind
         )
+        // Backfill the state-machine timestamps that the convenience init can't
+        // accept. Without sentAt the new ClientsView @Query predicate
+        // (`$0.sentAt != nil`) filters this invoice out, so the A7 'Last invoice:
+        // N days ago' subtitle never renders in the screenshot demo. Issued/sent
+        // dates intentionally diverge by 1 day so the subtitle shows a believable
+        // recent date relative to the seed's referenceDate.
+        //
+        // Force-unwrap matches the surrounding pattern (lines 116, 120, 169) —
+        // Calendar.current.date(byAdding:value:to:) returning nil is a
+        // defensive edge case the rest of this function already treats as
+        // impossible. A silent nil here would defeat the entire point of this
+        // backfill (the A7 subtitle would disappear from the screenshot demo).
+        sentInvoice.sentAt = cal.date(byAdding: .day, value: 1, to: lastMonth)!
+        sentInvoice.paidAt = cal.date(byAdding: .day, value: -7, to: referenceDate)!
         context.insert(sentInvoice)
 
         // Draft invoice (Apex, current period)

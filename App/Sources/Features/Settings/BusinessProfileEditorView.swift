@@ -28,6 +28,9 @@ struct BusinessProfileEditorView: View {
     @State private var taxIDLabel: String = ""
     @State private var taxIDNumber: String = ""
 
+    @State private var invoiceEmailSubjectTemplate: String = ""
+    @State private var invoiceEmailBodyTemplate: String = ""
+
     @State private var bankBeneficiaryName: String = ""
     @State private var bankName: String = ""
     @State private var bankLocation: String = ""
@@ -94,6 +97,17 @@ struct BusinessProfileEditorView: View {
                 Text("Tax")
             } footer: {
                 Text("Tax label appears next to the rate on invoice totals. Tax ID label appears with your registration number in the issuer header — leave both blank to hide.")
+            }
+
+            Section {
+                TextField("Subject template", text: $invoiceEmailSubjectTemplate, axis: .vertical)
+                    .lineLimit(1...3)
+                TextField("Body template", text: $invoiceEmailBodyTemplate, axis: .vertical)
+                    .lineLimit(4...12)
+            } header: {
+                Text("Invoice email")
+            } footer: {
+                Text("Prefills your email when you tap 'Email invoice'. Merge fields: {clientName}, {clientFirstName}, {invoiceNumber}, {amount}, {dueDate}, {senderName}.")
             }
 
             Section {
@@ -203,6 +217,8 @@ struct BusinessProfileEditorView: View {
         taxRatePercent = (profile.taxRate as NSDecimalNumber).doubleValue * 100
         taxIDLabel = profile.taxIDLabel
         taxIDNumber = profile.taxIDNumber
+        invoiceEmailSubjectTemplate = profile.invoiceEmailSubjectTemplate
+        invoiceEmailBodyTemplate = profile.invoiceEmailBodyTemplate
         bankBeneficiaryName = profile.bankBeneficiaryName
         bankName = profile.bankName
         bankLocation = profile.bankLocation
@@ -229,8 +245,19 @@ struct BusinessProfileEditorView: View {
         profile.nextInvoiceNumber = nextInvoiceNumber
         profile.taxLabel = taxLabel
         profile.taxRate = Decimal(taxRatePercent / 100)
+        // Trim tax ID + email templates on save so the stored value matches
+        // what's displayed/sent. For the email templates specifically: a
+        // trailing newline from a paste (common from Apple Mail / wrapped
+        // sources) would otherwise be silently stripped by
+        // `effectiveInvoiceEmail*Template` at send time — the editor showed the
+        // user one string but the email used another. Trimming at save makes
+        // the editor's stored value the ground truth.
         profile.taxIDLabel = taxIDLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         profile.taxIDNumber = taxIDNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        profile.invoiceEmailSubjectTemplate = invoiceEmailSubjectTemplate
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        profile.invoiceEmailBodyTemplate = invoiceEmailBodyTemplate
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         profile.bankBeneficiaryName = bankBeneficiaryName
         profile.bankName = bankName
         profile.bankLocation = bankLocation
