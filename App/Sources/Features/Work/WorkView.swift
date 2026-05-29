@@ -181,7 +181,9 @@ private struct NewProjectSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Query(filter: #Predicate<Client> { !$0.isArchived }, sort: \Client.name)
     private var clients: [Client]
-    @State private var selectedClient: Client?
+    // Store the ID, not the model, in @State (more robust than holding a
+    // SwiftData object across view updates); resolve from `clients` on push.
+    @State private var selectedClientID: PersistentIdentifier?
 
     var body: some View {
         NavigationStack {
@@ -195,7 +197,7 @@ private struct NewProjectSheet: View {
                 } else {
                     List(clients) { client in
                         Button {
-                            selectedClient = client
+                            selectedClientID = client.persistentModelID
                         } label: {
                             HStack(spacing: 10) {
                                 Circle()
@@ -214,8 +216,10 @@ private struct NewProjectSheet: View {
                     Button("Cancel") { dismiss() }
                 }
             }
-            .navigationDestination(item: $selectedClient) { client in
-                ProjectEditorView(client: client, project: nil, onSaved: { dismiss() })
+            .navigationDestination(item: $selectedClientID) { id in
+                if let client = clients.first(where: { $0.persistentModelID == id }) {
+                    ProjectEditorView(client: client, project: nil, onSaved: { dismiss() })
+                }
             }
         }
     }
