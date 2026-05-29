@@ -110,7 +110,15 @@ struct WorkView: View {
                 projects: projects
             )
         }
-        .sorted { $0.clientName < $1.clientName }
+        .sorted { lhs, rhs in
+            // Real clients first (locale-aware); the "No client" bucket (nil id) last.
+            switch (lhs.id, rhs.id) {
+            case (nil, nil): return false
+            case (nil, _): return false
+            case (_, nil): return true
+            default: return lhs.clientName.localizedStandardCompare(rhs.clientName) == .orderedAscending
+            }
+        }
     }
 
     private var projectsList: some View {
