@@ -36,6 +36,12 @@ struct WorkView: View {
         profiles.first?.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
     }
 
+    /// The running project's ID (if any), read via one named accessor so the
+    /// project rows don't each re-traverse the running entry's relationship.
+    private var runningProjectID: PersistentIdentifier? {
+        runningEntries.first?.project?.persistentModelID
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -117,12 +123,12 @@ struct WorkView: View {
                             ProjectBrowserRow(
                                 project: project,
                                 currencyCode: currencyCode,
-                                isRunning: runningEntries.first?.project?.persistentModelID == project.persistentModelID,
-                                anotherRunning: runningEntries.first != nil
-                                    && runningEntries.first?.project?.persistentModelID != project.persistentModelID,
+                                isRunning: runningProjectID == project.persistentModelID,
+                                anotherRunning: runningProjectID != nil
+                                    && runningProjectID != project.persistentModelID,
                                 onPlay: {
-                                    if let running = runningEntries.first,
-                                       running.project?.persistentModelID != project.persistentModelID {
+                                    if let runningProjectID,
+                                       runningProjectID != project.persistentModelID {
                                         TimerActions.switchTo(project: project, currencyCode: currencyCode, in: modelContext)
                                     } else {
                                         TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)

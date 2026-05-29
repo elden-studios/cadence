@@ -137,8 +137,14 @@ private struct JumpBackInSection: View {
         RecentProjects.rank(from: recentEntries, limit: 5)
     }
 
+    /// The running project's ID (if any), via one named accessor instead of
+    /// re-traversing the running entry's relationship per card.
+    private var runningProjectID: PersistentIdentifier? {
+        runningEntries.first?.project?.persistentModelID
+    }
+
     private func isThisProjectRunning(_ project: Project) -> Bool {
-        runningEntries.first?.project?.persistentModelID == project.persistentModelID
+        runningProjectID == project.persistentModelID
     }
 
     var body: some View {
@@ -184,8 +190,8 @@ private struct JumpBackInSection: View {
             .buttonStyle(.plain)
 
             Button {
-                if let running = runningEntries.first,
-                   running.project?.persistentModelID != project.persistentModelID {
+                if let runningProjectID,
+                   runningProjectID != project.persistentModelID {
                     TimerActions.switchTo(project: project, currencyCode: currencyCode, in: modelContext)
                 } else {
                     TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
