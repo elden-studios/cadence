@@ -245,20 +245,40 @@ private struct ProjectBrowserRow: View {
     let onPlay: () -> Void
 
     var body: some View {
+        // Only the running row ticks: wrap just it in a TimelineView so its
+        // hours/earnings update live without churning the whole list per second.
+        Group {
+            if isRunning {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    rowContent(asOf: context.date)
+                }
+            } else {
+                rowContent(asOf: .now)
+            }
+        }
+        // NavigationLink lives in the background (hidden) so the whole row
+        // navigates without a mid-row chevron, and the play Button stays an
+        // independent tap target instead of fighting the link's gesture.
+        .background(
+            NavigationLink(destination: ProjectDetailView(project: project)) {
+                EmptyView()
+            }
+            .opacity(0)
+        )
+    }
+
+    @ViewBuilder
+    private func rowContent(asOf: Date) -> some View {
         HStack(spacing: 12) {
-            NavigationLink {
-                ProjectDetailView(project: project)
-            } label: {
-                HStack(spacing: 12) {
-                    Circle()
-                        .fill(project.client?.color.swiftUIColor ?? .blue)
-                        .frame(width: 10, height: 10)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(project.name)
-                        Text(statsLine)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(project.client?.color.swiftUIColor ?? .blue)
+                    .frame(width: 10, height: 10)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(project.name)
+                    Text(statsLine(asOf: asOf))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             Spacer()
@@ -278,8 +298,8 @@ private struct ProjectBrowserRow: View {
         }
     }
 
-    private var statsLine: String {
-        let stats = ProjectStats.compute(for: project)
+    private func statsLine(asOf: Date) -> String {
+        let stats = ProjectStats.compute(for: project, asOf: asOf)
         let hours = Int(stats.lifetimeSeconds / 3600)
         let mins = (Int(stats.lifetimeSeconds) % 3600) / 60
         let time = "\(hours)h \(String(format: "%02d", mins))m"
