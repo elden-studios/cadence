@@ -134,7 +134,7 @@ struct ProjectDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
         .background(
-            LinearGradient(colors: [.timerAccent, Color.timerAccent.opacity(0.85)],
+            LinearGradient(colors: [.timerAccent, .timerAccent.opacity(0.85)],
                            startPoint: .topLeading, endPoint: .bottomTrailing),
             in: .rect(cornerRadius: 18)
         )

@@ -116,7 +116,10 @@ struct WorkView: View {
     private var projectsList: some View {
         // Compute the grouping once per render (it also drives `filteredProjects`)
         // rather than recomputing for both the empty check and the list.
+        // `.searchable` is applied here (a stable container), not on the List,
+        // so the search bar persists when the no-results empty state replaces it.
         projectsListContent(groups: grouped)
+            .searchable(text: $search, prompt: "Search projects or clients")
     }
 
     @ViewBuilder
@@ -161,7 +164,6 @@ struct WorkView: View {
                     }
                 }
             }
-            .searchable(text: $search, prompt: "Search projects or clients")
         }
     }
 }
@@ -251,7 +253,7 @@ private struct ProjectBrowserRow: View {
                     .foregroundStyle(.white)
                     .frame(width: 30, height: 30)
                     .background(
-                        (isRunning ? Color.green : .timerAccent),
+                        (isRunning ? .green : .timerAccent),
                         in: .circle
                     )
             }
