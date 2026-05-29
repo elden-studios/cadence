@@ -10,6 +10,11 @@ struct ProjectEditorView: View {
 
     let client: Client
     let project: Project?
+    /// Called after a successful save, before this editor dismisses. Lets a host
+    /// that *pushed* the editor (e.g. the New Project picker sheet) dismiss the
+    /// whole flow rather than just popping back to itself. Defaults to nil so
+    /// existing sheet-presented callers are unaffected.
+    var onSaved: (() -> Void)? = nil
 
     @State private var name: String = ""
     @State private var hourlyRateInput: Double = 0
@@ -35,6 +40,14 @@ struct ProjectEditorView: View {
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 140)
+                    }
+                    if hourlyRateInput.isZero {
+                        Label(
+                            "A 0 rate tracks time but earns nothing. Set a rate to track earnings.",
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.orange)
                     }
                 }
             }
@@ -94,6 +107,13 @@ struct ProjectEditorView: View {
             modelContext.insert(new)
         }
         modelContext.saveOrLog("save project")
-        dismiss()
+        // `onSaved` (when provided) already dismisses the presenting sheet, so
+        // only fall back to a local dismiss() when there's no onSaved — calling
+        // both double-fires dismissal and can glitch the navigation animation.
+        if let onSaved {
+            onSaved()
+        } else {
+            dismiss()
+        }
     }
 }

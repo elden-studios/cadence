@@ -40,14 +40,21 @@ struct ProjectDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
+        // Sort + group once per real change, not per TimelineView tick: the
+        // order and month grouping are asOf-independent (only the per-row
+        // duration/amount values tick), so we hoist them out of the per-second
+        // content closure.
+        let sortedEntries = project.entries.sorted { $0.startedAt > $1.startedAt }
+        let groupedEntries = groupedByMonth(Array(sortedEntries.prefix(sessionLimit)))
+        let totalCount = sortedEntries.count
+        return ScrollView {
             Group {
                 if runningEntryForProject != nil {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        content(asOf: context.date)
+                        content(asOf: context.date, groupedEntries: groupedEntries, totalCount: totalCount)
                     }
                 } else {
-                    content(asOf: .now)
+                    content(asOf: .now, groupedEntries: groupedEntries, totalCount: totalCount)
                 }
             }
             .padding()
@@ -84,7 +91,7 @@ struct ProjectDetailView: View {
     }
 
     @ViewBuilder
-    private func content(asOf: Date) -> some View {
+    private func content(asOf: Date, groupedEntries: [(String, [TimeEntry])], totalCount: Int) -> some View {
         let stats = ProjectStats.compute(for: project, asOf: asOf)
         VStack(alignment: .leading, spacing: 20) {
             hero(stats: stats)
@@ -102,7 +109,7 @@ struct ProjectDetailView: View {
                 }
                 .buttonStyle(.bordered)
             }
-            recentSessions(asOf: asOf)
+            recentSessions(asOf: asOf, groupedEntries: groupedEntries, totalCount: totalCount)
             lifecycleButton()
         }
     }
@@ -127,7 +134,7 @@ struct ProjectDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
         .background(
-            LinearGradient(colors: [timerAccent, timerAccent.opacity(0.85)],
+            LinearGradient(colors: [.timerAccent, .timerAccent.opacity(0.85)],
                            startPoint: .topLeading, endPoint: .bottomTrailing),
             in: .rect(cornerRadius: 18)
         )
@@ -201,23 +208,22 @@ struct ProjectDetailView: View {
                     .padding(.vertical, 4)
             }
             .buttonStyle(.borderedProminent)
-            .tint(timerAccent)
+            .tint(.timerAccent)
         }
     }
 
     // MARK: Recent sessions
 
     @ViewBuilder
-    private func recentSessions(asOf: Date) -> some View {
-        let sorted = project.entries.sorted { $0.startedAt > $1.startedAt }
-        let shown = Array(sorted.prefix(sessionLimit))
-        VStack(alignment: .leading, spacing: 10) {
+    private func recentSessions(asOf: Date, groupedEntries: [(String, [TimeEntry])], totalCount: Int) -> some View {
+        let shownCount = groupedEntries.reduce(0) { $0 + $1.1.count }
+        LazyVStack(alignment: .leading, spacing: 10) {
             Text("Sessions").font(.headline)
-            if shown.isEmpty {
+            if shownCount == 0 {
                 Text("No time tracked yet.")
                     .font(.subheadline).foregroundStyle(.secondary)
             } else {
-                ForEach(groupedByMonth(shown), id: \.0) { month, entries in
+                ForEach(groupedEntries, id: \.0) { month, entries in
                     Text(month)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
@@ -225,8 +231,8 @@ struct ProjectDetailView: View {
                         sessionRow(entry, asOf: asOf)
                     }
                 }
-                if sorted.count > shown.count {
-                    Button("See all \(sorted.count) sessions") { sessionLimit = sorted.count }
+                if totalCount > shownCount {
+                    Button("See all \(totalCount) sessions") { sessionLimit = totalCount }
                         .font(.subheadline)
                 }
             }
@@ -296,13 +302,17 @@ struct ProjectDetailView: View {
     }
 
     private func groupedByMonth(_ entries: [TimeEntry]) -> [(String, [TimeEntry])] {
-        var order: [String] = []
-        var buckets: [String: [TimeEntry]] = [:]
+        let calendar = Calendar.current
+        var order: [DateComponents] = []
+        var buckets: [DateComponents: [TimeEntry]] = [:]
         for entry in entries {
-            let key = entry.startedAt.formatted(.dateTime.month(.wide).year())
-            if buckets[key] == nil { order.append(key); buckets[key] = [] }
-            buckets[key]?.append(entry)
+            let comps = calendar.dateComponents([.year, .month], from: entry.startedAt)
+            if buckets[comps] == nil { order.append(comps); buckets[comps] = [] }
+            buckets[comps]?.append(entry)
         }
-        return order.map { ($0, buckets[$0] ?? []) }
+        return order.map { comps in
+            let label = (calendar.date(from: comps) ?? .now).formatted(.dateTime.month(.wide).year())
+            return (label, buckets[comps] ?? [])
+        }
     }
 }

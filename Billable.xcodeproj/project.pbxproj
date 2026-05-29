@@ -30,6 +30,7 @@
 		475BB31EACE4C8818AAA73EF /* CurrentTimerWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E91171FBD2C8986707A0D7 /* CurrentTimerWidget.swift */; };
 		49D52608F66166AA6374F027 /* PaymentRemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784CFBF0D18A69982D67542A /* PaymentRemindersView.swift */; };
 		4AE8C117F5731A8705359060 /* CatchUpBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBADB4F0E80F455CCAE9BBEB /* CatchUpBanner.swift */; };
+		502D2CB4CDF9B2E982C61085 /* WorkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FE2A7B79A97F51D90807DB7 /* WorkView.swift */; };
 		54B2A96BFF44D4D7560DFFCE /* InvoicePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348BBD35CE9E77443AB397E5 /* InvoicePreviewView.swift */; };
 		5968C3A45765993AD87D0C98 /* InvoicePreviewLineItemEditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7200BC7FE89C2B41C10DBB39 /* InvoicePreviewLineItemEditUITests.swift */; };
 		5B3E36C7C4F81A453DD76FB0 /* BillableApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5120185E61165F6EB9DFFB00 /* BillableApp.swift */; };
@@ -94,6 +95,7 @@
 		0E47D1836002E521CEC4ABED /* TimelineScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineScreen.swift; sourceTree = "<group>"; };
 		11AC163D4E9461A58609DA71 /* BillableWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BillableWidgets.entitlements; sourceTree = "<group>"; };
 		1B2EF767AE53DA0B1D6D7CB4 /* BusinessProfileEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessProfileEditorView.swift; sourceTree = "<group>"; };
+		1FE2A7B79A97F51D90807DB7 /* WorkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkView.swift; sourceTree = "<group>"; };
 		21732C0D814DAE2B28FA1B62 /* Billable.storekit */ = {isa = PBXFileReference; path = Billable.storekit; sourceTree = "<group>"; };
 		2886369E15E77C0BF85347CE /* IntentRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentRegistration.swift; sourceTree = "<group>"; };
 		302F61C46763394ECD4E199B /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
@@ -191,6 +193,14 @@
 				67186A12889E18CA99C96468 /* ProjectEditorView.swift */,
 			);
 			path = Projects;
+			sourceTree = "<group>";
+		};
+		3CADAC7B9809F82B0B6A2EF7 /* Work */ = {
+			isa = PBXGroup;
+			children = (
+				1FE2A7B79A97F51D90807DB7 /* WorkView.swift */,
+			);
+			path = Work;
 			sourceTree = "<group>";
 		};
 		3CBDADD652505910C0AF3D8B /* Sources */ = {
@@ -429,6 +439,7 @@
 				9E9B26081D6EA34767178E76 /* Timeline */,
 				87E370309299FFC820621BD2 /* Timer */,
 				58E3895D0D37E88922B9E57E /* Today */,
+				3CADAC7B9809F82B0B6A2EF7 /* Work */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -605,6 +616,7 @@
 				02583F94F7865CCCDC462C8D /* TimerActions.swift in Sources */,
 				5C71AAA78052A9C57E4CC207 /* TimerActivityController.swift in Sources */,
 				0650D70379A6E945B693D897 /* TodayView.swift in Sources */,
+				502D2CB4CDF9B2E982C61085 /* WorkView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

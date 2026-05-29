@@ -43,8 +43,8 @@ struct RootView: View {
                     .tabItem { Label("Today", systemImage: "timer") }
                     .tag(0)
 
-                ClientsView()
-                    .tabItem { Label("Clients", systemImage: "person.2") }
+                WorkView()
+                    .tabItem { Label("Work", systemImage: "square.stack.3d.up") }
                     .tag(1)
 
                 InvoicesView(pendingPushTarget: $invoicesPendingTarget)
