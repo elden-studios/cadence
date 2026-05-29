@@ -96,14 +96,19 @@ struct WorkView: View {
         }
     }
 
-    private var grouped: [(id: PersistentIdentifier?, clientName: String, color: Color?, projects: [Project])] {
+    private var grouped: [ProjectGroup] {
         // Group by client identity (not name) so two clients sharing a name
         // don't collide into one section. Projects within a group keep the
         // @Query's name order (Dictionary(grouping:) preserves insertion order).
         let byClient = Dictionary(grouping: filteredProjects) { $0.client?.persistentModelID }
         return byClient.map { id, projects in
             let client = projects.first?.client
-            return (id, client?.name ?? "No client", client?.color.swiftUIColor, projects)
+            return ProjectGroup(
+                id: id,
+                clientName: client?.name ?? "No client",
+                color: client?.color.swiftUIColor,
+                projects: projects
+            )
         }
         .sorted { $0.clientName < $1.clientName }
     }
@@ -121,7 +126,7 @@ struct WorkView: View {
                 description: Text("No projects or clients match \"\(search)\"."))
         } else {
             List {
-                ForEach(grouped, id: \.id) { group in
+                ForEach(grouped) { group in
                     Section {
                         ForEach(group.projects) { project in
                             ProjectBrowserRow(
@@ -197,6 +202,16 @@ private struct NewProjectSheet: View {
             }
         }
     }
+}
+
+/// One client's projects in the Work browser. `Identifiable` by the client's
+/// persistent ID (nil for the "No client" bucket) so two clients sharing a
+/// display name remain distinct sections.
+private struct ProjectGroup: Identifiable {
+    let id: PersistentIdentifier?
+    let clientName: String
+    let color: Color?
+    let projects: [Project]
 }
 
 private struct ProjectBrowserRow: View {

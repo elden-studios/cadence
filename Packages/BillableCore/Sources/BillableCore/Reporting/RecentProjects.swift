@@ -7,6 +7,10 @@ public enum RecentProjects {
     /// Distinct, non-archived projects ordered by their most recent entry
     /// (newest first), capped at `limit`. Sorts internally, so the caller's
     /// fetch order doesn't matter.
+    ///
+    /// Intentionally NOT `@MainActor`: the widget extension calls this from a
+    /// non-isolated timeline context. It's a pure function over passed-in
+    /// values, so it's safe to call synchronously from any actor.
     public static func rank(from entries: [TimeEntry], limit: Int) -> [Project] {
         guard limit > 0 else { return [] }
         let sorted = entries.sorted { $0.startedAt > $1.startedAt }

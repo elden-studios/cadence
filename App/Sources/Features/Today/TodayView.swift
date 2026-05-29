@@ -119,12 +119,13 @@ private struct JumpBackInSection: View {
     }
 
     private static var recentDescriptor: FetchDescriptor<TimeEntry> {
-        // 60-day window (wider than StartTimerSheet's 30-day) so Today surfaces more resume candidates.
-        let cutoff = Date.now.addingTimeInterval(-60 * 24 * 3600)
+        // No `Date.now` predicate here: a @Query captures the descriptor once at
+        // view-init, which would freeze the cutoff. Instead fetch the most-recent
+        // entries (bounded) and apply a fresh sliding cutoff in `recents`.
         var d = FetchDescriptor<TimeEntry>(
-            predicate: #Predicate { $0.startedAt > cutoff },
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
+        d.fetchLimit = 200
         d.relationshipKeyPathsForPrefetching = [\.project]
         return d
     }
@@ -134,7 +135,10 @@ private struct JumpBackInSection: View {
     }
 
     private var recents: [Project] {
-        RecentProjects.rank(from: recentEntries, limit: 5)
+        // 60-day sliding window (wider than StartTimerSheet's 30-day), applied
+        // with a fresh `Date.now` each render so it isn't frozen at view init.
+        let cutoff = Date.now.addingTimeInterval(-60 * 24 * 3600)
+        return RecentProjects.rank(from: recentEntries.filter { $0.startedAt > cutoff }, limit: 5)
     }
 
     /// The running project's ID (if any), via one named accessor instead of
