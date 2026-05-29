@@ -34,8 +34,9 @@ struct InvoiceGeneratorView: View {
     @State private var permissionDeniedAlert = false
     @State private var invoiceAllResult: Int?
 
-    init(defaultClient: Client? = nil) {
+    init(defaultClient: Client? = nil, defaultProject: Project? = nil) {
         _selectedClient = State(initialValue: defaultClient)
+        _selectedProject = State(initialValue: defaultProject)
     }
 
     private var profile: BusinessProfile? { profiles.first }

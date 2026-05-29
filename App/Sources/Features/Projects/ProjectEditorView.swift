@@ -17,7 +17,6 @@ struct ProjectEditorView: View {
     @State private var notes: String = ""
 
     @State private var hasLoaded = false
-    @State private var showingCompleteConfirm = false
 
     var body: some View {
         Form {
@@ -36,8 +35,6 @@ struct ProjectEditorView: View {
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 140)
-                        Text(client.projects.first?.hourlyRate != nil ? "" : "")
-                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -45,15 +42,6 @@ struct ProjectEditorView: View {
             Section("Notes") {
                 TextField("Notes", text: $notes, axis: .vertical)
                     .lineLimit(2...8)
-            }
-
-            if let project, !project.isArchived {
-                Section {
-                    Button("Complete project") { showingCompleteConfirm = true }
-                        .frame(maxWidth: .infinity)
-                } footer: {
-                    Text("Marks the project complete and moves it to Archived. Logged time stays on past invoices and reports.")
-                }
             }
         }
         .navigationTitle(project == nil ? "New project" : "Edit project")
@@ -69,21 +57,6 @@ struct ProjectEditorView: View {
             }
         }
         .onAppear { loadIfNeeded() }
-        .confirmationDialog(
-            "Are you sure you're done with this project?",
-            isPresented: $showingCompleteConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Complete project", role: .destructive) {
-                if let project {
-                    project.isArchived = true
-                    project.updatedAt = .now
-                    modelContext.saveOrLog("complete project")
-                }
-                dismiss()
-            }
-            Button("Cancel", role: .cancel) {}
-        }
     }
 
     private func loadIfNeeded() {
