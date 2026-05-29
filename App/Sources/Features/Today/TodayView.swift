@@ -115,6 +115,8 @@ private struct JumpBackInSection: View {
     private static var runningDescriptor: FetchDescriptor<TimeEntry> {
         var d = FetchDescriptor<TimeEntry>(predicate: #Predicate { $0.endedAt == nil })
         d.fetchLimit = 1
+        // `runningProjectID` reads .project; prefetch it to avoid a lazy fault.
+        d.relationshipKeyPathsForPrefetching = [\.project]
         return d
     }
 
@@ -126,7 +128,9 @@ private struct JumpBackInSection: View {
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
         d.fetchLimit = 200
-        d.relationshipKeyPathsForPrefetching = [\.project]
+        // RecentProjects.rank traverses project.client?.isArchived; prefetch
+        // both hops to avoid N+1 faulting across the 200-entry window.
+        d.relationshipKeyPathsForPrefetching = [\.project, \.project?.client]
         return d
     }
 

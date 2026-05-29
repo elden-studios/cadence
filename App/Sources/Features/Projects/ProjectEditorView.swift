@@ -107,7 +107,13 @@ struct ProjectEditorView: View {
             modelContext.insert(new)
         }
         modelContext.saveOrLog("save project")
-        onSaved?()
-        dismiss()
+        // `onSaved` (when provided) already dismisses the presenting sheet, so
+        // only fall back to a local dismiss() when there's no onSaved — calling
+        // both double-fires dismissal and can glitch the navigation animation.
+        if let onSaved {
+            onSaved()
+        } else {
+            dismiss()
+        }
     }
 }

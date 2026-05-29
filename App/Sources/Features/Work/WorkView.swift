@@ -29,6 +29,8 @@ struct WorkView: View {
     private static var runningDescriptor: FetchDescriptor<TimeEntry> {
         var d = FetchDescriptor<TimeEntry>(predicate: #Predicate { $0.endedAt == nil })
         d.fetchLimit = 1
+        // `runningProjectID` reads .project; prefetch it to avoid a lazy fault.
+        d.relationshipKeyPathsForPrefetching = [\.project]
         return d
     }
 

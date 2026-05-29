@@ -107,7 +107,9 @@ struct StartTimerSheet: View {
             predicate: #Predicate { entry in entry.startedAt > cutoff },
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
-        descriptor.relationshipKeyPathsForPrefetching = [\.project]
+        // RecentProjects.rank traverses project.client?.isArchived; prefetch
+        // both hops to avoid N+1 faulting.
+        descriptor.relationshipKeyPathsForPrefetching = [\.project, \.project?.client]
         let entries = (try? modelContext.fetch(descriptor)) ?? []
         return RecentProjects.rank(from: entries, limit: 3)
     }
