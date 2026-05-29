@@ -90,9 +90,12 @@ struct WorkView: View {
         }
     }
 
-    private var grouped: [(client: String, projects: [Project])] {
+    private var grouped: [(clientName: String, color: Color?, projects: [Project])] {
         let byClient = Dictionary(grouping: filteredProjects) { $0.client?.name ?? "No client" }
-        return byClient.keys.sorted().map { ($0, byClient[$0] ?? []) }
+        return byClient.keys.sorted().map { name in
+            let projects = byClient[name] ?? []
+            return (name, projects.first?.client?.color.swiftUIColor, projects)
+        }
     }
 
     @ViewBuilder
@@ -108,8 +111,8 @@ struct WorkView: View {
                 description: Text("No projects or clients match \"\(search)\"."))
         } else {
             List {
-                ForEach(grouped, id: \.client) { group in
-                    Section(group.client) {
+                ForEach(grouped, id: \.clientName) { group in
+                    Section {
                         ForEach(group.projects) { project in
                             ProjectBrowserRow(
                                 project: project,
@@ -126,6 +129,13 @@ struct WorkView: View {
                                     }
                                 }
                             )
+                        }
+                    } header: {
+                        HStack(spacing: 8) {
+                            if let color = group.color {
+                                Circle().fill(color).frame(width: 8, height: 8)
+                            }
+                            Text(group.clientName)
                         }
                     }
                 }
@@ -173,7 +183,7 @@ private struct NewProjectSheet: View {
                 }
             }
             .navigationDestination(item: $selectedClient) { client in
-                ProjectEditorView(client: client, project: nil)
+                ProjectEditorView(client: client, project: nil, onSaved: { dismiss() })
             }
         }
     }

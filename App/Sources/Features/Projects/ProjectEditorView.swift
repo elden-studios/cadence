@@ -10,6 +10,11 @@ struct ProjectEditorView: View {
 
     let client: Client
     let project: Project?
+    /// Called after a successful save, before this editor dismisses. Lets a host
+    /// that *pushed* the editor (e.g. the New Project picker sheet) dismiss the
+    /// whole flow rather than just popping back to itself. Defaults to nil so
+    /// existing sheet-presented callers are unaffected.
+    var onSaved: (() -> Void)? = nil
 
     @State private var name: String = ""
     @State private var hourlyRateInput: Double = 0
@@ -102,6 +107,7 @@ struct ProjectEditorView: View {
             modelContext.insert(new)
         }
         modelContext.saveOrLog("save project")
+        onSaved?()
         dismiss()
     }
 }
