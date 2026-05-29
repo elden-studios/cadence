@@ -64,6 +64,22 @@ struct RecentProjectsTests {
         #expect(RecentProjects.rank(from: all, limit: 5).map(\.name) == ["B"])
     }
 
+    @Test("excludes projects whose parent client is archived")
+    func excludesArchivedClient() throws {
+        let (ctx, client) = try fixture()
+        let archivedClient = Client(name: "Old")
+        archivedClient.isArchived = true
+        ctx.insert(archivedClient)
+        let active = project(ctx, client, "Active")
+        let underArchived = Project(name: "Hidden", hourlyRate: 50, client: archivedClient)
+        ctx.insert(underArchived)
+        entry(ctx, active, at: t0)
+        entry(ctx, underArchived, at: t0.addingTimeInterval(100)) // more recent, but client archived
+        try ctx.save()
+        let all = try ctx.fetch(FetchDescriptor<TimeEntry>())
+        #expect(RecentProjects.rank(from: all, limit: 5).map(\.name) == ["Active"])
+    }
+
     @Test("caps at limit")
     func caps() throws {
         let (ctx, client) = try fixture()

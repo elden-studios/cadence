@@ -113,20 +113,26 @@ struct WorkView: View {
         .sorted { $0.clientName < $1.clientName }
     }
 
-    @ViewBuilder
     private var projectsList: some View {
+        // Compute the grouping once per render (it also drives `filteredProjects`)
+        // rather than recomputing for both the empty check and the list.
+        projectsListContent(groups: grouped)
+    }
+
+    @ViewBuilder
+    private func projectsListContent(groups: [ProjectGroup]) -> some View {
         if activeProjects.isEmpty {
             ContentUnavailableView {
                 Label("No projects yet", systemImage: "folder")
             } description: {
                 Text("Add a client and a project to start tracking.")
             }
-        } else if filteredProjects.isEmpty {
+        } else if groups.isEmpty {
             ContentUnavailableView("No results", systemImage: "magnifyingglass",
                 description: Text("No projects or clients match \"\(search)\"."))
         } else {
             List {
-                ForEach(grouped) { group in
+                ForEach(groups) { group in
                     Section {
                         ForEach(group.projects) { project in
                             ProjectBrowserRow(

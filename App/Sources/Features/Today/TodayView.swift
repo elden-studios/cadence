@@ -137,7 +137,8 @@ private struct JumpBackInSection: View {
     private var recents: [Project] {
         // 60-day sliding window (wider than StartTimerSheet's 30-day), applied
         // with a fresh `Date.now` each render so it isn't frozen at view init.
-        let cutoff = Date.now.addingTimeInterval(-60 * 24 * 3600)
+        // Calendar day math (not raw seconds) to stay correct across DST.
+        let cutoff = Calendar.current.date(byAdding: .day, value: -60, to: .now) ?? .now
         return RecentProjects.rank(from: recentEntries.filter { $0.startedAt > cutoff }, limit: 5)
     }
 
@@ -152,21 +153,24 @@ private struct JumpBackInSection: View {
     }
 
     var body: some View {
-        if !recents.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Jump back in")
-                    .font(.headline)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(recents) { project in
-                            card(project)
+        let projects = recents   // compute once per render (used twice below)
+        return Group {
+            if !projects.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Jump back in")
+                        .font(.headline)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(projects) { project in
+                                card(project)
+                            }
                         }
+                        .padding(.horizontal, 16)
                     }
-                    .padding(.horizontal, 16)
+                    // Cancel the parent's horizontal padding so cards scroll
+                    // edge-to-edge, while the inner padding keeps the initial inset.
+                    .padding(.horizontal, -16)
                 }
-                // Cancel the parent's horizontal padding so cards scroll
-                // edge-to-edge, while the inner padding keeps the initial inset.
-                .padding(.horizontal, -16)
             }
         }
     }

@@ -17,7 +17,9 @@ public enum RecentProjects {
         var seen = Set<PersistentIdentifier>()
         var ordered: [Project] = []
         for entry in sorted {
-            guard let project = entry.project, !project.isArchived else { continue }
+            guard let project = entry.project,
+                  !project.isArchived,
+                  project.client?.isArchived != true else { continue }
             if seen.insert(project.persistentModelID).inserted {
                 ordered.append(project)
                 if ordered.count == limit { break }

@@ -101,7 +101,8 @@ struct StartTimerSheet: View {
     }
 
     private var recentProjects: [Project] {
-        let cutoff = Date.now.addingTimeInterval(-30 * 24 * 3600)
+        // Calendar day math (not raw seconds) to stay correct across DST.
+        let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: .now) ?? .now
         var descriptor = FetchDescriptor<TimeEntry>(
             predicate: #Predicate { entry in entry.startedAt > cutoff },
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
