@@ -12,7 +12,7 @@ public enum RecentProjects {
     /// non-isolated timeline context. It's a pure function over passed-in
     /// values, so it's safe to call synchronously from any actor.
     public static func rank(from entries: [TimeEntry], limit: Int) -> [Project] {
-        guard limit > 0 else { return [] }
+        guard limit > 0, !entries.isEmpty else { return [] }
         let sorted = entries.sorted { $0.startedAt > $1.startedAt }
         var seen = Set<PersistentIdentifier>()
         var ordered: [Project] = []

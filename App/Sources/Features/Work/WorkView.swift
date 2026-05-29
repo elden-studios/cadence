@@ -89,10 +89,11 @@ struct WorkView: View {
     }
 
     private var filteredProjects: [Project] {
-        guard !search.isEmpty else { return activeProjects }
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return activeProjects }
         return activeProjects.filter {
-            $0.name.localizedCaseInsensitiveContains(search)
-            || ($0.client?.name.localizedCaseInsensitiveContains(search) ?? false)
+            $0.name.localizedCaseInsensitiveContains(query)
+            || ($0.client?.name.localizedCaseInsensitiveContains(query) ?? false)
         }
     }
 
