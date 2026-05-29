@@ -3,6 +3,18 @@ import SwiftData
 import UserNotifications
 import BillableCore
 
+/// Thin wrapper that wraps `ClientsListContent` in its own `NavigationStack`.
+/// The Work tab embeds `ClientsListContent` directly (it provides the stack),
+/// so this wrapper isn't currently mounted — it's kept as the standalone
+/// entry point per the original plan and for any future direct use / deep link.
+struct ClientsView: View {
+    var body: some View {
+        NavigationStack {
+            ClientsListContent()
+        }
+    }
+}
+
 struct ClientsListContent: View {
     @Environment(\.modelContext) private var modelContext
 

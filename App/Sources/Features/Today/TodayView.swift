@@ -158,7 +158,11 @@ private struct JumpBackInSection: View {
                             card(project)
                         }
                     }
+                    .padding(.horizontal, 16)
                 }
+                // Cancel the parent's horizontal padding so cards scroll
+                // edge-to-edge, while the inner padding keeps the initial inset.
+                .padding(.horizontal, -16)
             }
         }
     }

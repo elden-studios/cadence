@@ -96,12 +96,16 @@ struct WorkView: View {
         }
     }
 
-    private var grouped: [(clientName: String, color: Color?, projects: [Project])] {
-        let byClient = Dictionary(grouping: filteredProjects) { $0.client?.name ?? "No client" }
-        return byClient.keys.sorted().map { name in
-            let projects = byClient[name] ?? []
-            return (name, projects.first?.client?.color.swiftUIColor, projects)
+    private var grouped: [(id: PersistentIdentifier?, clientName: String, color: Color?, projects: [Project])] {
+        // Group by client identity (not name) so two clients sharing a name
+        // don't collide into one section. Projects within a group keep the
+        // @Query's name order (Dictionary(grouping:) preserves insertion order).
+        let byClient = Dictionary(grouping: filteredProjects) { $0.client?.persistentModelID }
+        return byClient.map { id, projects in
+            let client = projects.first?.client
+            return (id, client?.name ?? "No client", client?.color.swiftUIColor, projects)
         }
+        .sorted { $0.clientName < $1.clientName }
     }
 
     @ViewBuilder
@@ -117,7 +121,7 @@ struct WorkView: View {
                 description: Text("No projects or clients match \"\(search)\"."))
         } else {
             List {
-                ForEach(grouped, id: \.clientName) { group in
+                ForEach(grouped, id: \.id) { group in
                     Section {
                         ForEach(group.projects) { project in
                             ProjectBrowserRow(

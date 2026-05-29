@@ -41,7 +41,7 @@ struct ProjectEditorView: View {
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 140)
                     }
-                    if hourlyRateInput == 0 {
+                    if hourlyRateInput.isZero {
                         Label(
                             "A 0 rate tracks time but earns nothing. Set a rate to track earnings.",
                             systemImage: "exclamationmark.triangle.fill"
