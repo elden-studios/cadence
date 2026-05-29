@@ -36,6 +36,14 @@ struct ProjectEditorView: View {
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 140)
                     }
+                    if hourlyRateInput == 0 {
+                        Label(
+                            "A 0 rate tracks time but earns nothing. Set a rate to track earnings.",
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    }
                 }
             }
 
