@@ -208,18 +208,20 @@ public static func snapshot(
 
 Add private helpers `arSummary`, `performanceSummary`, `revenueTrend`, `groupings` as stubs that compile now and get real bodies/tests in Tasks 2–4. For `groupings`, lift the existing client/project grouping code from the current `snapshot` into a `private static func groupings(_:asOf:) -> ([ClientHours],[ProjectHours])`. For the three stubs, return empty/zero values **only long enough to compile**; their real implementations + tests land in Tasks 2–4, and Task 5 asserts the integrated result.
 
+**Keep the package compiling (do this in THIS task):** reshaping `Snapshot` breaks existing BillableCore tests that read the old fields, which would stop the whole test target from compiling. Migrate them now so the full suite compiles and passes at the end of Task 1. Find them: `grep -rn 'totalEarnings\|uninvoicedAmount\|earningsTrend\|invoiceLookup\|\.snapshot(' Tests/`. Update call-sites to `snapshot(entries:invoices:in:activeCurrency:)` (pass `invoices: []` for time-only tests); old field reads → `money.tracked` / `revenueTrend`; drop `uninvoicedAmount` assertions (now represented by `ar.outstanding`).
+
 Update the `Snapshot` struct to the reshaped version (Shared types). Remove the old fields (`totalEarnings`, `uninvoicedAmount`, `earningsTrend`, `WeeklyPoint`) — Task 6 updates `ReportsView` to the new fields, and the old report tests get migrated in Task 5.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Run the full suite to verify green**
 
-Run: `cd Packages/BillableCore && swift test --filter ReportsMoneySummaryTests`
-Expected: PASS.
+Run: `cd Packages/BillableCore && swift test 2>&1 | tail -8`
+Expected: full suite PASS (the new money test + the migrated existing tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Packages/BillableCore/Sources/BillableCore/Reporting/ReportsAggregator.swift Packages/BillableCore/Tests/BillableCoreTests/ReportsMoneyARTests.swift
-git commit -m "feat(reports): MoneySummary (tracked/invoiced/collected) + currency filter"
+git add Packages/BillableCore
+git commit -m "feat(reports): MoneySummary (tracked/invoiced/collected) + currency filter; reshape Snapshot; migrate report tests"
 ```
 
 ---
