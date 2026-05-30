@@ -10,6 +10,7 @@ struct TodayView: View {
 
     @State private var showingManualEntry = false
     @State private var editingEntry: TimeEntry?
+    @State private var enrichmentSnoozedThisSession = false
 
     var body: some View {
         NavigationStack {
@@ -19,25 +20,7 @@ struct TodayView: View {
                     CatchUpBanner()
                         .padding(.horizontal)
                         .padding(.top, 4)
-                    if showEmptyBusinessBanner {
-                        NavigationLink(destination: BusinessProfileEditorView()) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.orange)
-                                Text("Add your business name to send invoices")
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(12)
-                            .background(.orange.opacity(0.12), in: .rect(cornerRadius: 12))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal)
-                    }
+                    guidanceSection
                     JumpBackInSection()
                     TodaySummarySection(currencyCode: currencyCode)
                 }
@@ -96,8 +79,97 @@ struct TodayView: View {
         profiles.first?.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
     }
 
-    private var showEmptyBusinessBanner: Bool {
-        !BusinessProfile.canSendInvoice(profile: profiles.first)
+    private var profile: BusinessProfile? { profiles.first }
+
+    /// The single guidance element for Today, resolved by the pure
+    /// `TodayGuidance`. Inputs are derived here (the resolver never touches
+    /// SwiftData). Get-started is gated on onboarding being complete AND
+    /// first-setup not yet reached.
+    private var guidanceElement: TodayGuidance.Element {
+        let onboarded = profile?.onboardingCompletedAt != nil
+        // Before onboarding completes, suppress get-started/enrichment entirely
+        // (RootView is showing the onboarding screen anyway); only the rare
+        // name-missing banner can apply.
+        let hasActiveSetup = onboarded ? (profile?.firstSetupCompletedAt != nil) : true
+        return TodayGuidance.resolve(
+            hasName: BusinessProfile.canSendInvoice(profile: profile),
+            hasActiveSetup: hasActiveSetup,
+            isEnriched: profile?.isProfileEnriched ?? false,
+            enrichmentSnoozed: enrichmentSnoozedThisSession
+        )
+    }
+
+    @ViewBuilder
+    private var guidanceSection: some View {
+        switch guidanceElement {
+        case .nameBanner:
+            nameBanner
+        case .getStarted:
+            GetStartedSection(clients: allClients, currencyCode: currencyCode)
+                .padding(.horizontal)
+        case .enrichment:
+            enrichmentNudge
+        case .none:
+            EmptyView()
+        }
+    }
+
+    private var nameBanner: some View {
+        NavigationLink(destination: BusinessProfileEditorView()) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text("Add your business name to send invoices")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .background(.orange.opacity(0.12), in: .rect(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal)
+    }
+
+    /// §7b SECONDARY Today nudge (tier 3): an info card. "Not now" is
+    /// session-only — no persisted flag. `isProfileEnriched` is the durable
+    /// driver; the card returns next launch if the profile is still incomplete.
+    private var enrichmentNudge: some View {
+        HStack(alignment: .top, spacing: 10) {
+            NavigationLink(destination: BusinessProfileEditorView()) {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .foregroundStyle(.blue)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Finish your invoice details")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                        Text("Add your address and payment details so invoices look complete.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            Spacer(minLength: 0)
+            Button {
+                enrichmentSnoozedThisSession = true
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)        // ≥44pt touch target (spec §7b/§9)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss")
+        }
+        .padding(12)
+        .background(.blue.opacity(0.08), in: .rect(cornerRadius: 12))
+        .padding(.horizontal)
     }
 
 }
