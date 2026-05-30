@@ -891,12 +891,13 @@ Linked=false Tracking=false, purpose App Functionality. App Store submission is 
 
 No new code — this is the explicit "config actually parses + the manual gates that a simulator build cannot prove" checkpoint.
 
-- [ ] **Step 1: Full BillableCore suite**
+- [x] **Step 1: Full BillableCore suite**
 
 Run: `cd Packages/BillableCore && swift test`
 Expected: **PASS** — 287 tests (279 baseline + 8 `ActivationMetrics`), zero failures.
+RESULT: PASS — 296 tests in 50 suites, 0 failures (`ActivationMetrics` suite green; baseline higher than authored estimate after Plans 1–3 landed).
 
-- [ ] **Step 2: Full app build, both configurations**
+- [x] **Step 2: Full app build, both configurations**
 
 Run:
 ```bash
@@ -908,8 +909,9 @@ xcodebuild -project Billable.xcodeproj -scheme Billable \
   -configuration Release build
 ```
 Expected: **BUILD SUCCEEDED** for both — proves entitlements parse, both privacy manifests bundle, and the DEBUG metrics surface is excluded from Release.
+RESULT: BUILD SUCCEEDED (Debug + Release). Confirmed `PrivacyInfo.xcprivacy` bundled in `Billable.app/`, `PlugIns/BillableWidgets.appex/`, and the `BillableCore_BillableCore.bundle` (nested in both) for BOTH configurations; Release code-signs the data-protection entitlement on app + widget.
 
-- [ ] **Step 3: Dev-credit UI test (final confirmation)**
+- [x] **Step 3: Dev-credit UI test (final confirmation)**
 
 Run:
 ```bash
@@ -918,8 +920,9 @@ xcodebuild -project Billable.xcodeproj -scheme Billable \
   -only-testing:BillableUITests/SettingsAboutUITests test
 ```
 Expected: **PASS**.
+RESULT: PASS — `test_settingsAbout_showsDeveloperAttribution` found "Elden Studios Company" + the contact email.
 
-- [ ] **Step 4: Regression-guard the preserved UI tests (no collateral damage)**
+- [x] **Step 4: Regression-guard the preserved UI tests (no collateral damage)**
 
 Run:
 ```bash
@@ -929,6 +932,7 @@ xcodebuild -project Billable.xcodeproj -scheme Billable \
   -only-testing:BillableUITests/InvoicePreviewLineItemEditUITests test
 ```
 Expected: **PASS** — Plan-4 changes (a string, config, a DEBUG view) don't touch the launch tagline (`Track hours.\nSend invoices.` + `--ui-test-show-onboarding`) or the invoice-preview flow.
+RESULT: PASS — 3 tests, 0 failures (LaunchTaglineUITests ×2 + InvoicePreviewLineItemEditUITests ×1).
 
 - [ ] **Step 5: Record the MANUAL gates the controller must execute before ship (NOT automatable here)**
 
@@ -938,7 +942,7 @@ These are the real release gates this plan sets up but cannot itself prove (spec
   3. **On-device data-protection sanity (optional but cheap):** install to a real locked device, confirm the lock-screen/home-screen widget still renders after the screen locks (proves `…CompleteUntilFirstUserAuthentication` didn't break the widget's shared-store read).
   4. **ASC App Analytics baseline snapshot** (spec §14 Tier-0) BEFORE this version ships — the pre-redesign retention/activation baseline is destroyed on release.
 
-- [ ] **Step 6: Stop — Plan 4 complete**
+- [x] **Step 6: Stop — Plan 4 complete**
 
 Plan 4 is done: dev-credit fixed (UI-test-locked), Tier-1 activation metrics computed on-device + readable behind the DEBUG flag (privacy-pure, unit-tested), Data-Protection entitlement on app + widget, and `PrivacyInfo.xcprivacy` on all three targets (build-verified; App Store validation/submission is the real gate, named in Step 5). No `privacy.md` change — nothing leaves the device.
 
