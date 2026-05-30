@@ -35,6 +35,13 @@ struct SettingsView: View {
                                 Text("\(profile.currencyCode) · Next \(profile.previewNextInvoiceNumber)")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                if !profile.isProfileEnriched {
+                                    // Its own Text (not a "· "-glued fragment) so VoiceOver
+                                    // reads a discrete status, not a run-on line (spec §6).
+                                    Text("Incomplete")
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                }
                             }
                         } else {
                             VStack(alignment: .leading, spacing: 4) {
