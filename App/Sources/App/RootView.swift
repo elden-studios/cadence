@@ -82,6 +82,15 @@ struct RootView: View {
             }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .active else { return }
+                // Profile upkeep + onboarding re-eval on the SAME foreground seam as
+                // badge/notification resync. Re-evaluating shouldShow here means a
+                // completion synced from another device dismisses onboarding without a
+                // relaunch. The --ui-test-show-onboarding force-show is preserved so
+                // tagline/onboarding UI tests stay deterministic.
+                BusinessProfileMaintenance.run(in: modelContext)
+                if !CommandLine.arguments.contains("--ui-test-show-onboarding") {
+                    needsOnboarding = OnboardingFlags.shouldShow(in: modelContext)
+                }
                 Task {
                     let scheduler = Scheduler(
                         center: UNUserNotificationCenter.current(),

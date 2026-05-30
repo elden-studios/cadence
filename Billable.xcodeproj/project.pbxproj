@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		00137A9F89BDC48EBE9DC927 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DB4C0FB23F77AFC443876011 /* Assets.xcassets */; };
 		E3FA75E6B402FBF0BB1A6EDF /* EntityType+Presentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A01836A24B68902023D4F7 /* EntityType+Presentation.swift */; };
+		5FA9EA73F37B0416C02CBA71 /* BusinessProfileMaintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B1643DB590F66D579E365D /* BusinessProfileMaintenance.swift */; };
 		02583F94F7865CCCDC462C8D /* TimerActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F93E4BD359430AA62CB60E /* TimerActions.swift */; };
 		0650D70379A6E945B693D897 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FB284DA23487FF50AD7AFF /* TodayView.swift */; };
 		0778280DE88787CCB974D010 /* StartTimerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E613D2E8B373B5C6EDBF0A4C /* StartTimerSheet.swift */; };
@@ -139,6 +140,7 @@
 		C4E91171FBD2C8986707A0D7 /* CurrentTimerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentTimerWidget.swift; sourceTree = "<group>"; };
 		CABC4787E325D1EE2FD16329 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		C7A01836A24B68902023D4F7 /* EntityType+Presentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EntityType+Presentation.swift"; sourceTree = "<group>"; };
+		A6B1643DB590F66D579E365D /* BusinessProfileMaintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessProfileMaintenance.swift; sourceTree = "<group>"; };
 		CFAB3A0CB21692199A18C94A /* TimerActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActivityController.swift; sourceTree = "<group>"; };
 		D72980328448F3925BF44ACB /* CurrencyPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyPickerView.swift; sourceTree = "<group>"; };
 		DB4C0FB23F77AFC443876011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -397,6 +399,14 @@
 			path = Presentation;
 			sourceTree = "<group>";
 		};
+		9C272322EAA25252BB093180 /* Maintenance */ = {
+			isa = PBXGroup;
+			children = (
+				A6B1643DB590F66D579E365D /* BusinessProfileMaintenance.swift */,
+			);
+			path = Maintenance;
+			sourceTree = "<group>";
+		};
 		BD16A0569E45B706C438C43C /* Sources */ = {
 			isa = PBXGroup;
 			children = (
@@ -404,6 +414,7 @@
 				F910066D040878FE8AA41098 /* Features */,
 				0662F4701E06673016644274 /* Intents */,
 				89CC7F5CEA7630E592D7B62C /* LiveActivity */,
+				9C272322EAA25252BB093180 /* Maintenance */,
 				6ED964179D32024FE5ACEA68 /* Presentation */,
 				B53F2F0A7C034C438808B2E1 /* Shared */,
 				89FBA775878A23F16FB91A27 /* Theme */,
@@ -594,6 +605,7 @@
 				93ACAA836A659BAFF84EC508 /* AppDelegate.swift in Sources */,
 				5B3E36C7C4F81A453DD76FB0 /* BillableApp.swift in Sources */,
 				2D0A1664F829479F98BCF429 /* BusinessProfileEditorView.swift in Sources */,
+				5FA9EA73F37B0416C02CBA71 /* BusinessProfileMaintenance.swift in Sources */,
 				4AE8C117F5731A8705359060 /* CatchUpBanner.swift in Sources */,
 				CB24424A092E9FB3F14CCB6E /* ClientDetailView.swift in Sources */,
 				D6C88C7178DAC48161ACBF43 /* ClientEditorView.swift in Sources */,

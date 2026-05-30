@@ -50,6 +50,12 @@ struct BillableApp: App {
                 }
                 self.container = appGroup
             } else {
+                // UI-test support: `--reset-store` wipes the App Group store files so
+                // a from-empty onboarding run is deterministic across dirty simulators.
+                // Test-only flag; scoped to the Billable.store files in the group.
+                if CommandLine.arguments.contains("--reset-store") {
+                    Self.resetAppGroupStore("group.com.eldenstudios.billable")
+                }
                 // Production: try CloudKit + App Group; gracefully degrades to
                 // App-Group-only when CloudKit entitlements aren't active.
                 self.container = try BillableModelContainer.appGroup(
@@ -83,6 +89,10 @@ struct BillableApp: App {
     private func performStartupWiring() {
         // Repair any stale (cross-day) or legacy active timer session before the UI reads it.
         try? TimerService.reconcileActiveSessionOnLaunch(in: container.mainContext)
+        // Profile singleton upkeep: stamp first-setup + converge duplicate profiles
+        // (the stable-count delete guard lives in BusinessProfileMaintenance). Same
+        // launch seam as the timer-session repair above.
+        BusinessProfileMaintenance.run(in: container.mainContext)
         AppDelegate.sharedRouter = notificationRouter
         AppDelegate.sharedModelContext = container.mainContext
         AppDelegate.sharedSchedulerFactory = { [container] in
