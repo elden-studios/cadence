@@ -75,6 +75,23 @@ struct InvoiceGeneratorView: View {
             && Self.canSendInvoice(profile: profile)
     }
 
+    /// §7b conditional copy: name which half is missing, or both. `isProfileEnriched`
+    /// requires a non-blank address AND `hasBankDetails`; mirror those two checks.
+    private func enrichmentPromptMessage(for profile: BusinessProfile) -> String {
+        let hasAddress = !profile.address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasBank = profile.hasBankDetails
+        switch (hasAddress, hasBank) {
+        case (false, false):
+            return "Add your address and payment details so this invoice looks complete."
+        case (false, true):
+            return "Add your address so this invoice looks complete."
+        case (true, false):
+            return "Add your payment details so this invoice looks complete."
+        case (true, true):
+            return ""   // unreachable: !isProfileEnriched implies at least one is missing
+        }
+    }
+
     private var saveDisabled: Bool {
         selectedClient == nil || profile == nil || savingRecurrence
     }
@@ -192,6 +209,28 @@ struct InvoiceGeneratorView: View {
                     }
                 } header: {
                     Text("Recurring")
+                }
+
+                if let profile, !profile.isProfileEnriched, Self.canSendInvoice(profile: profile) {
+                    Section {
+                        NavigationLink {
+                            BusinessProfileEditorView()
+                        } label: {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "doc.text.magnifyingglass")
+                                    .foregroundStyle(.blue)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Complete your invoice details")
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(.primary)
+                                    Text(enrichmentPromptMessage(for: profile))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .accessibilityIdentifier("invoiceGenerator.enrichmentPrompt")
+                    }
                 }
 
                 if !Self.canSendInvoice(profile: profile) {
