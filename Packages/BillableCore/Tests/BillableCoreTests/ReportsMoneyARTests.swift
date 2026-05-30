@@ -75,3 +75,16 @@ struct ReportsARSummaryTests {
         #expect(snap.ar.avgDaysToPay == 25)          // only the one paid invoice
     }
 }
+
+@Suite("ReportsAggregator performance")
+struct ReportsPerformanceTests {
+    @Test("effective rate = tracked/totalHours; utilization = billable/total; nil-guard at zero hours")
+    func performance() {
+        let perf = ReportsAggregator.performanceSummary(tracked: 800, totalHours: 10, billableHours: 8)
+        #expect(perf.effectiveRate == 80)            // 800 / 10
+        #expect(perf.utilization == 0.8)             // 8 / 10
+        let zero = ReportsAggregator.performanceSummary(tracked: 0, totalHours: 0, billableHours: 0)
+        #expect(zero.effectiveRate == nil)
+        #expect(zero.utilization == nil)
+    }
+}

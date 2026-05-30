@@ -253,7 +253,10 @@ public enum ReportsAggregator {
     }
 
     static func performanceSummary(tracked: Decimal, totalHours: Decimal, billableHours: Decimal) -> Performance {
-        Performance(effectiveRate: nil, utilization: nil)
+        guard totalHours > 0 else { return Performance(effectiveRate: nil, utilization: nil) }
+        let rate = tracked / totalHours
+        let util = (billableHours as NSDecimalNumber).doubleValue / (totalHours as NSDecimalNumber).doubleValue
+        return Performance(effectiveRate: rate, utilization: util)
     }
 
     private static func revenueTrend(_ invoices: [Invoice], range: TimeRange,
