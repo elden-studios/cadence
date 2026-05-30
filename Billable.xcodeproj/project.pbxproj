@@ -54,6 +54,8 @@
 		C2262AA7F35DC1505C63AC40 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD383FD631A4DEA4B774CA4C /* DiagnosticsView.swift */; };
 		CB24424A092E9FB3F14CCB6E /* ClientDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70D5726F1FA7DA14C4B5B011 /* ClientDetailView.swift */; };
 		CD8FFD9FDBE064528DE473F3 /* Billable.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 21732C0D814DAE2B28FA1B62 /* Billable.storekit */; };
+		1CC3976A071CB1909BE26632 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A1911E709F2863D850080F88 /* PrivacyInfo.xcprivacy */; };
+		EE8465E7CDE01BDCD62334FE /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F7267510D74584DF16EEB1DF /* PrivacyInfo.xcprivacy */; };
 		CE99BEFA8F985754461255B2 /* RecurringRulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E465117F26AD0FBA4BB72F29 /* RecurringRulesView.swift */; };
 		D6C88C7178DAC48161ACBF43 /* ClientEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EF35F789A0B7D626AECE892 /* ClientEditorView.swift */; };
 		E002CC9D3FAFAAFFB473954B /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABC4787E325D1EE2FD16329 /* OnboardingView.swift */; };
@@ -103,6 +105,8 @@
 		1B2EF767AE53DA0B1D6D7CB4 /* BusinessProfileEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessProfileEditorView.swift; sourceTree = "<group>"; };
 		1FE2A7B79A97F51D90807DB7 /* WorkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkView.swift; sourceTree = "<group>"; };
 		21732C0D814DAE2B28FA1B62 /* Billable.storekit */ = {isa = PBXFileReference; path = Billable.storekit; sourceTree = "<group>"; };
+		A1911E709F2863D850080F88 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		F7267510D74584DF16EEB1DF /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		2886369E15E77C0BF85347CE /* IntentRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentRegistration.swift; sourceTree = "<group>"; };
 		302F61C46763394ECD4E199B /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		348BBD35CE9E77443AB397E5 /* InvoicePreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoicePreviewView.swift; sourceTree = "<group>"; };
@@ -270,6 +274,7 @@
 				DB4C0FB23F77AFC443876011 /* Assets.xcassets */,
 				6B4CE4F3496BC81EE3278AA8 /* Billable.entitlements */,
 				21732C0D814DAE2B28FA1B62 /* Billable.storekit */,
+				A1911E709F2863D850080F88 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -439,6 +444,7 @@
 			children = (
 				A2CB4838C74C817A55DDA825 /* Assets.xcassets */,
 				11AC163D4E9461A58609DA71 /* BillableWidgets.entitlements */,
+				F7267510D74584DF16EEB1DF /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -596,6 +602,7 @@
 			files = (
 				00137A9F89BDC48EBE9DC927 /* Assets.xcassets in Resources */,
 				CD8FFD9FDBE064528DE473F3 /* Billable.storekit in Resources */,
+				1CC3976A071CB1909BE26632 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -604,6 +611,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F8B9ABD63F4371F7F28F6E3B /* Assets.xcassets in Resources */,
+				EE8465E7CDE01BDCD62334FE /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
