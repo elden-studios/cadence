@@ -6,6 +6,12 @@ import SwiftData
 /// Stored in SwiftData so it syncs across the user's devices via CloudKit.
 @Model
 public final class BusinessProfile {
+    /// Locked count guarding `BusinessProfileStore.copyUserFields`. Bump intentionally when
+    /// adding/removing a stored property (and update copyUserFields if it's a user field).
+    /// 26 declared `var`s + 2 SwiftData `@Model`-synthesized members (verified: adding a
+    /// stored property bumps `Mirror(...).children.count` by one, so this guard is real).
+    static let expectedStoredPropertyCount = 28
+
     public var name: String
     public var address: String
     public var email: String
