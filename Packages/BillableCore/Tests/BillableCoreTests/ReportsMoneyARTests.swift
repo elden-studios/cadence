@@ -88,3 +88,25 @@ struct ReportsPerformanceTests {
         #expect(zero.utilization == nil)
     }
 }
+
+@Suite("ReportsAggregator trend")
+struct ReportsTrendTests {
+    @Test("Year range buckets invoiced totals by month")
+    func trendByMonth() {
+        let cal = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        func monthsAgo(_ n: Int) -> Date { cal.date(byAdding: .month, value: -n, to: now)! }
+        let invoices = [
+            makeInvoice(total: 100, status: .sent, issued: now, due: now),
+            makeInvoice(total: 50,  status: .paid, issued: now, due: now, paid: now),
+            makeInvoice(total: 200, status: .sent, issued: monthsAgo(2), due: monthsAgo(2)),
+            makeInvoice(total: 999, status: .draft, issued: now, due: now), // excluded
+        ]
+        let snap = ReportsAggregator.snapshot(entries: [], invoices: invoices, in: .thisYear,
+                                              activeCurrency: "USD", referenceDate: now, calendar: cal)
+        #expect(snap.trendBucket == .month)
+        // current month bucket = 150 (100 + 50), the draft excluded
+        let thisMonthBucket = snap.revenueTrend.first { cal.isDate($0.bucketStart, equalTo: now, toGranularity: .month) }
+        #expect(thisMonthBucket?.amount == 150)
+    }
+}

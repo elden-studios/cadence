@@ -262,6 +262,30 @@ public enum ReportsAggregator {
     private static func revenueTrend(_ invoices: [Invoice], range: TimeRange,
                                      bounds: ClosedRange<Date>, asOf now: Date,
                                      calendar: Calendar) -> (points: [TrendPoint], bucket: TrendBucket) {
-        ([], .month)
+        let bucket: TrendBucket = {
+            switch range { case .thisWeek: return .day; case .thisMonth: return .week
+                           case .thisYear, .allTime: return .month }
+        }()
+        let comp: Calendar.Component = (bucket == .day) ? .day : (bucket == .week ? .weekOfYear : .month)
+
+        let billed = invoices.filter { $0.status != .draft }
+        // For allTime, span earliest issued → now; else span the range bounds.
+        let lower = (range == .allTime) ? (billed.map(\.issuedAt).min() ?? now) : bounds.lowerBound
+        let upper = (range == .allTime) ? now : min(bounds.upperBound, now)
+        guard lower <= upper,
+              let firstStart = calendar.dateInterval(of: comp, for: lower)?.start else { return ([], bucket) }
+
+        var points: [TrendPoint] = []
+        var cursor = firstStart
+        var guardCount = 0
+        while cursor <= upper && guardCount < 400 {
+            guard let next = calendar.date(byAdding: comp, value: 1, to: cursor) else { break }
+            let amount = billed
+                .filter { $0.issuedAt >= cursor && $0.issuedAt < next }
+                .reduce(Decimal(0)) { $0 + $1.total }
+            points.append(TrendPoint(id: cursor, bucketStart: cursor, amount: amount))
+            cursor = next; guardCount += 1
+        }
+        return (points, bucket)
     }
 }
