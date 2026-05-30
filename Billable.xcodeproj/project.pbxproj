@@ -37,6 +37,7 @@
 		54B2A96BFF44D4D7560DFFCE /* InvoicePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348BBD35CE9E77443AB397E5 /* InvoicePreviewView.swift */; };
 		5968C3A45765993AD87D0C98 /* InvoicePreviewLineItemEditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7200BC7FE89C2B41C10DBB39 /* InvoicePreviewLineItemEditUITests.swift */; };
 		7303CC411C6EC0E569B85BDB /* OnboardingEntityTypeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9CD3173C3CB0C4E7DF290F /* OnboardingEntityTypeUITests.swift */; };
+		4DE2729660A8A121D51A9897 /* GetStartedChecklistUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F15DCBBD1C5A2CA66E390FB /* GetStartedChecklistUITests.swift */; };
 		5B3E36C7C4F81A453DD76FB0 /* BillableApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5120185E61165F6EB9DFFB00 /* BillableApp.swift */; };
 		5C71AAA78052A9C57E4CC207 /* TimerActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFAB3A0CB21692199A18C94A /* TimerActivityController.swift */; };
 		68BDEEB6CF05CC4EC00B86B5 /* RunningTimerCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE9B6C751BA214067517AB7 /* RunningTimerCard.swift */; };
@@ -117,6 +118,7 @@
 		70D5726F1FA7DA14C4B5B011 /* ClientDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientDetailView.swift; sourceTree = "<group>"; };
 		7200BC7FE89C2B41C10DBB39 /* InvoicePreviewLineItemEditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoicePreviewLineItemEditUITests.swift; sourceTree = "<group>"; };
 		AE9CD3173C3CB0C4E7DF290F /* OnboardingEntityTypeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingEntityTypeUITests.swift; sourceTree = "<group>"; };
+		0F15DCBBD1C5A2CA66E390FB /* GetStartedChecklistUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetStartedChecklistUITests.swift; sourceTree = "<group>"; };
 		724FB2203374655998BDFC2A /* ClientsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientsView.swift; sourceTree = "<group>"; };
 		768AE800926A4803021129AC /* BillableUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BillableUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		784CFBF0D18A69982D67542A /* PaymentRemindersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentRemindersView.swift; sourceTree = "<group>"; };
@@ -285,6 +287,7 @@
 			children = (
 				7200BC7FE89C2B41C10DBB39 /* InvoicePreviewLineItemEditUITests.swift */,
 				AE9CD3173C3CB0C4E7DF290F /* OnboardingEntityTypeUITests.swift */,
+				0F15DCBBD1C5A2CA66E390FB /* GetStartedChecklistUITests.swift */,
 				99E489F7B0F9B68D418ED560 /* LaunchTaglineUITests.swift */,
 				591084DA183D854DBB380551 /* NotificationTapFlowUITests.swift */,
 				A9B9A55293CE419E21F6C2DE /* SettingsAboutUITests.swift */,
@@ -668,6 +671,7 @@
 			files = (
 				5968C3A45765993AD87D0C98 /* InvoicePreviewLineItemEditUITests.swift in Sources */,
 				7303CC411C6EC0E569B85BDB /* OnboardingEntityTypeUITests.swift in Sources */,
+				4DE2729660A8A121D51A9897 /* GetStartedChecklistUITests.swift in Sources */,
 				144AE35D12448F09749125F9 /* LaunchTaglineUITests.swift in Sources */,
 				220427E9DC4EDF77A52184D4 /* NotificationTapFlowUITests.swift in Sources */,
 				19A13F112D8EAFFECDE19C17 /* SettingsAboutUITests.swift in Sources */,
