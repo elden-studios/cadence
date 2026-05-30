@@ -3,7 +3,7 @@
 - **Date:** 2026-05-30
 - **Branch:** `feature/onboarding-entity-type` (forked from `feature/project-detail-ia` @ `692b9e4`)
 - **Status:** **v4 — hardened by two 5-lens review rounds** (R1: logic/product/market/engineering/UI-UX; R2: security/resilience/i18n/analytics/maintainability). All blockers + majors folded in.
-- **Market context:** US-first, ships globally (175 countries), **English-only today** (no String Catalog — see §11).
+- **Market context:** US-first, distributed on the App Store; **English-only by product decision** — the release is English-only and localization is out of scope (see §11).
 - **Confidence:** v3 scored ~70% as-written; R2 exposed resilience at 45% (2 new blockers). This v4 addresses them; honest target ~95% (see §15).
 
 ## 1. Goal
@@ -118,9 +118,9 @@ Prompt contrast ≥0.55 (specified fix). Touch ≥44pt / spacing ≥8pt. Entity 
 
 None to tax/PDF math. The §7b invoice-time prompt is additive generator UI. No change to `Invoice`/`InvoiceBuilder`/`InvoiceTemplate`.
 
-## 11. Localization posture (honest)
+## 11. Localization posture
 
-**The app is English-only (no String Catalog; `knownRegions = en`); broad localization is a tracked future epic — NOT this spec.** New strings are English literals centralized in `EntityType+Presentation` + the views. Copy is written **translation-shaped** (single clause, no contractions in load-bearing copy, no mid-sentence name interpolation, no `x ? "" : "s"` plurals, no glued fragments). RTL: new layouts use semantic `.leading`/`.trailing` (mostly auto-mirroring later); the pre-existing hero `.offset(x:50,y:22)` is a known RTL-latent item (out of scope). Currency/number/date formatting already locale-correct (`.currency(code:)`, `.number`, `.dateTime`).
+**Product decision (confirmed by owner): Cadence ships ENGLISH-ONLY to the App Store. Localization is not planned for this release and is explicitly out of scope.** No String Catalog; `knownRegions = en`. New strings are plain English literals, centralized in `EntityType+Presentation` + the views (centralization is for DRY/maintainability, not i18n). Copy is still written translation-shaped (single clause, no glued fragments, no `x ? "" : "s"` plurals) as zero-cost future insurance — no further i18n work in scope. Currency/number/date formatting is already locale-correct (`.currency(code:)`, `.number`, `.dateTime`), which is independent of UI-string localization. RTL is not in scope.
 
 ## 12. Developer credit fix
 
@@ -137,7 +137,7 @@ None to tax/PDF math. The §7b invoice-time prompt is additive generator UI. No 
 Activation is the redesign's justification, so make it observable without breaking the privacy stance:
 - **Tier 0 (free, do BEFORE shipping — the baseline is destroyed on release):** snapshot App Store Connect → App Analytics D1/D7/D28 retention, sessions/active device, deletions, crashes (trailing 4–8 wks). Validation is **sequential before/after, not A/B** (one onboarding per version) — state this honestly.
 - **Tier 1 (½ day, on-device, no transmission — within privacy.md):** derive from existing SwiftData + the new latches/`createdAt`: entity-type split, activation-reached (first TimeEntry), time-to-first-timer/project/invoice, quick-start-vs-checklist, enrichment conversion (Today vs invoice-time).
-- **Tier 2 (opt-in minimal telemetry):** **a product decision that changes `privacy.md`** — default OFF / out of scope unless explicitly chosen.
+- **Tier 2 (opt-in minimal telemetry):** **out of scope — owner confirmed privacy-pure** (Tier 0 + 1 only; no data leaves the device; no change to `privacy.md`).
 
 ## 15. Confidence & residual risk
 
