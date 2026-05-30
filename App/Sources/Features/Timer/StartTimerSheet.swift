@@ -10,7 +10,7 @@ struct StartTimerSheet: View {
 
     @Query(filter: #Predicate<Client> { !$0.isArchived }, sort: \Client.name)
     private var clients: [Client]
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
     private var currencyCode: String {
         profiles.first?.currencyCode ?? Locale.current.currency?.identifier ?? "USD"

@@ -137,7 +137,7 @@ struct ClientDetailView: View {
 private struct ProjectRow: View {
     let project: Project
 
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
     private var currencyCode: String {
         profiles.first?.currencyCode

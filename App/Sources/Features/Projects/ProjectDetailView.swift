@@ -8,7 +8,7 @@ struct ProjectDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
     @Query(Self.runningDescriptor) private var runningEntries: [TimeEntry]
 
     @State private var showingEdit = false

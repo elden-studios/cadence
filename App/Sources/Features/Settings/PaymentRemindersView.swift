@@ -7,7 +7,7 @@ import BillableCore
 struct PaymentRemindersView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var configs: [ReminderConfig]
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
     private var currencyCode: String {
         profiles.first?.currencyCode ?? "USD"

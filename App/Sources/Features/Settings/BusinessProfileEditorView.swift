@@ -9,7 +9,7 @@ struct BusinessProfileEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
     @State private var name: String = ""
     @State private var address: String = ""

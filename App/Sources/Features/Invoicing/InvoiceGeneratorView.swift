@@ -12,7 +12,7 @@ struct InvoiceGeneratorView: View {
 
     @Query(filter: #Predicate<Client> { !$0.isArchived }, sort: \Client.name)
     private var clients: [Client]
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
     @State private var selectedClient: Client?
     @State private var selectedProject: Project?

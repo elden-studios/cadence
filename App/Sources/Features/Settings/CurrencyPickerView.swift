@@ -8,7 +8,7 @@ import BillableCore
 /// `BusinessProfile.defaultForCurrentLocale()`.
 struct CurrencyPickerView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
     @State private var selection: String =
         Locale.current.currency?.identifier ?? "USD"

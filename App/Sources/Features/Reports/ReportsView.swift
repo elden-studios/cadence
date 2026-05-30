@@ -10,7 +10,7 @@ struct ReportsView: View {
 
     @Query private var allEntries: [TimeEntry]
     @Query private var allInvoices: [Invoice]
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
     @State private var range: ReportsAggregator.TimeRange = .thisMonth
     @State private var showingShareCSV = false

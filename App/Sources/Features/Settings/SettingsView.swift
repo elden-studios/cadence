@@ -4,7 +4,7 @@ import StoreKit
 import BillableCore
 
 struct SettingsView: View {
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
     @State private var showingPaywall = false
     @State private var showingManageSubscriptions = false
     private var subscriptions = SubscriptionManager.shared

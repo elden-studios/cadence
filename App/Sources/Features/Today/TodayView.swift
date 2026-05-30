@@ -6,7 +6,7 @@ struct TodayView: View {
     @Environment(\.modelContext) private var modelContext
 
     @Query private var allClients: [Client]
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
     @State private var showingManualEntry = false
     @State private var editingEntry: TimeEntry?
@@ -108,7 +108,7 @@ struct TodayView: View {
 
 private struct JumpBackInSection: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
     @Query(Self.recentDescriptor) private var recentEntries: [TimeEntry]
     @Query(Self.runningDescriptor) private var runningEntries: [TimeEntry]
 
