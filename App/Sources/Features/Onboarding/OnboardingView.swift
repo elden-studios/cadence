@@ -2,38 +2,47 @@ import SwiftUI
 import SwiftData
 import BillableCore
 
-/// Three-screen first-launch flow: welcome → first client → start a timer.
-/// On finish, creates a `Client`, a default `Project`, and (if the user opts)
-/// starts a running `TimeEntry` so the next thing they see is a live timer.
+/// Two-screen first-launch flow: welcome → identity (choose how you bill + enter
+/// your name). On finish it mutates the canonical `BusinessProfile` and stamps
+/// `onboardingCompletedAt` — it creates NO Client/Project/TimeEntry. The user lands
+/// on Today and is guided to first value there (spec §5/§7).
 struct OnboardingView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onFinish: () -> Void
 
     @State private var step: Step = .welcome
+    @State private var entityType: EntityType = .freelancer   // pre-select Freelancer (spec §5)
+    @State private var name: String = ""
+    @State private var showingSaveError = false
+    @FocusState private var nameFocused: Bool
 
-    @State private var clientName: String = ""
-    @State private var hourlyRateInput: Double = 100
-    @State private var clientColor: ClientColor = .blue
-    @State private var projectName: String = "General"
-
-    enum Step: Int { case welcome, client, timer }
+    enum Step { case welcome, identity }
 
     var body: some View {
         ZStack {
             backgroundGradient
                 .ignoresSafeArea()
             VStack(spacing: 0) {
-                stepIndicator
-                    .padding(.top, 24)
-                content
-                    .padding(.horizontal, 24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Content scrolls so the keyboard cannot occlude the name field on
+                // small devices (SE); the CTA stays pinned in the safe area.
+                ScrollView {
+                    content
+                        .padding(.horizontal, 24)
+                        .frame(maxWidth: .infinity)
+                }
                 bottomBar
                     .padding(.horizontal, 24)
                     .padding(.bottom, 24)
             }
         }
         .preferredColorScheme(.dark)
+        .alert("Couldn't save", isPresented: $showingSaveError) {
+            Button("Try Again") { finish() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("We couldn't save your profile. Please try again.")
+        }
     }
 
     // MARK: - Background
@@ -49,136 +58,118 @@ struct OnboardingView: View {
         )
     }
 
-    // MARK: - Step indicator
-
-    private var stepIndicator: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<3) { i in
-                Capsule()
-                    .fill(i <= step.rawValue ? Color.orange : Color.white.opacity(0.25))
-                    .frame(width: i == step.rawValue ? 28 : 8, height: 6)
-                    .animation(.snappy, value: step)
-            }
-        }
-    }
-
     // MARK: - Content
 
     @ViewBuilder
     private var content: some View {
         switch step {
         case .welcome:  welcomeScreen
-        case .client:   clientScreen
-        case .timer:    timerScreen
+        case .identity: identityScreen
         }
     }
 
     private var welcomeScreen: some View {
         VStack(spacing: 22) {
-            Spacer()
+            Spacer(minLength: 60)
             iconHero
                 .frame(width: 140, height: 140)
             VStack(spacing: 10) {
                 Text("Cadence")
                     .font(.system(size: 38, weight: .bold))
                     .foregroundStyle(.white)
+                // PRESERVE VERBATIM — guarded by LaunchTaglineUITests.
                 Text("Track hours.\nSend invoices.")
                     .font(.title3.weight(.medium))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white.opacity(0.85))
-                Text("Made for freelancers and consultants.")
+                Text("Made for freelancers and small businesses.")
                     .font(.body)
                     .foregroundStyle(.white.opacity(0.6))
+                    .multilineTextAlignment(.center)
             }
-            Spacer()
+            Spacer(minLength: 40)
         }
     }
 
-    private var clientScreen: some View {
+    private var identityScreen: some View {
         VStack(alignment: .leading, spacing: 18) {
             Spacer().frame(height: 12)
             VStack(alignment: .leading, spacing: 6) {
-                Text("Add your first client")
+                Text("How do you bill?")
                     .font(.title.weight(.bold))
                     .foregroundStyle(.white)
-                Text("You can add more later. Each client gets their own rate and color.")
+                Text("This sets up your invoice labels. You can change it later in Settings.")
                     .font(.body)
                     .foregroundStyle(.white.opacity(0.7))
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                fieldLabel("CLIENT NAME")
-                TextField("", text: $clientName, prompt: Text("Acme Corp").foregroundStyle(.white.opacity(0.3)))
-                    .textInputAutocapitalization(.words)
-                    .padding(14)
-                    .background(.white.opacity(0.08), in: .rect(cornerRadius: 12))
-                    .foregroundStyle(.white)
+            VStack(spacing: 12) {
+                ForEach(EntityType.allCases, id: \.self) { type in
+                    entityCard(type)
+                }
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                fieldLabel("HOURLY RATE")
-                HStack {
-                    Text(Locale.current.currencySymbol ?? "$")
-                        .foregroundStyle(.white.opacity(0.7))
-                    TextField("", value: $hourlyRateInput, format: .number.precision(.fractionLength(0...2)))
-                        .keyboardType(.decimalPad)
-                        .foregroundStyle(.white)
-                    Text("/hr")
-                        .foregroundStyle(.white.opacity(0.5))
-                }
+                fieldLabel(entityType.issuerNameLabel.uppercased())
+                TextField(
+                    "",
+                    text: $name,
+                    prompt: Text(entityType.issuerNamePrompt).foregroundStyle(.white.opacity(0.55))
+                )
+                .focused($nameFocused)
+                .textContentType(entityType.nameContentType)
+                .textInputAutocapitalization(.words)
+                .submitLabel(.done)
+                .onSubmit { if primaryEnabled { finish() } }
                 .padding(14)
                 .background(.white.opacity(0.08), in: .rect(cornerRadius: 12))
+                .foregroundStyle(.white)
             }
-
-            VStack(alignment: .leading, spacing: 8) {
-                fieldLabel("COLOR")
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 10), spacing: 10) {
-                    ForEach(ClientColor.allCases, id: \.self) { color in
-                        Circle()
-                            .fill(color.swiftUIColor)
-                            .frame(width: 26, height: 26)
-                            .overlay(
-                                Circle().stroke(.white, lineWidth: clientColor == color ? 3 : 0)
-                            )
-                            .onTapGesture { clientColor = color }
-                    }
-                }
-            }
-            Spacer()
+            Spacer(minLength: 24)
         }
     }
 
-    private var timerScreen: some View {
-        VStack(spacing: 22) {
-            Spacer()
-            VStack(spacing: 16) {
-                Circle()
-                    .fill(clientColor.swiftUIColor.opacity(0.18))
-                    .overlay(
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 38, weight: .bold))
-                            .foregroundStyle(clientColor.swiftUIColor)
-                    )
-                    .frame(width: 110, height: 110)
-                Text("Start your first timer")
-                    .font(.title.weight(.bold))
-                    .foregroundStyle(.white)
-                Text("We'll create a project called \"\(displayProjectName)\" under \(clientNameDisplay) and start tracking right away.")
-                    .font(.body)
-                    .foregroundStyle(.white.opacity(0.75))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 12)
+    private func entityCard(_ type: EntityType) -> some View {
+        let isSelected = entityType == type
+        return Button {
+            withAnimation(reduceMotion ? nil : .snappy) { entityType = type }
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: type.cardSystemImage)
+                    .font(.title2)
+                    .frame(width: 32)
+                    .foregroundStyle(isSelected ? Color.orange : .white.opacity(0.7))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(type.cardTitle)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Text(type.cardSubtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.7))
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 8)
+                // Selected state = border + fill + checkmark (NOT color-alone; spec §5/§9).
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? Color.orange : .white.opacity(0.3))
             }
-            VStack(alignment: .leading, spacing: 6) {
-                fieldLabel("PROJECT NAME")
-                TextField("", text: $projectName, prompt: Text("General").foregroundStyle(.white.opacity(0.3)))
-                    .textInputAutocapitalization(.words)
-                    .foregroundStyle(.white)
-                    .padding(14)
-                    .background(.white.opacity(0.08), in: .rect(cornerRadius: 12))
-            }
-            Spacer()
+            .padding(16)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .background(
+                (isSelected ? Color.orange.opacity(0.12) : Color.white.opacity(0.06)),
+                in: .rect(cornerRadius: 14)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(isSelected ? Color.orange : .clear, lineWidth: 2)
+            )
         }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(type.cardTitle). \(type.cardSubtitle)")
+        .accessibilityHint(isSelected ? "Selected" : "Double-tap to choose")
+        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
     }
 
     private var iconHero: some View {
@@ -210,32 +201,14 @@ struct OnboardingView: View {
 
     // MARK: - Bottom bar
 
-    @ViewBuilder
     private var bottomBar: some View {
-        HStack {
-            if step != .welcome {
-                Button {
-                    advance(back: true)
-                } label: {
-                    Text("Back")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.white.opacity(0.7))
-                }
-            }
-            Spacer()
-            Button {
-                advance(back: false)
-            } label: {
-                HStack(spacing: 6) {
-                    Text(primaryLabel)
-                    if step != .timer {
-                        Image(systemName: "arrow.right")
-                    }
-                }
+        Button {
+            advance()
+        } label: {
+            Text(primaryLabel)
                 .font(.headline)
-                .frame(minWidth: 180)
-                .padding(.vertical, 14)
-                .padding(.horizontal, 22)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
                 .background(
                     Capsule().fill(
                         LinearGradient(
@@ -246,80 +219,67 @@ struct OnboardingView: View {
                     )
                 )
                 .foregroundStyle(.black.opacity(0.85))
-            }
-            .disabled(!primaryEnabled)
-            .opacity(primaryEnabled ? 1 : 0.4)
         }
+        .disabled(!primaryEnabled)
+        .opacity(primaryEnabled ? 1 : 0.4)
     }
 
     private var primaryLabel: String {
         switch step {
-        case .welcome: "Get started"
-        case .client:  "Next"
-        case .timer:   "Start tracking"
+        case .welcome:  "Get started"
+        case .identity: "Finish setup"
         }
     }
 
     private var primaryEnabled: Bool {
         switch step {
-        case .welcome: return true
-        case .client:  return !clientName.trimmingCharacters(in: .whitespaces).isEmpty && hourlyRateInput > 0
-        case .timer:   return !displayProjectName.isEmpty
+        case .welcome:  return true
+        case .identity: return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
-    }
-
-    private var displayProjectName: String {
-        let trimmed = projectName.trimmingCharacters(in: .whitespaces)
-        return trimmed.isEmpty ? "General" : trimmed
-    }
-
-    private var clientNameDisplay: String {
-        let trimmed = clientName.trimmingCharacters(in: .whitespaces)
-        return trimmed.isEmpty ? "your client" : trimmed
     }
 
     // MARK: - Behavior
 
-    private func advance(back: Bool) {
-        if back {
-            if let prev = Step(rawValue: step.rawValue - 1) {
-                step = prev
-            }
-            return
-        }
+    private func advance() {
         switch step {
         case .welcome:
-            step = .client
-        case .client:
-            step = .timer
-        case .timer:
+            withAnimation(reduceMotion ? nil : .snappy) { step = .identity }
+            // Do NOT auto-focus on appear — that would hide the cards behind the
+            // keyboard. Focus only after the user has reached the identity step.
+        case .identity:
             finish()
         }
     }
 
+    /// Crash-safe, throwing save (spec §5). Fetch-then-mutate the canonical profile;
+    /// insert a fresh one ONLY if none exists. Set the one-way latch only AFTER the
+    /// user fields save successfully. Creates no Client/Project/TimeEntry.
     private func finish() {
-        // Create BusinessProfile if missing (we'll let user fill in details from Settings later).
-        // Default currencyCode from Locale so a Saudi user gets SAR without manual picker work.
-        var profileCheck = FetchDescriptor<BusinessProfile>()
-        profileCheck.fetchLimit = 1
-        if (try? modelContext.fetch(profileCheck))?.isEmpty != false {
-            let profile = BusinessProfile.defaultForCurrentLocale()
-            modelContext.insert(profile)
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let profile = BusinessProfileStore.canonical(in: modelContext)
+            ?? {
+                let fresh = BusinessProfile.defaultForCurrentLocale()
+                modelContext.insert(fresh)
+                return fresh
+            }()
+
+        profile.name = trimmed
+        profile.entityType = entityType
+        profile.updatedAt = .now
+
+        do {
+            try modelContext.save()
+        } catch {
+            // Surface a retry instead of silently dropping the user's input.
+            showingSaveError = true
+            return
         }
-        let client = Client(name: clientName.trimmingCharacters(in: .whitespaces), color: clientColor)
-        let project = Project(
-            name: displayProjectName,
-            hourlyRate: Decimal(hourlyRateInput),
-            isBillable: true,
-            client: client
-        )
-        modelContext.insert(client)
-        modelContext.insert(project)
-        modelContext.saveOrLog("complete onboarding")
-        var profileFetch = FetchDescriptor<BusinessProfile>()
-        profileFetch.fetchLimit = 1
-        let profileCode = (try? modelContext.fetch(profileFetch))?.first?.currencyCode ?? "USD"
-        TimerActions.start(project: project, currencyCode: profileCode, in: modelContext)
+
+        // Latch only after a confirmed save; a best-effort second save persists it.
+        profile.onboardingCompletedAt = .now
+        try? modelContext.save()
         UserDefaults.standard.set(true, forKey: OnboardingFlags.completedKey)
         onFinish()
     }
@@ -328,9 +288,19 @@ struct OnboardingView: View {
 enum OnboardingFlags {
     static let completedKey = "cadence.onboarding.completed"
 
+    /// Onboarding is done when ANY profile has `onboardingCompletedAt` set (the
+    /// CloudKit-synced source of truth) OR the local fast-path flag is set (covers
+    /// the same device before a sync round-trip). The legacy `clientCount == 0`
+    /// branch is DELETED: the new flow no longer seeds a client, so it would
+    /// falsely re-trigger onboarding for a finished user who has no clients yet
+    /// (spec §5).
     static func shouldShow(in context: ModelContext) -> Bool {
         if UserDefaults.standard.bool(forKey: completedKey) { return false }
-        let clientCount = (try? context.fetchCount(FetchDescriptor<Client>())) ?? 0
-        return clientCount == 0
+        let completed = (try? context.fetchCount(
+            FetchDescriptor<BusinessProfile>(
+                predicate: #Predicate { $0.onboardingCompletedAt != nil }
+            )
+        )) ?? 0
+        return completed == 0
     }
 }
