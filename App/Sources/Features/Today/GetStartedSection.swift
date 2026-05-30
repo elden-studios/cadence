@@ -189,7 +189,7 @@ struct GetStartedSection: View {
                     Text("Set your rate")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.primary)
-                    Text("— this project earns nothing at $0/hr")
+                    Text("— this project earns nothing at \(Decimal(0).formatted(.currency(code: currencyCode).precision(.fractionLength(0))))/hr")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -223,6 +223,7 @@ struct GetStartedSection: View {
                     .font(.title3)
                     .foregroundStyle(isDone ? .green : (isEnabled ? .accentColor : .secondary))
                     .frame(width: 32)
+                    .accessibilityHidden(true)
                 Text(title)
                     .font(.body)
                     .foregroundStyle(isEnabled ? .primary : .secondary)
@@ -240,6 +241,7 @@ struct GetStartedSection: View {
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled || isDone)
+        .accessibilityValue(isDone ? "Completed" : "Incomplete")
         .accessibilityHint(hint ?? "")
     }
 }
