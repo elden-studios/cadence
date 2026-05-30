@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cadence — Paywall information architecture</title>
+<style>
+  :root{--blue:#3D7BFF;--indigo:#5B5BF0;--green:#34c759;--amber:#ff9f0a;--bg:#eef0f5;--card:#fff;--ink:#1c1c1e;--ink2:#8a8a8e;--hair:rgba(0,0,0,.08);--mat:#f4f5f8;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;padding:36px 20px 60px;
+    background:radial-gradient(1100px 560px at 12% -8%,#f7f8ff,transparent),radial-gradient(900px 560px at 100% 0%,#f3eeff,transparent),var(--bg);}
+  .wrap{max-width:720px;margin:0 auto;}
+  h1{font-size:24px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px;display:flex;align-items:center;gap:10px;}
+  .dot{width:13px;height:13px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--indigo));box-shadow:0 2px 8px rgba(74,90,255,.45);}
+  .sub{margin:0 0 26px;color:var(--ink2);font-size:14px;line-height:1.5;}
+  .sub b{color:var(--ink);}
+
+  .entries{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:6px;}
+  .chip{background:#fff;border:1px solid var(--hair);border-radius:13px;padding:11px 15px;text-align:center;box-shadow:0 4px 14px rgba(20,20,50,.05);min-width:150px;}
+  .chip .t{font-weight:650;font-size:13.5px;}
+  .chip .d{font-size:11px;color:var(--ink2);margin-top:2px;}
+  .arrows{display:flex;justify-content:center;gap:130px;color:var(--ink2);font-size:22px;margin:2px 0 4px;}
+  @media(max-width:560px){.arrows{gap:40px;}}
+
+  .paywall{background:#fff;border-radius:22px;border:1px solid var(--hair);box-shadow:0 14px 36px rgba(24,24,60,.10);overflow:hidden;}
+  .pwtag{text-align:center;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6a4bff;background:rgba(91,91,240,.10);padding:9px;}
+
+  .layer{padding:16px 18px;}
+  .layer1{background:linear-gradient(180deg,#f6f4ff,#fff);border-bottom:1px dashed var(--hair);}
+  .ltitle{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink2);margin-bottom:10px;}
+  .badge{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:6px;}
+  .badge.varies{color:#b0560a;background:rgba(255,159,10,.16);}
+  .badge.same{color:#1f8f43;background:rgba(52,199,89,.16);}
+  .ctx{display:flex;flex-direction:column;gap:7px;}
+  .ctxrow{display:flex;gap:9px;font-size:12.5px;align-items:flex-start;}
+  .ctxrow .k{font-weight:700;color:var(--indigo);flex:0 0 84px;}
+  .ctxrow .v{color:var(--ink);}
+  .ctxrow .v span{color:var(--ink2);}
+
+  .corewrap{padding:16px 18px;}
+  .corelist{display:flex;flex-direction:column;gap:8px;margin:8px 0 14px;}
+  .b{display:flex;gap:9px;font-size:13px;align-items:flex-start;}
+  .ck{color:var(--green);font-weight:800;}
+  .b b{font-weight:650;}
+  .prices{display:flex;gap:9px;margin-bottom:11px;}
+  .prow{flex:1;border:1.5px solid var(--hair);border-radius:11px;padding:9px 11px;}
+  .prow.sel{border-color:var(--blue);background:rgba(61,123,255,.05);}
+  .prow .nm{font-weight:650;font-size:12.5px;display:flex;align-items:center;gap:6px;}
+  .save{font-size:9px;font-weight:700;color:#1f8f43;background:rgba(52,199,89,.15);padding:1px 5px;border-radius:4px;}
+  .prow .pr{font-weight:700;font-size:14px;margin-top:3px;}
+  .prow .mo{font-size:10px;color:var(--ink2);}
+  .cta{background:linear-gradient(135deg,var(--blue),var(--indigo));color:#fff;text-align:center;font-weight:700;font-size:14.5px;padding:12px;border-radius:13px;box-shadow:0 8px 18px rgba(74,90,255,.30);}
+  .fine{text-align:center;font-size:10.5px;color:var(--ink2);margin-top:8px;}
+
+  .foot{margin-top:22px;background:rgba(255,255,255,.7);border:1px solid var(--hair);border-radius:14px;padding:14px 16px;font-size:12.5px;line-height:1.6;color:#3a3a40;}
+  .foot b{color:var(--ink);}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1><span class="dot"></span> One Pro paywall · contextual top + shared core</h1>
+    <p class="sub">Every place that can open the paywall feeds into the <b>same</b> screen. Only the <b>top</b> changes to match where you came from; the <b>bottom</b> — the full Pro value, price and CTA — is identical everywhere, because subscribing unlocks <b>all</b> of Pro no matter where you bought it.</p>
+
+    <div class="entries">
+      <div class="chip"><div class="t">🔒 Reports tab</div><div class="d">locked → in-place</div></div>
+      <div class="chip"><div class="t">⚙️ Settings → Upgrade</div><div class="d">"Subscribe to Pro"</div></div>
+      <div class="chip"><div class="t">🧾 Invoice watermark</div><div class="d">banner → tap</div></div>
+    </div>
+    <div class="arrows"><span>↓</span><span>↓</span><span>↓</span></div>
+
+    <div class="paywall">
+      <div class="pwtag">One paywall component</div>
+
+      <div class="layer layer1">
+        <div class="ltitle">① Contextual hook <span class="badge varies">changes per entry</span></div>
+        <div class="ctx">
+          <div class="ctxrow"><span class="k">Reports</span><span class="v">A live taste of your AR card + "Know what you've earned and what you're owed" <span>(+ 2–3 reports bullets)</span></span></div>
+          <div class="ctxrow"><span class="k">Watermark</span><span class="v">"Send invoices under your own name"</span></div>
+          <div class="ctxrow"><span class="k">Settings</span><span class="v">"Cadence Pro" — short overview</span></div>
+        </div>
+      </div>
+
+      <div class="corewrap">
+        <div class="ltitle">② Everything in Pro + price + CTA <span class="badge same">same everywhere</span></div>
+        <div class="corelist">
+          <div class="b"><span class="ck">✓</span><div><b>Watermark-free invoices</b> — your name, not "Sent with Cadence"</div></div>
+          <div class="b"><span class="ck">✓</span><div><b>Full Reports &amp; insights</b> — AR/aging, days-to-pay, income, rate, trends</div></div>
+          <div class="b"><span class="ck">✓</span><div><b>CSV export</b> — for your accountant</div></div>
+          <div class="b"><span class="ck">✓</span><div><b>Lifetime option</b> — pay once <span style="color:var(--ink2)">(when that lands)</span></div></div>
+        </div>
+        <div class="prices">
+          <div class="prow sel"><div class="nm">Yearly <span class="save">SAVE 51%</span></div><div class="pr">$34.99</div><div class="mo">$2.92/mo</div></div>
+          <div class="prow"><div class="nm">Monthly</div><div class="pr">$5.99</div><div class="mo">per month</div></div>
+        </div>
+        <div class="cta">Start 7-day free trial</div>
+        <div class="fine">7 days free, then $34.99/year · Cancel anytime · Restore</div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <b>So the "distribution" rule is:</b> the <b>contextual hook</b> (top) sells the thing you just bumped into — Reports leads with your real numbers. The <b>shared core</b> (bottom) always lists <b>everything Pro unlocks</b> + the one price + one CTA, so it's honest that you're buying all of Pro, not just Reports. The Reports page <b>completes the purchase in place</b> — it never bounces to a second, different "Subscribe to Pro" screen. One source of truth, three doorways.
+    </div>
+  </div>
+</body>
+</html>

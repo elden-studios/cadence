@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cadence Reports — Pre-subscribe page</title>
+<style>
+  :root{
+    --blue:#3D7BFF; --indigo:#5B5BF0; --green:#34c759; --red:#ff453a; --amber:#ff9f0a;
+    --bg:#eef0f5; --card:#fff; --ink:#1c1c1e; --ink2:#8a8a8e; --hair:rgba(0,0,0,.07); --mat:#f4f5f8;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",system-ui,sans-serif;
+    color:var(--ink);-webkit-font-smoothing:antialiased;padding:36px 20px 60px;
+    background:radial-gradient(1100px 560px at 12% -8%,#f7f8ff,transparent),radial-gradient(900px 560px at 100% 0%,#f3eeff,transparent),var(--bg);}
+  .wrap{max-width:760px;margin:0 auto;}
+  h1{font-size:25px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px;display:flex;align-items:center;gap:10px;}
+  .dot{width:13px;height:13px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--indigo));box-shadow:0 2px 8px rgba(74,90,255,.45);}
+  .sub{margin:0 0 26px;color:var(--ink2);font-size:14.5px;line-height:1.5;max-width:640px;}
+  .sub b{color:var(--ink);}
+  .row{display:flex;gap:34px;justify-content:center;flex-wrap:wrap;align-items:flex-start;}
+  .col{width:312px;}
+  .colcap{text-align:center;margin-bottom:12px;}
+  .colcap .letter{display:inline-flex;width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--blue),var(--indigo));color:#fff;font-weight:700;font-size:14px;align-items:center;justify-content:center;margin-bottom:7px;}
+  .colcap h3{margin:0 0 3px;font-size:15.5px;font-weight:650;}
+  .colcap p{margin:0;font-size:12.5px;color:var(--ink2);line-height:1.45;}
+  .colcap .rec{display:inline-block;margin-top:6px;font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:#1f8f43;background:rgba(52,199,89,.14);padding:3px 8px;border-radius:7px;}
+
+  .phone{background:#fff;border-radius:30px;padding:9px;box-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 18px 44px rgba(24,24,60,.13);border:1px solid var(--hair);}
+  .screen{background:#fff;border-radius:23px;overflow:hidden;height:624px;position:relative;}
+  .statusbar{height:30px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;position:relative;}
+  .statusbar::after{content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);width:64px;height:15px;background:#000;border-radius:9px;}
+  .nav{padding:2px 16px 6px;display:flex;align-items:center;gap:8px;}
+  .nav h2{margin:0;font-size:22px;font-weight:700;letter-spacing:-.02em;}
+  .prochip{font-size:10px;font-weight:700;letter-spacing:.04em;color:#6a4bff;background:rgba(91,91,240,.13);padding:3px 7px;border-radius:6px;display:inline-flex;gap:4px;align-items:center;}
+
+  /* mini report elements */
+  .seg{display:flex;background:#e9e9ef;border-radius:8px;padding:2px;font-size:11px;font-weight:600;margin:0 14px;}
+  .seg span{flex:1;text-align:center;padding:4px 0;border-radius:6px;color:var(--ink2);}
+  .seg span.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
+  .tile{background:var(--mat);border-radius:12px;padding:9px 11px;flex:1;min-width:0;}
+  .tile .l{font-size:9.5px;font-weight:700;letter-spacing:.05em;color:var(--ink2);text-transform:uppercase;}
+  .tile .v{font-size:17px;font-weight:700;letter-spacing:-.02em;margin-top:2px;font-variant-numeric:tabular-nums;}
+  .v.blue{color:var(--blue);} .v.green{color:var(--green);} .v.ink{color:var(--ink);}
+  .funnel{display:flex;gap:6px;align-items:center;}
+  .funnel .arrow{color:var(--ink2);font-size:13px;}
+  .arcard{border-radius:15px;padding:13px 14px;color:#fff;background:linear-gradient(140deg,var(--indigo),#7a5bff);box-shadow:0 8px 20px rgba(91,91,240,.30);}
+  .arcard .top{font-size:10px;font-weight:700;letter-spacing:.08em;opacity:.85;text-transform:uppercase;}
+  .arcard .big{font-size:28px;font-weight:700;letter-spacing:-.02em;margin-top:2px;}
+  .arcard .meta{display:flex;gap:7px;margin-top:8px;flex-wrap:wrap;}
+  .pill{font-size:11px;font-weight:600;padding:4px 9px;border-radius:8px;background:rgba(255,255,255,.18);}
+  .pill.danger{background:rgba(255,69,58,.30);}
+  .aging{margin-top:10px;}
+  .aging .bar{display:flex;height:9px;border-radius:5px;overflow:hidden;gap:2px;}
+  .aging .bar i{display:block;}
+  .seg-cur{background:rgba(255,255,255,.92);} .seg-60{background:var(--amber);} .seg-90{background:var(--red);}
+  .aging .leg{display:flex;justify-content:space-between;margin-top:5px;font-size:9px;opacity:.9;}
+  .chart{height:46px;display:flex;align-items:flex-end;gap:4px;}
+  .chart i{flex:1;background:linear-gradient(180deg,var(--blue),#2f63d8);border-radius:3px 3px 0 0;opacity:.9;}
+
+  /* value panel */
+  .lock{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--indigo));display:flex;align-items:center;justify-content:center;color:#fff;font-size:19px;box-shadow:0 6px 16px rgba(74,90,255,.4);}
+  .vhead{font-size:19px;font-weight:700;letter-spacing:-.02em;line-height:1.18;}
+  .vbul{display:flex;flex-direction:column;gap:8px;margin:2px 0;}
+  .vbul .b{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;}
+  .vbul .ck{color:var(--green);font-weight:800;flex:0 0 auto;}
+  .vbul .b b{font-weight:650;}
+  .vbul .b span{color:var(--ink2);}
+  .prices{display:flex;flex-direction:column;gap:7px;}
+  .prow{display:flex;align-items:center;border:1.5px solid var(--hair);border-radius:12px;padding:9px 12px;gap:8px;}
+  .prow.sel{border-color:var(--blue);background:rgba(61,123,255,.05);}
+  .prow .nm{font-weight:650;font-size:13.5px;}
+  .prow .save{font-size:9.5px;font-weight:700;color:#1f8f43;background:rgba(52,199,89,.15);padding:2px 6px;border-radius:5px;}
+  .prow .pr{margin-left:auto;font-weight:700;font-size:13.5px;font-variant-numeric:tabular-nums;}
+  .prow .sm{font-size:10.5px;color:var(--ink2);font-weight:500;}
+  .cta{background:linear-gradient(135deg,var(--blue),var(--indigo));color:#fff;text-align:center;font-weight:700;font-size:15px;padding:13px;border-radius:14px;box-shadow:0 8px 20px rgba(74,90,255,.34);}
+  .fine{text-align:center;font-size:10.5px;color:var(--ink2);}
+  .restore{text-align:center;font-size:11.5px;color:var(--blue);font-weight:600;}
+
+  .note{max-width:680px;margin:30px auto 0;text-align:center;color:var(--ink2);font-size:13px;line-height:1.6;}
+  .note b{color:var(--ink);}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1><span class="dot"></span> Reports — the pre-subscribe page</h1>
+    <p class="sub">Replaces today's cold lock (one line + a button that bounces to a separate sheet). Both put <b>the value and the subscribe button on one screen</b> — they differ in how they tease the report.</p>
+
+    <div class="row">
+
+      <!-- ====== Option 1: blurred depth ====== -->
+      <div class="col">
+        <div class="phone"><div class="screen">
+          <div class="statusbar">9:41</div>
+          <div class="nav"><h2>Reports</h2></div>
+          <!-- blurred real report peeking -->
+          <div style="position:relative;height:150px;overflow:hidden;-webkit-mask-image:linear-gradient(#000 55%,transparent);mask-image:linear-gradient(#000 55%,transparent);">
+            <div style="filter:blur(5px);opacity:.55;padding:4px 14px;display:flex;flex-direction:column;gap:9px;">
+              <div class="seg" style="margin:0"><span>Week</span><span class="on">Month</span><span>Year</span><span>All</span></div>
+              <div class="funnel">
+                <div class="tile"><div class="l">Tracked</div><div class="v ink">$4,820</div></div>
+                <div class="arrow">→</div>
+                <div class="tile"><div class="l">Invoiced</div><div class="v blue">$3,600</div></div>
+                <div class="arrow">→</div>
+                <div class="tile"><div class="l">Collected</div><div class="v green">$2,400</div></div>
+              </div>
+              <div class="arcard"><div class="top">Get paid</div><div class="big">$1,200 outstanding</div></div>
+            </div>
+          </div>
+          <!-- value card -->
+          <div style="padding:6px 16px 16px;display:flex;flex-direction:column;gap:12px;margin-top:-6px;">
+            <div class="lock">🔒</div>
+            <div class="vhead">Know what you've earned —<br>and what you're owed.</div>
+            <div class="vbul">
+              <div class="b"><span class="ck">✓</span><div><b>What's owed &amp; overdue</b> <span>— outstanding, with 30/60/90 aging</span></div></div>
+              <div class="b"><span class="ck">✓</span><div><b>When you'll get paid</b> <span>— average days-to-payment</span></div></div>
+              <div class="b"><span class="ck">✓</span><div><b>Real income</b> <span>— invoiced vs collected, effective rate</span></div></div>
+              <div class="b"><span class="ck">✓</span><div><b>Export</b> <span>— CSV for your accountant</span></div></div>
+            </div>
+            <div class="prices">
+              <div class="prow sel"><span class="nm">Yearly</span><span class="save">SAVE 51%</span><div style="margin-left:auto;text-align:right"><div class="pr">$34.99</div><div class="sm">$2.92/mo</div></div></div>
+              <div class="prow"><span class="nm">Monthly</span><span class="pr">$5.99</span></div>
+            </div>
+            <div class="cta">Start 7-day free trial</div>
+            <div class="fine">7 days free, then $34.99/year · Cancel anytime</div>
+          </div>
+        </div></div>
+        <div class="colcap">
+          <div class="letter">1</div>
+          <h3>Blurred depth</h3>
+          <p>Your real report peeks at the top, blurred — signals "there's a lot here," then the pitch + price.</p>
+        </div>
+      </div>
+
+      <!-- ====== Option 2: crisp taste ====== -->
+      <div class="col">
+        <div class="phone"><div class="screen">
+          <div class="statusbar">9:41</div>
+          <div class="nav"><h2>Reports</h2><span class="prochip">🔒 PRO</span></div>
+          <div style="padding:4px 16px 16px;display:flex;flex-direction:column;gap:12px;">
+            <!-- crisp real taste -->
+            <div style="display:flex;flex-direction:column;gap:9px;">
+              <div style="font-size:9.5px;font-weight:700;letter-spacing:.06em;color:var(--ink2);text-transform:uppercase;">A taste of your numbers</div>
+              <div class="arcard">
+                <div class="top">Get paid</div>
+                <div class="big">$1,200 <span style="font-size:13px;font-weight:600;opacity:.85">outstanding</span></div>
+                <div class="meta"><span class="pill danger">● $450 overdue</span><span class="pill">~14 days to pay</span></div>
+                <div class="aging"><div class="bar"><i class="seg-cur" style="flex:5"></i><i class="seg-60" style="flex:2"></i><i class="seg-90" style="flex:1"></i></div>
+                  <div class="leg"><span>Current $750</span><span>31–60 $300</span><span>60+ $150</span></div></div>
+              </div>
+              <div class="funnel">
+                <div class="tile"><div class="l">Invoiced</div><div class="v blue">$3,600</div></div>
+                <div class="tile"><div class="l">Collected</div><div class="v green">$2,400</div></div>
+                <div class="tile"><div class="l">Rate</div><div class="v ink">$78/h</div></div>
+              </div>
+            </div>
+            <!-- pitch -->
+            <div class="vhead" style="font-size:17px;">Unlock the full picture</div>
+            <div class="vbul">
+              <div class="b"><span class="ck">✓</span><div><b>Aging + days-to-pay</b> <span>— who owes you, and when they pay</span></div></div>
+              <div class="b"><span class="ck">✓</span><div><b>Revenue trends &amp; top clients</b> <span>— where income comes from</span></div></div>
+              <div class="b"><span class="ck">✓</span><div><b>CSV export</b> <span>— hand clean numbers to your accountant</span></div></div>
+            </div>
+            <div class="prices">
+              <div class="prow sel"><span class="nm">Yearly</span><span class="save">SAVE 51%</span><div style="margin-left:auto;text-align:right"><div class="pr">$34.99</div><div class="sm">$2.92/mo</div></div></div>
+              <div class="prow"><span class="nm">Monthly</span><span class="pr">$5.99</span></div>
+            </div>
+            <div class="cta">Start 7-day free trial</div>
+            <div class="fine">7 days free, then $34.99/year · Cancel anytime</div>
+          </div>
+        </div></div>
+        <div class="colcap">
+          <div class="letter">2</div>
+          <h3>Crisp taste</h3>
+          <p>A real, sharp slice — your AR card + key numbers — then "unlock the rest." Shows value instead of hiding it.</p>
+          <span class="rec">My recommendation</span>
+        </div>
+      </div>
+
+    </div>
+    <p class="note">Both keep the <b>price + CTA inline</b> (your ask) instead of bouncing to a separate sheet, and both reframe from "this is locked" to "here's what you get." <b>Crisp taste</b> tends to convert better — a real slice of value creates more desire than a frustrating blur — but <b>blurred depth</b> signals there's a lot behind the wall. Which feels right?</p>
+  </div>
+</body>
+</html>

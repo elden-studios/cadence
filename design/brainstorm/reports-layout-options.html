@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cadence Reports — Layout Directions</title>
+<style>
+  :root{
+    --blue:#3D7BFF; --indigo:#5B5BF0; --green:#34c759; --red:#ff453a; --amber:#ff9f0a;
+    --bg:#eef0f5; --card:#fff; --ink:#1c1c1e; --ink2:#8a8a8e; --hair:rgba(0,0,0,.07);
+    --mat:#f4f5f8;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",system-ui,sans-serif;
+    color:var(--ink);-webkit-font-smoothing:antialiased;padding:36px 20px 60px;
+    background:radial-gradient(1100px 560px at 12% -8%,#f7f8ff,transparent),
+               radial-gradient(900px 560px at 100% 0%,#f3eeff,transparent),var(--bg);
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+  h1{font-size:25px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px;display:flex;align-items:center;gap:10px;}
+  .dot{width:13px;height:13px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--indigo));box-shadow:0 2px 8px rgba(74,90,255,.45);}
+  .sub{margin:0 0 26px;color:var(--ink2);font-size:14.5px;line-height:1.5;max-width:680px;}
+  .sub b{color:var(--ink);}
+
+  .row{display:flex;gap:26px;justify-content:center;flex-wrap:wrap;align-items:flex-start;}
+  .col{width:312px;}
+  .colcap{text-align:center;margin-bottom:12px;}
+  .colcap .letter{display:inline-flex;width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--blue),var(--indigo));color:#fff;font-weight:700;font-size:14px;align-items:center;justify-content:center;margin-bottom:7px;}
+  .colcap h3{margin:0 0 3px;font-size:15.5px;font-weight:650;}
+  .colcap p{margin:0;font-size:12.5px;color:var(--ink2);line-height:1.45;}
+  .colcap .rec{display:inline-block;margin-top:6px;font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:#1f8f43;background:rgba(52,199,89,.14);padding:3px 8px;border-radius:7px;}
+
+  /* phone */
+  .phone{background:#fff;border-radius:30px;padding:9px;box-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 18px 44px rgba(24,24,60,.13);border:1px solid var(--hair);}
+  .screen{background:#fbfbfd;border-radius:23px;overflow:hidden;height:600px;overflow-y:auto;position:relative;}
+  .screen::-webkit-scrollbar{width:0;}
+  .statusbar{height:30px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--ink);position:relative;}
+  .statusbar::after{content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);width:64px;height:15px;background:#000;border-radius:9px;}
+  .nav{padding:4px 16px 8px;}
+  .nav h2{margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em;}
+  .body{padding:6px 14px 18px;display:flex;flex-direction:column;gap:13px;}
+
+  .seg{display:flex;background:#e9e9ef;border-radius:9px;padding:2px;font-size:12px;font-weight:600;}
+  .seg span{flex:1;text-align:center;padding:5px 0;border-radius:7px;color:var(--ink2);}
+  .seg span.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
+
+  .label{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--ink2);text-transform:uppercase;}
+
+  .tile{background:var(--mat);border-radius:13px;padding:11px 12px;flex:1;min-width:0;}
+  .tile .l{font-size:10px;font-weight:700;letter-spacing:.05em;color:var(--ink2);text-transform:uppercase;}
+  .tile .v{font-size:20px;font-weight:700;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums;}
+  .tile .v.sm{font-size:17px;}
+  .v.blue{color:var(--blue);} .v.green{color:var(--green);} .v.red{color:var(--red);} .v.ink{color:var(--ink);} .v.indigo{color:var(--indigo);}
+  .tilerow{display:flex;gap:9px;}
+
+  .funnel{display:flex;align-items:stretch;gap:6px;}
+  .funnel .tile{padding:10px;}
+  .funnel .arrow{align-self:center;color:var(--ink2);font-size:15px;flex:0 0 auto;}
+
+  .arcard{border-radius:16px;padding:14px 15px;color:#fff;background:linear-gradient(140deg,var(--indigo),#7a5bff);box-shadow:0 10px 24px rgba(91,91,240,.32);}
+  .arcard.tall{padding:16px 16px 15px;}
+  .arcard .top{font-size:10.5px;font-weight:700;letter-spacing:.08em;opacity:.85;text-transform:uppercase;}
+  .arcard .big{font-size:34px;font-weight:700;letter-spacing:-.02em;line-height:1.05;margin-top:2px;font-variant-numeric:tabular-nums;}
+  .arcard .big.huge{font-size:40px;}
+  .arcard .meta{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;}
+  .pill{font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:9px;background:rgba(255,255,255,.18);display:inline-flex;gap:5px;align-items:center;}
+  .pill.danger{background:rgba(255,69,58,.30);}
+  .arcard .days{font-size:12px;opacity:.92;margin-top:8px;}
+
+  /* aging bar */
+  .aging{margin-top:11px;}
+  .aging .bar{display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px;}
+  .aging .bar i{display:block;}
+  .aging .seg-cur{background:#fff;opacity:.95;} .aging .seg-30{background:#ffe08a;} .aging .seg-60{background:var(--amber);} .aging .seg-90{background:var(--red);}
+  .aging.dark .seg-cur{background:rgba(255,255,255,.92);}
+  .aging .leg{display:flex;justify-content:space-between;margin-top:6px;font-size:9.5px;opacity:.9;}
+  .aging.light{color:var(--ink);}
+  .aging.light .bar i.seg-cur{background:#cdraw;}
+
+  .agingcard{background:var(--mat);border-radius:13px;padding:12px;}
+  .agingcard .bar i.seg-cur{background:#7a8cff;}
+  .agingcard .leg{color:var(--ink2);}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+
+  .sec h4{margin:0 0 7px;font-size:13.5px;font-weight:650;}
+  .chart{height:78px;display:flex;align-items:flex-end;gap:5px;padding-top:4px;}
+  .chart i{flex:1;background:linear-gradient(180deg,var(--green),#2aa84c);border-radius:4px 4px 0 0;opacity:.9;}
+  .chart.blue i{background:linear-gradient(180deg,var(--blue),#2f63d8);}
+  .cbar{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:12px;}
+  .cbar .nm{width:54px;color:var(--ink);font-weight:500;}
+  .cbar .tk{height:9px;border-radius:5px;}
+  .cbar .hh{margin-left:auto;color:var(--ink2);font-variant-numeric:tabular-nums;font-size:11px;}
+
+  .mix{display:flex;height:11px;border-radius:6px;overflow:hidden;}
+  .mix .b{background:var(--green);} .mix .n{background:#c9c9d0;}
+  .mixleg{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink2);margin-top:5px;}
+
+  .note{max-width:780px;margin:30px auto 0;text-align:center;color:var(--ink2);font-size:13px;line-height:1.6;}
+  .note b{color:var(--ink);}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1><span class="dot"></span> Cadence Reports — layout directions</h1>
+    <p class="sub"><b>Same data in all three</b> (AR-led, focused v1). The question is the <b>information architecture</b> — how the get-paid story, the real-money funnel, and the performance KPIs are arranged. Which structure feels like Cadence to you?</p>
+
+    <div class="row">
+
+      <!-- ===================== A ===================== -->
+      <div class="col">
+        <div class="phone"><div class="screen">
+          <div class="statusbar">9:41</div>
+          <div class="nav"><h2>Reports</h2></div>
+          <div class="body">
+            <div class="seg"><span>Week</span><span class="on">Month</span><span>Year</span><span>All</span></div>
+
+            <div>
+              <div class="label" style="margin-bottom:6px">Money funnel</div>
+              <div class="funnel">
+                <div class="tile"><div class="l">Tracked</div><div class="v sm ink">$4,820</div></div>
+                <div class="arrow">→</div>
+                <div class="tile"><div class="l">Invoiced</div><div class="v sm blue">$3,600</div></div>
+                <div class="arrow">→</div>
+                <div class="tile"><div class="l">Collected</div><div class="v sm green">$2,400</div></div>
+              </div>
+            </div>
+
+            <div class="arcard">
+              <div class="top">Get paid</div>
+              <div class="big">$1,200 <span style="font-size:15px;font-weight:600;opacity:.85">outstanding</span></div>
+              <div class="meta"><span class="pill danger">● $450 overdue · 2</span><span class="pill">~14 days to pay</span></div>
+              <div class="aging dark">
+                <div class="bar"><i class="seg-cur" style="flex:5"></i><i class="seg-60" style="flex:2"></i><i class="seg-90" style="flex:1"></i></div>
+                <div class="leg"><span>Current $750</span><span>31–60 $300</span><span>60+ $150</span></div>
+              </div>
+            </div>
+
+            <div class="tilerow">
+              <div class="tile"><div class="l">Effective rate</div><div class="v sm ink">$78<span style="font-size:12px;color:var(--ink2)">/h</span></div></div>
+              <div class="tile"><div class="l">Utilization</div><div class="v sm ink">86%</div></div>
+            </div>
+
+            <div class="sec"><h4>Revenue — this month</h4>
+              <div class="chart blue"><i style="height:40%"></i><i style="height:62%"></i><i style="height:48%"></i><i style="height:80%"></i></div>
+            </div>
+
+            <div class="sec"><h4>Hours by client</h4>
+              <div class="cbar"><span class="nm">Acme</span><span class="tk" style="width:62%;background:#3D7BFF"></span><span class="hh">41h</span></div>
+              <div class="cbar"><span class="nm">Globex</span><span class="tk" style="width:34%;background:#34c759"></span><span class="hh">22h</span></div>
+              <div class="cbar"><span class="nm">Initech</span><span class="tk" style="width:18%;background:#ff9f0a"></span><span class="hh">12h</span></div>
+            </div>
+          </div>
+        </div></div>
+        <div class="colcap">
+          <div class="letter">A</div>
+          <h3>Money funnel + AR card</h3>
+          <p>Tells the story top-to-bottom: tracked → invoiced → collected, then a focused get-paid card.</p>
+          <span class="rec">My recommendation</span>
+        </div>
+      </div>
+
+      <!-- ===================== B ===================== -->
+      <div class="col">
+        <div class="phone"><div class="screen">
+          <div class="statusbar">9:41</div>
+          <div class="nav"><h2>Reports</h2></div>
+          <div class="body">
+            <div class="seg"><span>Week</span><span class="on">Month</span><span>Year</span><span>All</span></div>
+
+            <div class="arcard tall">
+              <div class="top">Get paid</div>
+              <div class="big huge" style="color:#ffd9d6">$450</div>
+              <div style="font-size:13px;opacity:.92;margin-top:1px">overdue · 2 invoices</div>
+              <div class="meta" style="margin-top:10px"><span class="pill">$1,200 outstanding</span><span class="pill">~14 days to pay</span></div>
+              <div class="aging dark">
+                <div class="bar"><i class="seg-cur" style="flex:5"></i><i class="seg-60" style="flex:2"></i><i class="seg-90" style="flex:1"></i></div>
+                <div class="leg"><span>Current $750</span><span>31–60 $300</span><span>60+ $150</span></div>
+              </div>
+            </div>
+
+            <div class="tilerow">
+              <div class="tile"><div class="l">Invoiced</div><div class="v sm blue">$3,600</div></div>
+              <div class="tile"><div class="l">Collected</div><div class="v sm green">$2,400</div></div>
+              <div class="tile"><div class="l">Tracked</div><div class="v sm ink">$4,820</div></div>
+            </div>
+
+            <div class="tilerow">
+              <div class="tile"><div class="l">Effective rate</div><div class="v sm ink">$78<span style="font-size:12px;color:var(--ink2)">/h</span></div></div>
+              <div class="tile"><div class="l">Utilization</div><div class="v sm ink">86%</div></div>
+            </div>
+
+            <div class="sec"><h4>Revenue — this month</h4>
+              <div class="chart blue"><i style="height:40%"></i><i style="height:62%"></i><i style="height:48%"></i><i style="height:80%"></i></div>
+            </div>
+
+            <div class="sec"><h4>Hours by client</h4>
+              <div class="cbar"><span class="nm">Acme</span><span class="tk" style="width:62%;background:#3D7BFF"></span><span class="hh">41h</span></div>
+              <div class="cbar"><span class="nm">Globex</span><span class="tk" style="width:34%;background:#34c759"></span><span class="hh">22h</span></div>
+            </div>
+          </div>
+        </div></div>
+        <div class="colcap">
+          <div class="letter">B</div>
+          <h3>AR hero first</h3>
+          <p>Overdue is the biggest thing on screen. Most aggressive "go get paid" framing; money figures step back.</p>
+        </div>
+      </div>
+
+      <!-- ===================== C ===================== -->
+      <div class="col">
+        <div class="phone"><div class="screen">
+          <div class="statusbar">9:41</div>
+          <div class="nav"><h2>Reports</h2></div>
+          <div class="body">
+            <div class="seg"><span>Week</span><span class="on">Month</span><span>Year</span><span>All</span></div>
+
+            <div class="grid">
+              <div class="tile"><div class="l">Invoiced</div><div class="v sm blue">$3,600</div></div>
+              <div class="tile"><div class="l">Collected</div><div class="v sm green">$2,400</div></div>
+              <div class="tile"><div class="l">Outstanding</div><div class="v sm indigo">$1,200</div></div>
+              <div class="tile"><div class="l">Overdue</div><div class="v sm red">$450</div></div>
+              <div class="tile"><div class="l">Eff. rate</div><div class="v sm ink">$78/h</div></div>
+              <div class="tile"><div class="l">Utilization</div><div class="v sm ink">86%</div></div>
+            </div>
+
+            <div class="agingcard">
+              <div class="label" style="margin-bottom:7px">Receivables aging · ~14 days to pay</div>
+              <div class="aging"><div class="bar"><i class="seg-cur" style="flex:5"></i><i class="seg-60" style="flex:2"></i><i class="seg-90" style="flex:1"></i></div>
+                <div class="leg" style="color:var(--ink2)"><span>Current $750</span><span>31–60 $300</span><span>60+ $150</span></div>
+              </div>
+            </div>
+
+            <div class="sec"><h4>Revenue — this month</h4>
+              <div class="chart blue"><i style="height:40%"></i><i style="height:62%"></i><i style="height:48%"></i><i style="height:80%"></i></div>
+            </div>
+
+            <div class="sec"><h4>Billable vs non-billable</h4>
+              <div class="mix"><span class="b" style="width:87%"></span><span class="n" style="width:13%"></span></div>
+              <div class="mixleg"><span>● Billable 75h</span><span>Non-billable 11h ●</span></div>
+            </div>
+
+            <div class="sec"><h4>Hours by client</h4>
+              <div class="cbar"><span class="nm">Acme</span><span class="tk" style="width:62%;background:#3D7BFF"></span><span class="hh">41h</span></div>
+              <div class="cbar"><span class="nm">Globex</span><span class="tk" style="width:34%;background:#34c759"></span><span class="hh">22h</span></div>
+            </div>
+          </div>
+        </div></div>
+        <div class="colcap">
+          <div class="letter">C</div>
+          <h3>KPI grid</h3>
+          <p>Everything at a glance: a 6-tile scoreboard up top, aging below. Scannable, but flatter hierarchy.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="note">All three carry the <b>same focused-v1 content</b> — money funnel (Tracked→Invoiced→Collected), the AR/get-paid layer with 30/60/90 aging + days-to-pay, effective rate + utilization, and the existing hours/client/trend charts (now range-aware). They differ only in <b>what leads and how it's grouped</b>. Pick the structure that feels right — or mix (e.g., "A's funnel but C's aging card").</p>
+  </div>
+</body>
+</html>
