@@ -46,7 +46,7 @@ public enum ReportsAggregator {
     // MARK: - Result types
 
     public struct ClientHours: Identifiable, Sendable {
-        public let id: String           // SwiftData store identifier or fallback UUID
+        public let id: String           // stable per-object identifier (from persistentModelID)
         public let clientName: String
         public let clientColorRaw: String
         public let hours: Decimal
@@ -181,16 +181,18 @@ public enum ReportsAggregator {
         _ inRange: [TimeEntry],
         asOf referenceDate: Date
     ) -> ([ClientHours], [ProjectHours]) {
-        // Group by client
-        let byClient = Dictionary(grouping: inRange) { entry in
-            entry.project?.client?.persistentModelID.storeIdentifier ?? ""
-        }
-        let clientHours: [ClientHours] = byClient.compactMap { (id, rows) in
+        // Group by client — key on the full per-object `persistentModelID`, NOT
+        // `.storeIdentifier` (the store-wide UUID shared by EVERY object in the
+        // store, which would collapse all clients into a single bucket). Entries
+        // with no client group under `nil` and are dropped by the guard below
+        // (unchanged behaviour — "No client" time isn't shown in clientHours).
+        let byClient = Dictionary(grouping: inRange) { $0.project?.client?.persistentModelID }
+        let clientHours: [ClientHours] = byClient.compactMap { (_, rows) -> ClientHours? in
             guard let first = rows.first, let client = first.project?.client else { return nil }
             let seconds = rows.reduce(0) { $0 + $1.duration(asOf: referenceDate) }
             let amount = rows.reduce(Decimal(0)) { $0 + $1.amount(asOf: referenceDate) }
             return ClientHours(
-                id: id.isEmpty ? UUID().uuidString : id,
+                id: "\(client.persistentModelID)",
                 clientName: client.name,
                 clientColorRaw: client.colorRaw,
                 hours: Decimal(seconds / 3600),
@@ -199,16 +201,14 @@ public enum ReportsAggregator {
         }
         .sorted { $0.hours > $1.hours }
 
-        // Group by project
-        let byProject = Dictionary(grouping: inRange) { entry in
-            entry.project?.persistentModelID.storeIdentifier ?? ""
-        }
-        let projectHours: [ProjectHours] = byProject.compactMap { (id, rows) in
+        // Group by project — same fix: full per-object id, not `.storeIdentifier`.
+        let byProject = Dictionary(grouping: inRange) { $0.project?.persistentModelID }
+        let projectHours: [ProjectHours] = byProject.compactMap { (_, rows) -> ProjectHours? in
             guard let first = rows.first, let project = first.project else { return nil }
             let seconds = rows.reduce(0) { $0 + $1.duration(asOf: referenceDate) }
             let amount = rows.reduce(Decimal(0)) { $0 + $1.amount(asOf: referenceDate) }
             return ProjectHours(
-                id: id.isEmpty ? UUID().uuidString : id,
+                id: "\(project.persistentModelID)",
                 projectName: project.name,
                 clientName: project.client?.name ?? "",
                 clientColorRaw: project.client?.colorRaw ?? ClientColor.blue.rawValue,
