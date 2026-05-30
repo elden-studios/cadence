@@ -64,6 +64,7 @@
 		E39562526A4793650B561132 /* InvoiceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F5BA9432580555D1EF5E8B6 /* InvoiceDetailView.swift */; };
 		E3F06B0AA5BB6345101C9E87 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95E9742504A11D397C6528B9 /* SettingsView.swift */; };
 		EFAE46DE1F000F3FDD237A19 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 302F61C46763394ECD4E199B /* PaywallView.swift */; };
+		139315B90D037B68A701DA27 /* ReportsConversionMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB94950A9F280BEB5ED71CC /* ReportsConversionMetrics.swift */; };
 		F205361A2A1AF33476C14C76 /* ManualEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 834A2DF7B192A8F0EC56E4F7 /* ManualEntrySheet.swift */; };
 		F66815EDDB470712A3D8EA6F /* InvoicesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F7C1CF69F915CC96EFAA000 /* InvoicesView.swift */; };
 		F8B9ABD63F4371F7F28F6E3B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2CB4838C74C817A55DDA825 /* Assets.xcassets */; };
@@ -110,6 +111,7 @@
 		F7267510D74584DF16EEB1DF /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		2886369E15E77C0BF85347CE /* IntentRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentRegistration.swift; sourceTree = "<group>"; };
 		302F61C46763394ECD4E199B /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		EBB94950A9F280BEB5ED71CC /* ReportsConversionMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsConversionMetrics.swift; sourceTree = "<group>"; };
 		348BBD35CE9E77443AB397E5 /* InvoicePreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoicePreviewView.swift; sourceTree = "<group>"; };
 		3C50D41C7D1E70A67970DA90 /* BillableWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BillableWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		40BA4466AFACC0C783C06598 /* DayTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayTimelineView.swift; sourceTree = "<group>"; };
@@ -308,6 +310,7 @@
 			isa = PBXGroup;
 			children = (
 				302F61C46763394ECD4E199B /* PaywallView.swift */,
+				EBB94950A9F280BEB5ED71CC /* ReportsConversionMetrics.swift */,
 			);
 			path = Paywall;
 			sourceTree = "<group>";
@@ -649,6 +652,7 @@
 				E002CC9D3FAFAAFFB473954B /* OnboardingView.swift in Sources */,
 				49D52608F66166AA6374F027 /* PaymentRemindersView.swift in Sources */,
 				EFAE46DE1F000F3FDD237A19 /* PaywallView.swift in Sources */,
+				139315B90D037B68A701DA27 /* ReportsConversionMetrics.swift in Sources */,
 				08880CCE2F89200E1C723A26 /* PendingMaterializationsView.swift in Sources */,
 				3E4A4F845E80F6CDCA4E772C /* ProjectDetailView.swift in Sources */,
 				45F34A925B9B048BB38C04E4 /* ProjectEditorView.swift in Sources */,

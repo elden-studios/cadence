@@ -72,6 +72,11 @@ struct PaywallView: View {
                 }
             }
             .task { manager.start() }
+            .onAppear {
+                // Privacy-pure, on-device impression count for the Reports
+                // paywall (UserDefaults; never transmitted). See spec §5.
+                if trigger == .reports { ReportsConversionMetrics.recordImpression() }
+            }
             .alert("Couldn't complete purchase", isPresented: Binding(
                 get: { error != nil }, set: { if !$0 { error = nil } }
             )) {
@@ -520,6 +525,8 @@ struct PaywallView: View {
         let outcome = await manager.purchase(product)
         switch outcome {
         case .success:
+            // Count a Reports-attributed conversion (on-device only). See spec §5.
+            if trigger == .reports { ReportsConversionMetrics.recordConversion() }
             dismiss()
         case .pending, .userCancelled:
             break
