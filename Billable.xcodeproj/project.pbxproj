@@ -60,6 +60,7 @@
 		D6C88C7178DAC48161ACBF43 /* ClientEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EF35F789A0B7D626AECE892 /* ClientEditorView.swift */; };
 		E002CC9D3FAFAAFFB473954B /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABC4787E325D1EE2FD16329 /* OnboardingView.swift */; };
 		E0F08E2CAB6A8D93ED4BFD78 /* ReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEEC7C6934436D870B713A6B /* ReportsView.swift */; };
+		1D49277F407A2E1454D96732 /* ReportsSampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91C46838FF892A708BBC732 /* ReportsSampleData.swift */; };
 		E39562526A4793650B561132 /* InvoiceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F5BA9432580555D1EF5E8B6 /* InvoiceDetailView.swift */; };
 		E3F06B0AA5BB6345101C9E87 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95E9742504A11D397C6528B9 /* SettingsView.swift */; };
 		EFAE46DE1F000F3FDD237A19 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 302F61C46763394ECD4E199B /* PaywallView.swift */; };
@@ -143,6 +144,7 @@
 		A9B9A55293CE419E21F6C2DE /* SettingsAboutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutUITests.swift; sourceTree = "<group>"; };
 		AE12ED25B0CCD0F3FC46F7FD /* PendingMaterializationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMaterializationsView.swift; sourceTree = "<group>"; };
 		AEEC7C6934436D870B713A6B /* ReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsView.swift; sourceTree = "<group>"; };
+		C91C46838FF892A708BBC732 /* ReportsSampleData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsSampleData.swift; sourceTree = "<group>"; };
 		BBADB4F0E80F455CCAE9BBEB /* CatchUpBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatchUpBanner.swift; sourceTree = "<group>"; };
 		24A86ACD79AC585E2D9AC931 /* ActivationMetricsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationMetricsView.swift; sourceTree = "<group>"; };
 		BD383FD631A4DEA4B774CA4C /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
@@ -453,6 +455,7 @@
 			isa = PBXGroup;
 			children = (
 				AEEC7C6934436D870B713A6B /* ReportsView.swift */,
+				C91C46838FF892A708BBC732 /* ReportsSampleData.swift */,
 			);
 			path = Reports;
 			sourceTree = "<group>";
@@ -652,6 +655,7 @@
 				37C6C0308B1818FF8998144D /* RecurrenceEditorView.swift in Sources */,
 				CE99BEFA8F985754461255B2 /* RecurringRulesView.swift in Sources */,
 				E0F08E2CAB6A8D93ED4BFD78 /* ReportsView.swift in Sources */,
+				1D49277F407A2E1454D96732 /* ReportsSampleData.swift in Sources */,
 				3D9972903CDABD429693066D /* RootView.swift in Sources */,
 				68BDEEB6CF05CC4EC00B86B5 /* RunningTimerCard.swift in Sources */,
 				E3F06B0AA5BB6345101C9E87 /* SettingsView.swift in Sources */,

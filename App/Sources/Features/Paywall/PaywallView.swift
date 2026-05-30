@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import StoreKit
 import BillableCore
 
@@ -11,21 +12,21 @@ struct PaywallView: View {
 
     /// What action the user was trying to take when the paywall fired —
     /// shapes the headline so the value prop matches the context.
-    enum Trigger {
+    enum Trigger: Equatable {
         case reports
         case settings
         case removeWatermark  // NEW
 
         var headline: String {
             switch self {
-            case .reports:         "See your full picture."
+            case .reports:         "Know what you've earned — and what you're owed."
             case .settings:        "Go Pro."
             case .removeWatermark: "Remove the watermark."
             }
         }
         var subhead: String {
             switch self {
-            case .reports:         "Hours by client, billable vs. non-billable, earnings trends — all in one screen."
+            case .reports:         "An AR-led dashboard: what you've invoiced, collected, and what's still outstanding."
             case .settings:        "Watermark-free invoices, full Reports, CSV exports."
             case .removeWatermark: "Pro removes 'Sent with Cadence' from your invoice PDFs and unlocks Reports + CSV export."
             }
@@ -38,6 +39,14 @@ struct PaywallView: View {
     @State private var isProcessing = false
     @State private var error: String?
 
+    // Backing data for the `.reports` crisp-taste header. We compute a live
+    // snapshot from the user's own entries/invoices so the teaser shows *their*
+    // numbers; if they have nothing reportable yet, we fall back to
+    // `ReportsSampleData` so the pitch never renders empty zeros.
+    @Query private var reportEntries: [TimeEntry]
+    @Query private var reportInvoices: [Invoice]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
+
     enum Plan: String, CaseIterable { case yearly, monthly }
 
     var body: some View {
@@ -48,6 +57,7 @@ struct PaywallView: View {
                     valueBullets
                     pricePicker
                     purchaseButton
+                    trialTerms
                     secondaryActions
                     finePrint
                 }
@@ -75,29 +85,185 @@ struct PaywallView: View {
 
     // MARK: - Sections
 
+    @ViewBuilder
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: "doc.text.fill")
-                .font(.system(size: 36, weight: .semibold))
-                .foregroundStyle(.tint)
+        if trigger == .reports {
+            crispTasteHeader
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: "doc.text.fill")
+                    .font(.system(size: 36, weight: .semibold))
+                    .foregroundStyle(.tint)
+                Text(trigger.headline)
+                    .font(.largeTitle.weight(.bold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                Text(trigger.subhead)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    // MARK: - Reports crisp-taste header
+
+    /// A real slice of the Layout-A Reports dashboard shown above the shared Pro
+    /// core when the paywall is entered from Reports: the "as of today" AR card +
+    /// an Invoiced/Collected/Rate tile row. Fed from the user's own data when they
+    /// have something reportable, else from `ReportsSampleData`. Decorative — the
+    /// real headline sits above it; the figures themselves are `accessibilityHidden`.
+    private var crispTasteHeader: some View {
+        let model = reportsTeaserModel
+
+        return VStack(alignment: .leading, spacing: 14) {
             Text(trigger.headline)
                 .font(.largeTitle.weight(.bold))
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
+
+            VStack(alignment: .leading, spacing: 10) {
+                teaserARCard(model)
+                teaserTileRow(model)
+                if model.isSample {
+                    Text("Sample preview")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .accessibilityHidden(true)
+
             Text(trigger.subhead)
                 .font(.body)
                 .foregroundStyle(.secondary)
         }
     }
 
+    /// Display-only figures for the teaser, plus whether they're sample data.
+    private struct ReportsTeaserModel {
+        let currencyCode: String
+        let outstanding: Decimal
+        let overdue: Decimal
+        let overdueCount: Int
+        let avgDaysToPay: Int?
+        let invoiced: Decimal
+        let collected: Decimal
+        let effectiveRate: Decimal?
+        let isSample: Bool
+    }
+
+    /// Compute the teaser from the user's real snapshot when they have reportable
+    /// data; otherwise use the representative sample slice.
+    private var reportsTeaserModel: ReportsTeaserModel {
+        let code = profiles.first?.currencyCode ?? "USD"
+        let snap = ReportsAggregator.snapshot(
+            entries: reportEntries,
+            invoices: reportInvoices,
+            in: .thisMonth,
+            activeCurrency: code
+        )
+        if snap.hasReportableData {
+            return ReportsTeaserModel(
+                currencyCode: code,
+                outstanding: snap.ar.outstanding,
+                overdue: snap.ar.overdue,
+                overdueCount: snap.ar.overdueCount,
+                avgDaysToPay: snap.ar.avgDaysToPay.map { Int($0.rounded()) },
+                invoiced: snap.money.invoiced,
+                collected: snap.money.collected,
+                effectiveRate: snap.performance.effectiveRate,
+                isSample: false
+            )
+        } else {
+            return ReportsTeaserModel(
+                currencyCode: code,
+                outstanding: ReportsSampleData.outstanding,
+                overdue: ReportsSampleData.overdue,
+                overdueCount: ReportsSampleData.overdueCount,
+                avgDaysToPay: ReportsSampleData.avgDaysToPay,
+                invoiced: ReportsSampleData.invoiced,
+                collected: ReportsSampleData.collected,
+                effectiveRate: ReportsSampleData.effectiveRate,
+                isSample: true
+            )
+        }
+    }
+
+    private func teaserARCard(_ model: ReportsTeaserModel) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("GET PAID")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("as of today")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            Text(currency(model.outstanding, code: model.currencyCode))
+                .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+            if model.overdue > 0 {
+                Text("\(currency(model.overdue, code: model.currencyCode)) overdue · \(model.overdueCount)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.red, in: Capsule())
+            }
+            if let days = model.avgDaysToPay {
+                Label("~\(days) days to pay", systemImage: "clock")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(.thinMaterial, in: .rect(cornerRadius: 14))
+    }
+
+    private func teaserTileRow(_ model: ReportsTeaserModel) -> some View {
+        HStack(spacing: 12) {
+            teaserTile("INVOICED", currency(model.invoiced, code: model.currencyCode), .blue)
+            teaserTile("COLLECTED", currency(model.collected, code: model.currencyCode), .green)
+            teaserTile("RATE",
+                       model.effectiveRate.map { "\(currency($0, code: model.currencyCode))/h" } ?? "—",
+                       .primary)
+        }
+    }
+
+    private func teaserTile(_ label: String, _ value: String, _ color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.subheadline.weight(.bold).monospacedDigit())
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(.thinMaterial, in: .rect(cornerRadius: 12))
+    }
+
+    private func currency(_ value: Decimal, code: String) -> String {
+        value.formatted(.currency(code: code))
+    }
+
+    /// The shared "Everything in Pro" core — identical for every trigger,
+    /// including `.reports`. Subscribing from any doorway visibly unlocks all of
+    /// Pro, not just the contextual feature.
     private var valueBullets: some View {
         VStack(alignment: .leading, spacing: 12) {
             bullet("doc.text", "Watermark-free PDF invoices",
                    "Send polished invoices without 'Sent with Cadence' in the footer.")
-            bullet("chart.bar", "Reports & insights",
-                   "Hours by client, billable vs. non-billable, earnings trends.")
+            bullet("chart.bar", "Full Reports & insights",
+                   "Invoiced, collected, what you're owed — plus hours by client and project.")
             bullet("square.and.arrow.up", "CSV export",
                    "Clean exports for your accountant.")
+            bullet("infinity", "Lifetime — when it lands",
+                   "A one-time purchase option is on the way for subscribers.")
         }
     }
 
@@ -177,6 +343,7 @@ struct PaywallView: View {
                                 .padding(.horizontal, 6).padding(.vertical, 2)
                                 .background(Color.accentColor.opacity(0.18), in: .capsule)
                                 .foregroundStyle(.tint)
+                            savingsPill
                         }
                     }
                     Text(perCycle)
@@ -220,6 +387,7 @@ struct PaywallView: View {
                                 .padding(.horizontal, 6).padding(.vertical, 2)
                                 .background(Color.accentColor.opacity(0.18), in: .capsule)
                                 .foregroundStyle(.tint)
+                            savingsPill
                         }
                     }
                     Text(perCycleLabel(for: plan, product: product))
@@ -246,6 +414,16 @@ struct PaywallView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    /// "SAVE 51%" badge on the yearly tier — yearly ($34.99) vs. 12× monthly
+    /// ($5.99 → $71.88) is ~51% cheaper.
+    private var savingsPill: some View {
+        Text("SAVE 51%")
+            .font(.caption2.weight(.bold))
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(Color.green.opacity(0.18), in: .capsule)
+            .foregroundStyle(.green)
     }
 
     private func perCycleLabel(for plan: Plan, product: Product?) -> String {
@@ -288,6 +466,23 @@ struct PaywallView: View {
         // eligibility from.
         if mockPaywallPrices { return "Start 7-day free trial" }
         return manager.eligibleForIntroOffer ? "Start 7-day free trial" : "Subscribe"
+    }
+
+    /// Trial-terms line under the CTA. Shows the free-trial framing when the
+    /// user is intro-eligible (or in screenshot mode); otherwise a plain
+    /// auto-renew note. The yearly price is taken from the live product when
+    /// available, falling back to the storekit list price.
+    @ViewBuilder
+    private var trialTerms: some View {
+        let yearlyPrice = (mockPaywallPrices ? nil : manager.yearly?.displayPrice) ?? "$34.99"
+        let showsTrial = mockPaywallPrices || manager.eligibleForIntroOffer
+        Text(showsTrial
+             ? "7 days free, then \(yearlyPrice)/year · Cancel anytime"
+             : "\(yearlyPrice)/year · Cancel anytime")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .multilineTextAlignment(.center)
     }
 
     private var secondaryActions: some View {
