@@ -49,6 +49,28 @@ struct BillableApp: App {
                     }
                 }
                 self.container = appGroup
+            } else if CommandLine.arguments.contains("--seed-onboarding-needs-setup") {
+                // UI-test fixture (spec §16): onboarded but first-setup NOT reached.
+                // A named profile (so the name banner doesn't pre-empt) with
+                // onboardingCompletedAt set + firstSetupCompletedAt nil, and NO
+                // clients/projects → Today renders the get-started block on first
+                // frame. App Group container (no CloudKit) so the seeded profile is
+                // exactly what RootView/TodayView read.
+                if CommandLine.arguments.contains("--reset-store") {
+                    Self.resetAppGroupStore("group.com.eldenstudios.billable")
+                }
+                let appGroup = try BillableModelContainer.appGroup("group.com.eldenstudios.billable")
+                self.container = appGroup
+                Self.runOnMainActor {
+                    var profileCheck = FetchDescriptor<BusinessProfile>()
+                    profileCheck.fetchLimit = 1
+                    if (try? appGroup.mainContext.fetch(profileCheck))?.isEmpty != false {
+                        let profile = BusinessProfile(name: "Test Co")
+                        profile.onboardingCompletedAt = .now
+                        appGroup.mainContext.insert(profile)
+                        try? appGroup.mainContext.save()
+                    }
+                }
             } else {
                 // UI-test support: `--reset-store` wipes the App Group store files so
                 // a from-empty onboarding run is deterministic across dirty simulators.
