@@ -63,64 +63,124 @@ public enum ReportsAggregator {
         public let amount: Decimal
     }
 
-    public struct WeeklyPoint: Identifiable, Sendable {
-        public let id: Date
-        public let weekStart: Date
-        public let amount: Decimal
+    // MARK: - Money / AR / performance sub-summaries
+
+    public struct MoneySummary: Sendable, Equatable {
+        public let tracked: Decimal     // billable time-value in range (hours × current rate)
+        public let invoiced: Decimal    // Σ total of non-draft invoices issued in range
+        public let collected: Decimal   // Σ total of paid invoices paid in range
     }
 
+    public struct Aging: Sendable, Equatable {
+        public let current: Decimal     // sent, not yet due
+        public let d1to30: Decimal
+        public let d31to60: Decimal
+        public let d60plus: Decimal
+        public var overdue: Decimal { d1to30 + d31to60 + d60plus }
+        public var outstanding: Decimal { current + overdue }
+    }
+
+    public struct ARSummary: Sendable, Equatable {
+        public let aging: Aging
+        public let overdueCount: Int
+        public let avgDaysToPay: Double?   // mean(paidAt − issuedAt) in days, over paid-in-range; nil if none
+        public var outstanding: Decimal { aging.outstanding }
+        public var overdue: Decimal { aging.overdue }
+    }
+
+    public struct Performance: Sendable, Equatable {
+        public let effectiveRate: Decimal?  // tracked ÷ totalHours ($/h); nil when totalHours == 0
+        public let utilization: Double?     // billableHours ÷ totalHours (0...1); nil when totalHours == 0
+    }
+
+    public struct TrendPoint: Identifiable, Sendable, Equatable {
+        public let id: Date
+        public let bucketStart: Date
+        public let amount: Decimal       // invoiced total in this bucket
+    }
+
+    public enum TrendBucket: Sendable { case day, week, month }  // x-axis granularity for the chart
+
     public struct Snapshot: Sendable {
+        public let money: MoneySummary
+        public let ar: ARSummary
+        public let performance: Performance
         public let totalHours: Decimal
-        public let totalEarnings: Decimal
         public let billableHours: Decimal
         public let nonBillableHours: Decimal
-        public let uninvoicedAmount: Decimal
-        public let clientHours: [ClientHours]
-        public let projectHours: [ProjectHours]
-        public let earningsTrend: [WeeklyPoint]
+        public let clientHours: [ClientHours]    // unchanged type
+        public let projectHours: [ProjectHours]  // unchanged type
+        public let revenueTrend: [TrendPoint]
+        public let trendBucket: TrendBucket
+        public let excludedCurrencyCount: Int     // invoices skipped for non-matching currency
         public let currencyCode: String
+        public var hasReportableData: Bool { totalHours > 0 || !revenueTrend.isEmpty || ar.outstanding > 0 || money.invoiced > 0 }
     }
 
     // MARK: - Aggregation
 
-    /// Compute a complete report snapshot for the given entries. Filters by `range`,
-    /// then groups by client + project, and produces an 8-bucket weekly trend for
-    /// the chart (regardless of `range` — the trend is always last-8-weeks).
+    /// Compute a complete report snapshot for the given entries + invoices. Time
+    /// metrics filter by `range`; the money block draws from invoices whose currency
+    /// matches `activeCurrency` (others are excluded and counted).
     public static func snapshot(
         entries: [TimeEntry],
-        invoiceLookup: [UUID: Invoice] = [:],
+        invoices: [Invoice],
         in range: TimeRange,
-        currencyCode: String,
+        activeCurrency: String,
         referenceDate: Date = .now,
         calendar: Calendar = .current
     ) -> Snapshot {
         let bounds = range.range(asOf: referenceDate, calendar: calendar)
-        let inRange = entries.filter { entry in
-            entry.startedAt >= bounds.lowerBound && entry.startedAt < bounds.upperBound
+        func inRange(_ d: Date) -> Bool { d >= bounds.lowerBound && d < bounds.upperBound }
+
+        // ---- currency-filtered invoice set ----
+        let curInvoices = invoices.filter { $0.currencyCodeSnapshot == activeCurrency }
+        let excludedCurrencyCount = invoices.count - curInvoices.count
+
+        // ---- entries in range (existing behaviour) ----
+        let inRangeEntries = entries.filter { inRange($0.startedAt) }
+        var totalSeconds: TimeInterval = 0, billableSeconds: TimeInterval = 0, nonBillableSeconds: TimeInterval = 0
+        var tracked = Decimal(0)
+        for entry in inRangeEntries {
+            let s = entry.duration(asOf: referenceDate)
+            totalSeconds += s
+            if entry.project?.isBillable == true { billableSeconds += s; tracked += entry.amount(asOf: referenceDate) }
+            else { nonBillableSeconds += s }
         }
 
-        // Top-level totals
-        var totalSeconds: TimeInterval = 0
-        var billableSeconds: TimeInterval = 0
-        var nonBillableSeconds: TimeInterval = 0
-        var totalEarnings = Decimal(0)
+        // ---- MoneySummary ----
+        let invoiced = curInvoices
+            .filter { $0.status != .draft && inRange($0.issuedAt) }
+            .reduce(Decimal(0)) { $0 + $1.total }
+        let collected = curInvoices
+            .filter { $0.status == .paid && ($0.paidAt.map(inRange) ?? false) }
+            .reduce(Decimal(0)) { $0 + $1.total }
+        let money = MoneySummary(tracked: tracked, invoiced: invoiced, collected: collected)
 
-        for entry in inRange {
-            let seconds = entry.duration(asOf: referenceDate)
-            totalSeconds += seconds
-            if entry.project?.isBillable == true {
-                billableSeconds += seconds
-                totalEarnings += entry.amount(asOf: referenceDate)
-            } else {
-                nonBillableSeconds += seconds
-            }
-        }
+        // ---- AR (Task 2), Performance (Task 3), Trend (Task 4) ----
+        let ar = arSummary(curInvoices, range: range, bounds: bounds, asOf: referenceDate, calendar: calendar)
+        let performance = performanceSummary(tracked: tracked, totalHours: Decimal(totalSeconds/3600), billableHours: Decimal(billableSeconds/3600))
+        let trend = revenueTrend(curInvoices, range: range, bounds: bounds, asOf: referenceDate, calendar: calendar)
 
-        // Uninvoiced: NOT scoped to range (the user wants to see all outstanding work).
-        let uninvoiced = entries
-            .filter { $0.invoiceID == nil }
-            .reduce(into: Decimal(0)) { $0 += $1.amount(asOf: referenceDate) }
+        // ---- per-client / per-project (existing, keep) ----
+        let (clientHours, projectHours) = groupings(inRangeEntries, asOf: referenceDate)
 
+        return Snapshot(
+            money: money, ar: ar, performance: performance,
+            totalHours: Decimal(totalSeconds/3600),
+            billableHours: Decimal(billableSeconds/3600),
+            nonBillableHours: Decimal(nonBillableSeconds/3600),
+            clientHours: clientHours, projectHours: projectHours,
+            revenueTrend: trend.points, trendBucket: trend.bucket,
+            excludedCurrencyCount: excludedCurrencyCount, currencyCode: activeCurrency)
+    }
+
+    // MARK: - Per-client / per-project grouping (existing behaviour, lifted)
+
+    private static func groupings(
+        _ inRange: [TimeEntry],
+        asOf referenceDate: Date
+    ) -> ([ClientHours], [ProjectHours]) {
         // Group by client
         let byClient = Dictionary(grouping: inRange) { entry in
             entry.project?.client?.persistentModelID.storeIdentifier ?? ""
@@ -159,43 +219,28 @@ public enum ReportsAggregator {
         }
         .sorted { $0.hours > $1.hours }
 
-        // 8-week earnings trend (always, regardless of range — bar chart visual aid).
-        let trend = earningsTrend(entries: entries, weeks: 8, asOf: referenceDate, calendar: calendar)
-
-        return Snapshot(
-            totalHours: Decimal(totalSeconds / 3600),
-            totalEarnings: totalEarnings,
-            billableHours: Decimal(billableSeconds / 3600),
-            nonBillableHours: Decimal(nonBillableSeconds / 3600),
-            uninvoicedAmount: uninvoiced,
-            clientHours: clientHours,
-            projectHours: projectHours,
-            earningsTrend: trend,
-            currencyCode: currencyCode
-        )
+        return (clientHours, projectHours)
     }
 
-    private static func earningsTrend(
-        entries: [TimeEntry],
-        weeks: Int,
-        asOf referenceDate: Date,
-        calendar: Calendar
-    ) -> [WeeklyPoint] {
-        guard let thisWeekStart = calendar.dateInterval(of: .weekOfMonth, for: referenceDate)?.start else {
-            return []
-        }
+    // MARK: - AR / Performance / Trend
+    //
+    // Stubs land here so the file compiles after Task 1's reshape. Tasks 2–4 give
+    // them real bodies + tests; Task 5 asserts the integrated result.
 
-        return (0..<weeks).reversed().compactMap { offset -> WeeklyPoint? in
-            guard let weekStart = calendar.date(byAdding: .weekOfYear, value: -offset, to: thisWeekStart),
-                  let weekEnd = calendar.date(byAdding: .weekOfYear, value: 1, to: weekStart) else {
-                return nil
-            }
-            let amount = entries
-                .filter { entry in
-                    entry.startedAt >= weekStart && entry.startedAt < weekEnd
-                }
-                .reduce(into: Decimal(0)) { $0 += $1.amount(asOf: referenceDate) }
-            return WeeklyPoint(id: weekStart, weekStart: weekStart, amount: amount)
-        }
+    private static func arSummary(_ invoices: [Invoice], range: TimeRange,
+                                  bounds: ClosedRange<Date>, asOf now: Date,
+                                  calendar: Calendar) -> ARSummary {
+        ARSummary(aging: Aging(current: 0, d1to30: 0, d31to60: 0, d60plus: 0),
+                  overdueCount: 0, avgDaysToPay: nil)
+    }
+
+    static func performanceSummary(tracked: Decimal, totalHours: Decimal, billableHours: Decimal) -> Performance {
+        Performance(effectiveRate: nil, utilization: nil)
+    }
+
+    private static func revenueTrend(_ invoices: [Invoice], range: TimeRange,
+                                     bounds: ClosedRange<Date>, asOf now: Date,
+                                     calendar: Calendar) -> (points: [TrendPoint], bucket: TrendBucket) {
+        ([], .month)
     }
 }
