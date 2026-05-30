@@ -152,10 +152,12 @@ struct GetStartedSection: View {
         startingQuickTimer = true
         let project = fetchOrCreateGeneralProject()
         TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
-        // The running @Query flips `isTimerRunning` on the next runloop, which
-        // re-disables the button and reframes the header; clear the in-flight
-        // flag so the control settles into its running (disabled) state.
-        startingQuickTimer = false
+        // Clear the in-flight flag on the NEXT main-actor turn (not synchronously):
+        // the running @Query flips `isTimerRunning` on the next runloop, so deferring
+        // the clear keeps the button disabled across a same-frame double-tap, making
+        // the flag a real debounce. (Hard dedupe is still the fetch-or-create +
+        // TimerService same-project no-op above; this just makes the disabled state real.)
+        Task { @MainActor in startingQuickTimer = false }
     }
 
     /// Probe for an existing non-archived clientless "General" (fetchLimit 1 —

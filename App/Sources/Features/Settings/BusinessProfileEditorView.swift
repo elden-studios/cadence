@@ -264,7 +264,7 @@ struct BusinessProfileEditorView: View {
         entityType = profile.entityType
         // Auto-expand the freelancer tax section if a non-zero rate already exists
         // (spec §6) — otherwise a saved rate would be hidden behind a collapsed group.
-        taxExpanded = (profile.taxRate as NSDecimalNumber).doubleValue != 0
+        taxExpanded = profile.taxRate != .zero
         address = profile.address
         email = profile.email
         phone = profile.phone
