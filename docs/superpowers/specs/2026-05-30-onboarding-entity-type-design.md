@@ -2,169 +2,156 @@
 
 - **Date:** 2026-05-30
 - **Branch:** `feature/onboarding-entity-type` (forked from `feature/project-detail-ia` @ `692b9e4`)
-- **Status:** **v3 — pressure-tested by a 5-lens review (logic, product, market, engineering, UI/UX); blockers + fixes folded in.**
-- **Market context:** US-first, ships globally (175 countries). Tax/locale logic must be globally robust, not region-specific.
-- **Design confidence:** the 5-lens review scored the v2 spec ~70% as-written (logic 55 / product 55 / market 88 / engineering 88 / UI-UX 72). This v3 resolves the two blockers and the major findings, targeting ~90%+. Residual is implementation-time verification (§13).
+- **Status:** **v4 — hardened by two 5-lens review rounds** (R1: logic/product/market/engineering/UI-UX; R2: security/resilience/i18n/analytics/maintainability). All blockers + majors folded in.
+- **Market context:** US-first, ships globally (175 countries), **English-only today** (no String Catalog — see §11).
+- **Confidence:** v3 scored ~70% as-written; R2 exposed resilience at 45% (2 new blockers). This v4 addresses them; honest target ~95% (see §15).
 
 ## 1. Goal
 
-Profile-first onboarding: `welcome → choose Freelancer/Organization (framed by how you bill) + enter name → land on Today`. Entity type shapes the profile form (labels, tax-section default) in onboarding and the Settings editor. On Today, the user is guided to first value by a **2-step setup checklist + a one-tap "Start a timer now" quick-start**, and (later) a well-timed enrichment prompt. Plus a dev-credit string fix.
+Profile-first onboarding: `welcome → choose Freelancer/Organization (framed by how you bill) + enter name → land on Today`. On Today, guide to first value via a **2-step setup checklist + one-tap "Start a timer now" quick-start**, then a well-timed enrichment prompt. Plus a dev-credit fix. Entity type shapes form labels + tax-section default in onboarding and Settings.
 
-## 2. Background (current state, verified)
+## 2. Background (verified)
 
-- **Onboarding** ([OnboardingView.swift](../../../App/Sources/Features/Onboarding/OnboardingView.swift)) is 3 steps: `welcome → client (name + hourlyRate + color) → timer`. On finish it **fetches-or-creates** a BusinessProfile (insert only if fetch empty — see lines 303-308), creates a `Client` + `Project`, and starts a `TimeEntry`. Welcome tagline: `Text("Track hours.\nSend invoices.")`. Field prompts use `white.opacity(0.3)` (lines 111, 174).
-- **`BusinessProfile`** ([BusinessProfile.swift](../../../Packages/BillableCore/Sources/BillableCore/Models/BusinessProfile.swift)) is a CloudKit-mirrored `@Model` (`BusinessProfile.self` in `mirroredTypes`, [ModelContainer+Billable.swift:17](../../../Packages/BillableCore/Sources/BillableCore/Persistence/ModelContainer+Billable.swift)). `name` is the only hard invoice gate (`canSendInvoice`). **Singleton is assumed but NOT enforced** — `profiles.first` is read in ~12 sites; no `.unique`.
-- **Enum persistence convention:** `Client.colorRaw` and `Invoice.statusRaw` store enums as raw `String` + a computed typed accessor ("Codable enum in CloudKit can be fragile; raw string is safe"). We follow this.
-- **Tax** = single `taxRate` snapshotted to `Invoice`; PDF renders the tax row only when `taxAmount > 0` ([InvoiceTemplate.swift:230]). Freelancer (rate 0) → no tax line. Entity type never enters tax math.
-- **`Project.client` is optional** (WorkView groups a `nil`-client "No client" bucket) — so a clientless quick-start project is valid.
-- **Adding work:** `ClientEditorView(client:)` **self-dismisses, no `onSaved`** → guided UI must be `@Query`-driven. `ProjectEditorView(client:project:onSaved:)` has `onSaved`. A `Project` needs a `Client` only via `NewProjectSheet`; the model allows `client == nil`.
-- **`OnboardingFlags.shouldShow`** returns false if the device-local `UserDefaults` `completedKey` is set, else `clientCount == 0`. `RootView` also force-shows onboarding under `--ui-test-show-onboarding`.
-- **Dev credit**: [SettingsView.swift:111](../../../App/Sources/Features/Settings/SettingsView.swift) shows `"Cadence by Elden Studios Company"`.
+- **Onboarding** ([OnboardingView.swift](../../../App/Sources/Features/Onboarding/OnboardingView.swift)) — 3 steps today; creates a profile (fetch-or-create), Client, Project, running TimeEntry. Tagline `Text("Track hours.\nSend invoices.")`; prompts at `white.opacity(0.3)`.
+- **`BusinessProfile`** — CloudKit-mirrored `@Model` ([ModelContainer+Billable.swift:17]); has `createdAt`. **Singleton assumed, NOT enforced** — `profiles.first` read in ~12 sites; no `.unique`. Enum convention = raw `String` + accessor (`Client.colorRaw`, `Invoice.statusRaw`).
+- **`saveOrLog`** ([ModelContext+SaveOrLog.swift]) is **fire-and-forget** (catches, logs `fileID/line/context/error.localizedDescription` — no PII — returns void). Cannot gate "set flag only on success."
+- **`TimerService.start`** enforces "≤1 running entry" (no-ops same project; finalizes any other) — dedupes *timers*, NOT project inserts.
+- **`Project.client` is optional**; `Client.projects` and `Project.entries` are `deleteRule: .cascade` (deleting a client deletes its projects + their time entries).
+- **`OnboardingFlags.shouldShow`** evaluated once in `RootView.onAppear`; `--ui-test-show-onboarding` force-shows.
+- **No analytics anywhere** (privacy.md: "no analytics pipelines… no error-reporting"); StoreKit is subscription-only; no `PrivacyInfo.xcprivacy`; no Data-Protection entitlement.
+- **No localization infra** — zero `String(localized:)`/`.xcstrings`; `knownRegions = en`.
 
-## 3. Locked decisions
+## 3. Locked decisions (incl. user choices)
 
-1. **Profile-first onboarding**, keeping the **Freelancer/Organization choice** (framed by *how you bill*, not legal entity) — user decision.
-2. **First-run = Hybrid** (user decision): land on Today with a **2-step setup checklist** (Add a client → Create a project) **and** a **"Start a timer now" quick-start** that creates a default clientless "General" project and starts the timer in one tap (restores the day-1 activation hook the review flagged as lost).
-3. **Tax universal & OFF by default for everyone**; entity type changes only labels + default tax-section visibility, never capability.
-4. **Onboarding "completed" is derived from persisted state** (a `BusinessProfile` with a non-blank `name` exists), not solely the device-local `UserDefaults` flag — fixes the multi-device re-onboarding trap.
-5. **Singleton write is explicit fetch-then-mutate** (never `defaultForCurrentLocale()` on the exists path) — fixes the duplicate-profile risk.
-6. **One nudge at a time on Today** (precedence in §7); "active project" defined precisely.
-7. **Existing users** (no stored type) default to Organization-style labels (back-compat).
-8. **Dev credit** → `"Elden Studios Company"`.
+1. **Profile-first onboarding**, keep the **Freelancer/Organization choice** framed by *how you bill*.
+2. **First-run = Hybrid:** Today shows a **2-step checklist** (Add a client → Create a project) **and** a **"Start a timer now" quick-start**.
+3. **Tax universal & OFF by default**; entity type changes only labels + default tax-section visibility.
+4. **Completion + first-run progress = one-way persisted latches** on `BusinessProfile` (not a clearable name, not a device-local-only flag).
+5. **Singleton: deterministic oldest-wins reads + on-launch reconciliation** (the duplicate-profile risk is now user-visible, so it's in-scope, not deferred).
+6. **One guidance element at a time** on Today (§7).
+7. Existing users default to Organization-style labels.
+8. Dev credit → `"Elden Studios Company"`.
 
 ## 4. Data model
 
 `Models/EntityType.swift` (BillableCore):
-
 ```swift
 public enum EntityType: String, Codable, CaseIterable, Sendable {
-    case freelancer
-    case organization
-
-    /// Presentation POLICY belongs in core; presentation STRINGS do not (see §6).
-    public var showsTaxByDefault: Bool { self == .organization }
+    case freelancer, organization
+    public var showsTaxByDefault: Bool { self == .organization }   // policy on enum; STRINGS live in the view layer (§6/§11)
 }
 ```
 
-`BusinessProfile` gains a raw stored property + typed accessor (mirrors `colorRaw`/`statusRaw`):
-
+`BusinessProfile` additions (all mirrored, additive non-optional-default or optional → lightweight-migration-safe; `createdAt` already exists):
 ```swift
-public var entityTypeRaw: String = EntityType.organization.rawValue  // legacy default preserves "Business name" + visible tax
+public var entityTypeRaw: String = EntityType.organization.rawValue   // legacy default preserves "Business name" + visible tax
+public var entityType: EntityType { get { .init(rawValue: entityTypeRaw) ?? .organization } set { entityTypeRaw = newValue.rawValue } }
 
-public var entityType: EntityType {
-    get { EntityType(rawValue: entityTypeRaw) ?? .organization }
-    set { entityTypeRaw = newValue.rawValue }
-}
+// One-way first-run latches (never unset). Double as activation metrics (§14).
+public var onboardingCompletedAt: Date? = nil    // set once in finish()
+public var firstSetupCompletedAt: Date? = nil    // set once a Client AND a client-linked non-archived Project first coexist
 ```
+- `init` gains defaulted params → all existing call sites + ~15 tests compile unchanged.
+- **`entityType` default `.organization`** is a *back-compat fallback only*; onboarding always sets it explicitly. The editor's `newProfile()` is the rare exception and its always-visible picker (§6) is the correction point.
 
-- Add `entityTypeRaw` to `init(...)` **with a default** → all existing call sites (`BusinessProfile(name:)`, SampleData, MarketingData, ~15 tests) compile unchanged.
-- **Default rationale (resolves the "silent mis-tag" finding):** `.organization` is a *back-compat fallback* only. **Onboarding always sets `entityType` explicitly**, so new users are never mis-tagged. The one non-onboarding creation path — the editor's `newProfile()` — is rare (a profile normally exists post-onboarding); its always-visible segmented picker (§6) is the correction point. Documented, not silent.
-- **CloudKit/migration:** non-optional `String` with a default = lightweight-migration-safe; no `mirroredTypes` change; no manual migration. (Matches every prior additive field: bank v1.4, tax-ID v1.5, email v1.6.)
-- **Enrichment signal** (drives the §7b nudge; never blocks):
+## 5. Onboarding flow
 
-```swift
-public var isProfileEnriched: Bool {
-    !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasBankDetails
-}
+`Step = welcome → identity`. **Drop the 2-dot progress indicator** (over-instrumented + the `0..<3`/`<=` fill bug); drop `arrow.right` from the single CTA. Slide animation gated on `accessibilityReduceMotion`; CTA in safe area; **wrap content in a `ScrollView`**.
+
+**Welcome:** unchanged; **preserve the tagline verbatim** (`LaunchTaglineUITests`). Subtitle → "Made for freelancers and small businesses."
+
+**Identity screen:** two descriptive selectable cards, copy framed by how-you-bill (translation-shaped — one clause, em-dash, no contractions/idioms):
+- **Freelancer** — `person.fill` — "Just me — I bill for my own time."
+- **Organization** — `building.2.fill` — "A team — we bill under one company name."
+- ≥56pt, 12pt gap; selected = accent border + checkmark + fill (not color-alone); each a `Button` with `accessibilityLabel`/`Hint` + `.isSelected` **trait**. Pre-select Freelancer.
+- **Name field:** visible caps label from the shared `EntityType+Presentation` mapping (§6); prompt **`opacity ≥ 0.55`** (0.3 = 2.6:1 fails WCAG); `textContentType .name`/`.organizationName`; `.words`; `.submitLabel(.done)` + `onSubmit { finish() }`. **Do not auto-focus on appear** (would hide the cards); focus after a type is chosen.
+- One CTA "Finish setup" (enabled when trimmed name non-empty).
+
+**`finish()` — crash-safe, throwing save (fixes blockers):**
 ```
-
-## 5. Onboarding flow (UI/UX applied)
-
-`Step` becomes `welcome → identity`. **Drop the 2-dot progress indicator** (over-instrumented for 2 steps, and the current `ForEach(0..<3)` + `<=` logic is a fill-meter bug); Back + clear titles are sufficient wayfinding. Keep the slide animation **gated on `accessibilityReduceMotion`**; CTA respects safe-area.
-
-**Welcome:** unchanged. **Preserve the tagline `Text("Track hours.\nSend invoices.")` verbatim** (`LaunchTaglineUITests`). Test-safe subtitle tweak: "Made for freelancers and consultants." → "Made for freelancers and small businesses."
-
-**Identity screen (step 2):**
-- Title (`title`): "Tell us about you".
-- **Two descriptive selectable cards** (not segmented — first-time identity choice). Copy framed by **how you bill** (fixes the LLC/DBA ambiguity):
-  - **Freelancer** — `person.fill` — "It's just me. I bill for my own time."
-  - **Organization** — `building.2.fill` — "We're a team. We bill under one company name."
-  - Each ≥56pt, 12pt gap; **selected = accent border (2pt) + filled checkmark + subtle fill** (never color alone); each is a `Button` with `accessibilityLabel`+`Hint` and the `.isSelected` trait. Pre-select Freelancer.
-- **Name field:** visible caps label = view-layer `issuerNameLabel(for: type)` ("YOUR NAME"/"BUSINESS NAME"); prompt example at **`opacity ≥ 0.55`** (was 0.3 = 2.6:1, fails WCAG; 0.55 ≈ 4.6:1). `textContentType` `.name`/`.organizationName`; `.words`. **Do NOT auto-focus on appear** (it would raise the keyboard and hide the entity cards on small phones); focus only after a type is chosen. Wrap the screen in a `ScrollView`; add `.submitLabel(.done)` + `onSubmit { finish() }`.
-- Reassurance (`footnote`): "You can add your logo, tax, and bank details anytime in Settings."
-- **One primary CTA** "Finish setup", enabled when trimmed name is non-empty.
-
-**`finish()` — explicit and crash-safe (fixes both blockers):**
+1. Fetch the canonical profile (sortBy createdAt asc, fetchLimit 1). If present → mutate; else → insert defaultForCurrentLocale(). NEVER call defaultForCurrentLocale() on the exists path.
+2. profile.name = trimmedName; profile.entityType = selectedType.
+3. do { try modelContext.save() } catch { present "Couldn't save — try again"; RETURN without step 4. }
+4. profile.onboardingCompletedAt = .now; try? save; set UserDefaults fast-path flag; onFinish().
 ```
-1. Fetch the singleton: FetchDescriptor<BusinessProfile>, fetchLimit = 1.
-2. If present → mutate it. Else → insert defaultForCurrentLocale(). (NEVER call defaultForCurrentLocale() on the exists path.)
-3. Set profile.name = trimmedName; profile.entityType = selectedType.
-4. saveOrLog("complete onboarding")  ← SAVE FIRST.
-5. Only after a successful save: set OnboardingFlags.completedKey = true.
-6. onFinish() → Today.
-```
-- **Do not** create a Client/Project/TimeEntry here (quick-start/checklist handle that on Today).
-- **`OnboardingFlags.shouldShow`** also returns `false` when a `BusinessProfile` with a non-blank `name` exists (covers the CloudKit second-device + crash-after-save cases). Keep `--ui-test-show-onboarding` working; the new finish-flow UI test must launch with a reset/ephemeral store so it doesn't pollute shared state.
+- Create no Client/Project/TimeEntry here.
+- **`OnboardingFlags.shouldShow` = false** when any `BusinessProfile.onboardingCompletedAt != nil` (syncs cross-device) OR the local fast-path flag is set. **Re-evaluate on `scenePhase == .active`** (not just `onAppear`), or drive from a `@Query`. Reject saving a **blank** profile name in the editor (trim-and-reject).
 
 ## 6. Business Profile editor (Settings)
 
-- New `@State entityType`, loaded/saved with the profile.
-- **Top of Issuer section: segmented `Picker`** (Freelancer/Organization) with a one-line footer: "Freelancers invoice under their own name; organizations under a business name."
-- **Name + tax-ID labels come from a view-layer mapping** (`EntityType` → localized `String(localized:)`), NOT from strings on the core enum (avoids the localization trap — we ship 175 countries).
-- **Freelancer tax = progressive disclosure:** when `entityType == .freelancer` **and no rate set**, the Tax section sits in a collapsed `DisclosureGroup` "Add tax (if you charge it)". **Auto-expand if a non-zero rate exists** (so configured tax never appears to vanish). Organization: expanded.
-- **Settings list row:** append a passive "· Incomplete" hint when `!isProfileEnriched`.
+- Segmented entity `Picker` at the top of Issuer; footer explains the difference.
+- **Shared `EntityType+Presentation.swift`** (App target) maps entity → name label + tax-ID label, used by BOTH onboarding and the editor (DRY; English literals today — see §11).
+- Freelancer tax = collapsed `DisclosureGroup` "Add tax (if you charge it)"; **auto-expand if a non-zero rate exists**. Organization: expanded.
+- **Harden financial fields** (IBAN/SWIFT/tax-ID): `.keyboardType(.asciiCapable)` + `.textContentType(nil)` (no keyboard-learning/AutoFill of identifiers; NOT `SecureField` — user must verify their own IBAN).
+- Settings row: render **"Incomplete"** as its own `Text` (not a `"· "`-glued fragment) when `!isProfileEnriched`.
 
 ## 7. Today guidance — one element at a time
 
-Precedence (first match wins): **(1)** name missing (`!canSendInvoice`, rare) → orange warning banner only; **(2)** **no active project** → the Get-started block only; **(3)** `!isProfileEnriched` and not snoozed-this-session → enrichment nudge.
+Precedence resolved by a **pure `TodayGuidance.resolve(...)` enum in BillableCore** (unit-tested, mirrors `BadgeCount`), from booleans the view already has:
+1. `!canSendInvoice` (name missing, rare) → name-warning banner.
+2. `onboardingCompletedAt != nil && firstSetupCompletedAt == nil` → **Get-started block**.
+3. `firstSetupCompletedAt != nil && !isProfileEnriched && !snoozedThisSession` → enrichment nudge.
+4. else → none.
 
-**"Active project" is defined** as: there exists a `Project` with `!isArchived`. Checked via a **bounded existence probe** (`fetchCount`/`fetchLimit = 1`), NOT an unbounded `@Query var allProjects` (TodayView already carries fetch-all perf debt).
+The clientless quick-start "General" does **not** set `firstSetupCompletedAt`, so quick-start users keep the checklist (instant value + still guided). Archiving/deleting later never resurrects first-run (latch is one-way). `firstSetupCompletedAt` is stamped when a Client AND a client-linked non-archived Project first coexist.
 
-### 7a. Get-started block (replaces the morphing CTA — UI/UX finding)
-A **2-row checklist** (progress stays visible), `@Query`-driven:
-- Row 1 "Add a client" — leading glyph `circle` → `checkmark.circle.fill` once any client exists. Tapping presents `ClientEditorView(client: nil)` in a `NavigationStack` sheet (self-dismisses; the row updates reactively via `@Query`).
-- Row 2 "Create a project" — becomes the active CTA once a client exists; presents `NewProjectSheet`.
-- Reads in VoiceOver as two items with state. The whole block hides once an active (`!isArchived`) project exists.
+### 7a. Get-started block — its own view `Features/Today/GetStartedSection.swift`
+- **2-row checklist** (progress visible): Row 1 "Add a client" (`circle` → `checkmark.circle.fill` once any client exists) presents `ClientEditorView(client:nil)`; Row 2 "Create a project" becomes active once a client exists, presents `NewProjectSheet`. `@Query`-driven; reads in VoiceOver as two stateful items.
+- **"Start a timer now" quick-start:** **fetch-or-create** a single canonical `Project(name:"General", client:nil, !isArchived)` (probe, fetchLimit 1 — reuse if present), then `TimerActions.start(...)`. **Debounce** via `@State startingQuickTimer` (disable while in flight) to prevent same-frame double-insert. (Rate 0 → existing 0-rate warning guides them later.)
+- Existence checks use **bounded probes** (`fetchCount`/`fetchLimit 1`), never an unbounded `@Query var allProjects`.
 
-Plus a **"Start a timer now" quick-start** (the activation hook): creates a default clientless `Project(name: "General", client: nil)` and calls `TimerActions.start(...)` immediately. (Rate defaults to 0; the existing "billable project has a 0 rate" warning guides the user to set it later.) After quick-start, an active project exists → the block hides and the user is tracking.
+### 7b. Enrichment prompt — re-timed
+- **Primary at invoice creation:** opening the generator with `!isProfileEnriched` surfaces an inline "Add your address & payment details so this invoice looks complete" → editor (conditional copy if only one half is missing).
+- **Secondary Today nudge** (tier 3): info card (icon+text), dismiss = **session-only `@State` "Not now"** (no cross-device flag); `isProfileEnriched` is the durable driver. Close control ≥44pt, `accessibilityLabel("Dismiss")`. (Note: session = until the view is rebuilt.)
 
-### 7b. Enrichment prompt — re-timed (Product + Engineering finding)
-- **Primary, well-timed prompt is at invoice creation:** when the user opens the invoice generator with a bare profile (`!isProfileEnriched`), surface an inline "Add your address & payment details so this invoice looks complete" affordance → `BusinessProfileEditorView`. This is the moment of motivation.
-- **Secondary Today nudge** (tier 3): informational card (icon + text, not color-alone), `person.text.rectangle`, → editor. **Dismiss = "Not now" (session-only `@State`)**, not a persisted forever-flag — avoids the device-local `UserDefaults` cross-device problem entirely; `isProfileEnriched` is the durable driver, and the invoice-time prompt is the durable reminder. Close control ≥44pt with `accessibilityLabel("Dismiss")`.
+## 8. Singleton reconciliation (resilience, in-scope)
 
-## 8. Accessibility & interaction (cross-cutting)
+- **Every `profiles.first` read becomes deterministic** via one helper: `sortBy createdAt asc, fetchLimit 1` (oldest-wins). 
+- **On launch + on CloudKit remote-change:** if >1 `BusinessProfile` exists, keep the oldest as canonical, copy any non-empty field the oldest is missing from the others, then delete the extras. Converges multi-device duplicates deterministically and protects `nextInvoiceNumber`/`name`/`entityType`.
+- Full `@Attribute(.unique)` enforcement (needs a `VersionedSchema` baseline) remains a **tracked follow-up**; reconciliation is the pragmatic in-scope fix.
 
-- **Contrast fix is specified, not residual:** field-prompt opacity ≥0.55 (the 0.55–0.85 label/body text already passes 5.25:1+).
-- Touch targets ≥44pt (cards, checklist rows, quick-start, dismiss); ≥8pt spacing.
-- VoiceOver: entity cards expose the `.isSelected` **trait** (`accessibilityAddTraits`), not a label suffix; checklist rows announce state; logical order.
-- Dynamic Type: identity labels/body use text styles, no truncation at largest size; verify on SE-class hardware with the keyboard up (occlusion).
-- Reduced motion on transitions; verify light/dark for Today cards.
+## 9. Accessibility (cross-cutting)
 
-## 9. Invoice / PDF impact
+Prompt contrast ≥0.55 (specified fix). Touch ≥44pt / spacing ≥8pt. Entity cards expose `.isSelected` trait; checklist rows announce state. Dynamic Type without truncation (verify SE-size + keyboard up for occlusion). Reduced motion on transitions. Verify light/dark for Today cards.
 
-None to tax/PDF math (freelancer rate 0 → no tax line; entity type not printed; issuer is `profile.name`). The §7b invoice-time enrichment prompt is additive UI on the generator — no change to `Invoice`/`InvoiceBuilder`/`InvoiceTemplate`.
+## 10. Invoice / PDF impact
 
-## 10. Developer credit fix
+None to tax/PDF math. The §7b invoice-time prompt is additive generator UI. No change to `Invoice`/`InvoiceBuilder`/`InvoiceTemplate`.
 
-- [SettingsView.swift:111](../../../App/Sources/Features/Settings/SettingsView.swift): `"Cadence by Elden Studios Company"` → `"Elden Studios Company"`.
-- [SettingsAboutUITests.swift:30-31](../../../App/BillableUITests/SettingsAboutUITests.swift): update lookup + message.
-- *Terminology note:* the market review suggests "Business" reads more US-natural than "Organization"; keeping "Organization" per the user's wording — trivially swappable later.
+## 11. Localization posture (honest)
 
-## 11. Testing
+**The app is English-only (no String Catalog; `knownRegions = en`); broad localization is a tracked future epic — NOT this spec.** New strings are English literals centralized in `EntityType+Presentation` + the views. Copy is written **translation-shaped** (single clause, no contractions in load-bearing copy, no mid-sentence name interpolation, no `x ? "" : "s"` plurals, no glued fragments). RTL: new layouts use semantic `.leading`/`.trailing` (mostly auto-mirroring later); the pre-existing hero `.offset(x:50,y:22)` is a known RTL-latent item (out of scope). Currency/number/date formatting already locale-correct (`.currency(code:)`, `.number`, `.dateTime`).
 
-**BillableCore unit:**
-- `EntityType` raw round-trip; two cases; `Codable`.
-- `BusinessProfile` default `entityType == .organization`; accessor get/set.
-- `isProfileEnriched` truth table (address AND bank).
-- `canSendInvoice` unaffected; back-compat `init`.
-- **NEW [must]: migration round-trip** — open a store seeded *without* `entityTypeRaw` (older-schema fixture) with the new schema; assert it reads `.organization`. (Backs the headline migration claim.)
+## 12. Developer credit fix
 
-**UI (BillableUITests):**
-- Onboarding: pick Freelancer → label "Your name" → Finish → Today shows the **checklist (row 1 active)** and a **"Start a timer now"** control; **no auto-started timer**. Pick Organization → "Business name".
-- **NEW: checklist reactivity** — create a client; assert row 1 flips to done and row 2 becomes active.
-- **NEW: quick-start** — tap "Start a timer now"; assert a running timer + the get-started block hides.
-- **NEW: nudge precedence** — assert only one of {name-banner, get-started, enrichment} shows per state, and get-started suppresses enrichment.
-- Update `SettingsAboutUITests` → `"Elden Studios Company"`. Preserve `LaunchTaglineUITests` (tagline + flag). `InvoicePreviewLineItemEditUITests` unaffected (seeds → skips onboarding).
+[SettingsView.swift:111] → `"Elden Studios Company"`; update [SettingsAboutUITests.swift:30-31]. ("Business" reads more US-natural than "Organization" — swappable later.)
 
-## 12. Out of scope (YAGNI)
+## 13. Security / privacy (release-gates)
 
-Per-entity invoice templates; region-aware/automated tax; multiple profiles; forced re-onboarding for existing users; entity type on the rendered invoice; full singleton `.unique` enforcement (tracked follow-up — see §13).
+- **Add `PrivacyInfo.xcprivacy`** (app + widget + BillableCore bundle): `NSPrivacyTracking=false`, required-reason codes (UserDefaults, file-timestamp), collected types (name/address/email/phone/payment/financial, Linked=false, Tracking=false). **App Store gate.**
+- **Set Data-Protection entitlement** `NSFileProtectionCompleteUntilFirstUserAuthentication` (can't use `Complete` — widget reads the App-Group store while locked); document why.
+- Runtime data-handling of the *new* code is clean (no PII logging; no new egress). Tracked follow-ups (not this PR): CSV temp-file cleanup; stop replicating the full profile into widget scope (mirror only `currencyCode`).
 
-## 13. Confidence & residual risk
+## 14. How we measure success (was missing)
 
-The 5-lens review took v2 from a claimed 95% to an honest ~70% by surfacing two blockers (singleton create-vs-fetch; multi-device re-onboarding) plus the activation regression and the morphing-CTA/contrast UX issues — all now addressed (§3-§8). **Target ~90%+.** Residual:
-- **Singleton dedupe** is a *pre-existing* latent issue (no `.unique`); `finish()` now guards the onboarding path and §3.4 narrows the create window, but full reconciliation/`.unique` (which needs a `VersionedSchema` baseline) is a **tracked follow-up**, not blocking.
-- On-device checks: Dynamic Type at max, SE keyboard occlusion, dark/light Today cards, prompt contrast value.
-- `isProfileEnriched` rule (address AND bank) is a tunable judgment.
-- Forks the active `feature/project-detail-ia`; `TodayView` is the shared surface → rebase/coordinate before merge.
-- **CloudKit reinstall smoke test** (TESTING.md) before any TestFlight build.
+Activation is the redesign's justification, so make it observable without breaking the privacy stance:
+- **Tier 0 (free, do BEFORE shipping — the baseline is destroyed on release):** snapshot App Store Connect → App Analytics D1/D7/D28 retention, sessions/active device, deletions, crashes (trailing 4–8 wks). Validation is **sequential before/after, not A/B** (one onboarding per version) — state this honestly.
+- **Tier 1 (½ day, on-device, no transmission — within privacy.md):** derive from existing SwiftData + the new latches/`createdAt`: entity-type split, activation-reached (first TimeEntry), time-to-first-timer/project/invoice, quick-start-vs-checklist, enrichment conversion (Today vs invoice-time).
+- **Tier 2 (opt-in minimal telemetry):** **a product decision that changes `privacy.md`** — default OFF / out of scope unless explicitly chosen.
+
+## 15. Confidence & residual risk
+
+Two review rounds took this from a claimed 95% (v2) → honest 70% (v3) → this v4, which folds every blocker/major. **Honest design confidence ~95%**, underpinned by code-traced fixes (quick-start fetch-or-create+debounce; deterministic singleton + reconciliation; throwing save; one-way completion/first-setup latches; redefined checklist suppression; pure `TodayGuidance`; keyboard hardening; English-only honesty; metrics plan). Residual <100%:
+- Multi-device singleton is an inherently distributed problem; reconciliation mitigates but `.unique` enforcement is a tracked follow-up.
+- **Release-gates that must actually be executed:** `PrivacyInfo.xcprivacy`, Data-Protection entitlement, **CloudKit reinstall smoke test** (TESTING.md), ASC baseline snapshot.
+- Implementation-time on-device checks (Dynamic Type max, SE keyboard occlusion, light/dark).
+- Forks active `feature/project-detail-ia` (which does NOT edit `TodayView` — verified — so merge risk is the onboarding-no-longer-seeds-a-project *contract* change; coordinate on rebase).
+
+## 16. Testing
+
+Unit (BillableCore): `EntityType` round-trip/`Codable`; profile default; latch setters; `isProfileEnriched` table; `canSendInvoice` unaffected; back-compat init; **`TodayGuidance.resolve` precedence (unit, not UI)**; **migration round-trip** (old store w/o new fields → defaults) — **gating**; **singleton reconciliation** (2 profiles → 1 oldest, fields merged).
+UI: Freelancer/Org labels; **checklist reactivity** (add client → row advances); **quick-start** (double-tap → ONE General + running timer); enrichment precedence; `SettingsAboutUITests` updated; `LaunchTaglineUITests` preserved; `InvoicePreviewLineItemEditUITests` unaffected.
+
+## 17. Out of scope (YAGNI)
+
+Per-entity templates; region/auto tax; multiple profiles; forced re-onboarding; entity type on invoices; `.unique`/`VersionedSchema`; broad localization; Tier-2 telemetry; CSV/widget-scope hardening (tracked follow-ups).
