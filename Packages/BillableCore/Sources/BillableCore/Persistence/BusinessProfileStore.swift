@@ -41,7 +41,7 @@ public enum BusinessProfileStore {
 
         for extra in all where extra !== survivor { context.delete(extra) }
         survivor.updatedAt = .now
-        try? context.save()
+        context.saveOrLog("reconcile business profiles")
     }
 
     private static func earliest(_ dates: [Date]) -> Date? { dates.min() }
