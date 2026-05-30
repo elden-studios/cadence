@@ -44,6 +44,20 @@ public enum BusinessProfileStore {
         context.saveOrLog("reconcile business profiles")
     }
 
+    /// The SINGLE writer of `firstSetupCompletedAt`. Idempotent + one-way: stamps the canonical
+    /// profile the first time a Client AND a client-linked, non-archived Project coexist. A
+    /// clientless quick-start "General" project does NOT count. Call from the same launch +
+    /// scenePhase seam as `reconcile`.
+    public static func stampFirstSetupIfReached(in context: ModelContext) {
+        guard let profile = canonical(in: context), profile.firstSetupCompletedAt == nil else { return }
+        guard ((try? context.fetchCount(FetchDescriptor<Client>())) ?? 0) > 0 else { return }
+        var linked = FetchDescriptor<Project>(predicate: #Predicate { !$0.isArchived && $0.client != nil })
+        linked.fetchLimit = 1
+        guard ((try? context.fetchCount(linked)) ?? 0) > 0 else { return }
+        profile.firstSetupCompletedAt = .now
+        context.saveOrLog("stamp first setup")
+    }
+
     private static func earliest(_ dates: [Date]) -> Date? { dates.min() }
 
     /// Copies every user-entered field. NOTE: keep in sync with `BusinessProfile`'s stored
