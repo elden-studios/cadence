@@ -39,17 +39,24 @@ public enum ActivationMetrics {
         // Canonical onboarding instant = earliest non-nil stamp across profiles.
         let onboardedAt = profiles.compactMap(\.onboardingCompletedAt).min()
 
-        let entries = (try? context.fetch(FetchDescriptor<TimeEntry>())) ?? []
-        let earliestEntry = entries.min { $0.createdAt < $1.createdAt }
+        // Bounded fetches (PR #11 review): pull only the single earliest record per type via a
+        // store-side sort + fetchLimit 1, instead of loading whole tables into memory to take min().
+        var entryFetch = FetchDescriptor<TimeEntry>(sortBy: [SortDescriptor(\TimeEntry.createdAt, order: .forward)])
+        entryFetch.fetchLimit = 1
+        entryFetch.relationshipKeyPathsForPrefetching = [\TimeEntry.project]   // firstTimerKind reads .project?.client
+        let earliestEntry = (try? context.fetch(entryFetch))?.first
 
         // Earliest ACTIVE project (matches the §7 "non-archived project" activation notion).
-        let activeProjects = (try? context.fetch(
-            FetchDescriptor<Project>(predicate: #Predicate { !$0.isArchived })
-        )) ?? []
-        let earliestProjectAt = activeProjects.map(\.createdAt).min()
+        var projectFetch = FetchDescriptor<Project>(
+            predicate: #Predicate { !$0.isArchived },
+            sortBy: [SortDescriptor(\Project.createdAt, order: .forward)]
+        )
+        projectFetch.fetchLimit = 1
+        let earliestProjectAt = (try? context.fetch(projectFetch))?.first?.createdAt
 
-        let invoices = (try? context.fetch(FetchDescriptor<Invoice>())) ?? []
-        let earliestInvoiceAt = invoices.map(\.createdAt).min()
+        var invoiceFetch = FetchDescriptor<Invoice>(sortBy: [SortDescriptor(\Invoice.createdAt, order: .forward)])
+        invoiceFetch.fetchLimit = 1
+        let earliestInvoiceAt = (try? context.fetch(invoiceFetch))?.first?.createdAt
 
         func delta(_ end: Date?) -> TimeInterval? {
             guard let start = onboardedAt, let end else { return nil }
