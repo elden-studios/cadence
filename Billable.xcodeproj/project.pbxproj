@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		00137A9F89BDC48EBE9DC927 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DB4C0FB23F77AFC443876011 /* Assets.xcassets */; };
+		E3FA75E6B402FBF0BB1A6EDF /* EntityType+Presentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A01836A24B68902023D4F7 /* EntityType+Presentation.swift */; };
 		02583F94F7865CCCDC462C8D /* TimerActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F93E4BD359430AA62CB60E /* TimerActions.swift */; };
 		0650D70379A6E945B693D897 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FB284DA23487FF50AD7AFF /* TodayView.swift */; };
 		0778280DE88787CCB974D010 /* StartTimerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E613D2E8B373B5C6EDBF0A4C /* StartTimerSheet.swift */; };
@@ -137,6 +138,7 @@
 		C1F93E4BD359430AA62CB60E /* TimerActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActions.swift; sourceTree = "<group>"; };
 		C4E91171FBD2C8986707A0D7 /* CurrentTimerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentTimerWidget.swift; sourceTree = "<group>"; };
 		CABC4787E325D1EE2FD16329 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		C7A01836A24B68902023D4F7 /* EntityType+Presentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EntityType+Presentation.swift"; sourceTree = "<group>"; };
 		CFAB3A0CB21692199A18C94A /* TimerActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActivityController.swift; sourceTree = "<group>"; };
 		D72980328448F3925BF44ACB /* CurrencyPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyPickerView.swift; sourceTree = "<group>"; };
 		DB4C0FB23F77AFC443876011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -387,6 +389,14 @@
 			path = Shared;
 			sourceTree = "<group>";
 		};
+		6ED964179D32024FE5ACEA68 /* Presentation */ = {
+			isa = PBXGroup;
+			children = (
+				C7A01836A24B68902023D4F7 /* EntityType+Presentation.swift */,
+			);
+			path = Presentation;
+			sourceTree = "<group>";
+		};
 		BD16A0569E45B706C438C43C /* Sources */ = {
 			isa = PBXGroup;
 			children = (
@@ -394,6 +404,7 @@
 				F910066D040878FE8AA41098 /* Features */,
 				0662F4701E06673016644274 /* Intents */,
 				89CC7F5CEA7630E592D7B62C /* LiveActivity */,
+				6ED964179D32024FE5ACEA68 /* Presentation */,
 				B53F2F0A7C034C438808B2E1 /* Shared */,
 				89FBA775878A23F16FB91A27 /* Theme */,
 			);
@@ -590,6 +601,7 @@
 				2692C3C033FE9ED0FC9435B6 /* CurrencyPickerView.swift in Sources */,
 				AC7E0D1860B0B7ACEB0A1F14 /* DayTimelineView.swift in Sources */,
 				C2262AA7F35DC1505C63AC40 /* DiagnosticsView.swift in Sources */,
+				E3FA75E6B402FBF0BB1A6EDF /* EntityType+Presentation.swift in Sources */,
 				AC9498FDD4C99CCA94517C37 /* IntentRegistration.swift in Sources */,
 				E39562526A4793650B561132 /* InvoiceDetailView.swift in Sources */,
 				97FBEA7B10420B0ED0942886 /* InvoiceGeneratorView.swift in Sources */,
