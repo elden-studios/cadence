@@ -4,7 +4,7 @@ import StoreKit
 import BillableCore
 
 struct SettingsView: View {
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
     @State private var showingPaywall = false
     @State private var showingManageSubscriptions = false
     private var subscriptions = SubscriptionManager.shared
@@ -35,6 +35,13 @@ struct SettingsView: View {
                                 Text("\(profile.currencyCode) · Next \(profile.previewNextInvoiceNumber)")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                if !profile.isProfileEnriched {
+                                    // Its own Text (not a "· "-glued fragment) so VoiceOver
+                                    // reads a discrete status, not a run-on line (spec §6).
+                                    Text("Incomplete")
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                }
                             }
                         } else {
                             VStack(alignment: .leading, spacing: 4) {
@@ -100,6 +107,13 @@ struct SettingsView: View {
                         } label: {
                             Label("Diagnostics", systemImage: "stethoscope")
                         }
+                        #if DEBUG
+                        NavigationLink {
+                            ActivationMetricsView()
+                        } label: {
+                            Label("Activation metrics", systemImage: "chart.bar.xaxis")
+                        }
+                        #endif
                     } header: { Text("Debug") }
                 }
 
@@ -108,7 +122,7 @@ struct SettingsView: View {
                     HStack {
                         Text("Developer")
                         Spacer()
-                        Text("Cadence by Elden Studios Company")
+                        Text("Elden Studios Company")
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.trailing)
                     }

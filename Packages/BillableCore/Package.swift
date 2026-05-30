@@ -19,6 +19,9 @@ let package = Package(
         .target(
             name: "BillableCore",
             path: "Sources/BillableCore",
+            resources: [
+                .copy("PrivacyInfo.xcprivacy"),
+            ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("ExistentialAny"),

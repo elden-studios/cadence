@@ -49,7 +49,35 @@ struct BillableApp: App {
                     }
                 }
                 self.container = appGroup
+            } else if CommandLine.arguments.contains("--seed-onboarding-needs-setup") {
+                // UI-test fixture (spec §16): onboarded but first-setup NOT reached.
+                // A named profile (so the name banner doesn't pre-empt) with
+                // onboardingCompletedAt set + firstSetupCompletedAt nil, and NO
+                // clients/projects → Today renders the get-started block on first
+                // frame. App Group container (no CloudKit) so the seeded profile is
+                // exactly what RootView/TodayView read.
+                if CommandLine.arguments.contains("--reset-store") {
+                    Self.resetAppGroupStore("group.com.eldenstudios.billable")
+                }
+                let appGroup = try BillableModelContainer.appGroup("group.com.eldenstudios.billable")
+                self.container = appGroup
+                Self.runOnMainActor {
+                    var profileCheck = FetchDescriptor<BusinessProfile>()
+                    profileCheck.fetchLimit = 1
+                    if (try? appGroup.mainContext.fetch(profileCheck))?.isEmpty != false {
+                        let profile = BusinessProfile(name: "Test Co")
+                        profile.onboardingCompletedAt = .now
+                        appGroup.mainContext.insert(profile)
+                        try? appGroup.mainContext.save()
+                    }
+                }
             } else {
+                // UI-test support: `--reset-store` wipes the App Group store files so
+                // a from-empty onboarding run is deterministic across dirty simulators.
+                // Test-only flag; scoped to the Billable.store files in the group.
+                if CommandLine.arguments.contains("--reset-store") {
+                    Self.resetAppGroupStore("group.com.eldenstudios.billable")
+                }
                 // Production: try CloudKit + App Group; gracefully degrades to
                 // App-Group-only when CloudKit entitlements aren't active.
                 self.container = try BillableModelContainer.appGroup(
@@ -83,6 +111,10 @@ struct BillableApp: App {
     private func performStartupWiring() {
         // Repair any stale (cross-day) or legacy active timer session before the UI reads it.
         try? TimerService.reconcileActiveSessionOnLaunch(in: container.mainContext)
+        // Profile singleton upkeep: stamp first-setup + converge duplicate profiles
+        // (the stable-count delete guard lives in BusinessProfileMaintenance). Same
+        // launch seam as the timer-session repair above.
+        BusinessProfileMaintenance.run(in: container.mainContext)
         AppDelegate.sharedRouter = notificationRouter
         AppDelegate.sharedModelContext = container.mainContext
         AppDelegate.sharedSchedulerFactory = { [container] in

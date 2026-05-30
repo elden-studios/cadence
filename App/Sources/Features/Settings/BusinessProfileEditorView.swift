@@ -9,7 +9,7 @@ struct BusinessProfileEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
     @State private var name: String = ""
     @State private var address: String = ""
@@ -43,12 +43,22 @@ struct BusinessProfileEditorView: View {
     @State private var logoLoadError: String?
 
     @State private var hasLoaded = false
+    @State private var entityType: EntityType = .freelancer
+    @State private var taxExpanded = false
+    @State private var showingBlankNameError = false
 
     var body: some View {
         Form {
-            Section("Issuer") {
-                TextField("Business name", text: $name)
+            Section {
+                Picker("I bill as", selection: $entityType) {
+                    ForEach(EntityType.allCases, id: \.self) { type in
+                        Text(type.cardTitle).tag(type)
+                    }
+                }
+                .pickerStyle(.segmented)
+                TextField(entityType.issuerNameLabel, text: $name)
                     .textInputAutocapitalization(.words)
+                    .textContentType(entityType.nameContentType)
                 TextField("Email", text: $email)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
@@ -57,6 +67,10 @@ struct BusinessProfileEditorView: View {
                     .keyboardType(.phonePad)
                 TextField("Address", text: $address, axis: .vertical)
                     .lineLimit(2...4)
+            } header: {
+                Text("Issuer")
+            } footer: {
+                Text("Freelancer bills under your own name; Organization bills under a company name. This only changes invoice labels.")
             }
 
             Section("Payment") {
@@ -76,23 +90,13 @@ struct BusinessProfileEditorView: View {
             }
 
             Section {
-                TextField("Tax label (Tax, VAT, GST, …)", text: $taxLabel)
-                HStack {
-                    Text("Rate")
-                    Spacer()
-                    TextField("0", value: $taxRatePercent, format: .number.precision(.fractionLength(0...3)))
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 100)
-                    Text("%")
-                        .foregroundStyle(.secondary)
+                if entityType == .organization {
+                    taxFields
+                } else {
+                    DisclosureGroup("Add tax (if you charge it)", isExpanded: $taxExpanded) {
+                        taxFields
+                    }
                 }
-                TextField("Tax ID label (VAT, CR, EIN, …)", text: $taxIDLabel)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.characters)
-                TextField("Tax ID / VAT number", text: $taxIDNumber)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.characters)
             } header: {
                 Text("Tax")
             } footer: {
@@ -162,15 +166,35 @@ struct BusinessProfileEditorView: View {
                 TextField("Location (city, country)", text: $bankLocation)
                     .textInputAutocapitalization(.words)
                 TextField("IBAN", text: $bankIBAN)
+                    .keyboardType(.asciiCapable)
+                    .textContentType(nil)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.characters)
                 TextField("SWIFT / BIC (optional)", text: $bankSWIFT)
+                    .keyboardType(.asciiCapable)
+                    .textContentType(nil)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.characters)
             } header: {
                 Text("Bank details")
             } footer: {
                 Text("Shown on invoices so clients know where to pay. Leave blank to hide.")
+            }
+
+            if let profile = profiles.first, !profile.isProfileEnriched {
+                Section {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.circle")
+                            .foregroundStyle(.orange)
+                        Text("Incomplete")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("Add your address and a payment method")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
             }
 
         }
@@ -183,6 +207,11 @@ struct BusinessProfileEditorView: View {
             }
         }
         .onAppear { loadIfNeeded() }
+        .alert("Add a name", isPresented: $showingBlankNameError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Enter your \(entityType == .freelancer ? "name" : "business name") so it can appear on invoices.")
+        }
         .task(id: logoData) {
             guard let data = logoData else {
                 logoUIImage = nil
@@ -201,11 +230,41 @@ struct BusinessProfileEditorView: View {
         }
     }
 
+    @ViewBuilder
+    private var taxFields: some View {
+        TextField("Tax label (Tax, VAT, GST, …)", text: $taxLabel)
+        HStack {
+            Text("Rate")
+            Spacer()
+            TextField("0", value: $taxRatePercent, format: .number.precision(.fractionLength(0...3)))
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: 100)
+            Text("%")
+                .foregroundStyle(.secondary)
+        }
+        TextField(entityType.taxIDLabel, text: $taxIDLabel)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.characters)
+        // Harden the registration-NUMBER field: identifiers must not feed
+        // keyboard learning or AutoFill (spec §6). Not SecureField — the user
+        // must be able to verify their own tax ID.
+        TextField("Tax ID / VAT number", text: $taxIDNumber)
+            .keyboardType(.asciiCapable)
+            .textContentType(nil)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.characters)
+    }
+
     private func loadIfNeeded() {
         guard !hasLoaded else { return }
         hasLoaded = true
         guard let profile = profiles.first else { return }
         name = profile.name
+        entityType = profile.entityType
+        // Auto-expand the freelancer tax section if a non-zero rate already exists
+        // (spec §6) — otherwise a saved rate would be hidden behind a collapsed group.
+        taxExpanded = profile.taxRate != .zero
         address = profile.address
         email = profile.email
         phone = profile.phone
@@ -234,8 +293,15 @@ struct BusinessProfileEditorView: View {
     }
 
     private func save() {
+        // Reject a blank name (spec §5/§6): an empty issuer name produces
+        // "Unnamed business" on the PDF and would falsely satisfy canSendInvoice.
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            showingBlankNameError = true
+            return
+        }
         let profile = profiles.first ?? newProfile()
         profile.name = name
+        profile.entityType = entityType
         profile.address = address
         profile.email = email
         profile.phone = phone

@@ -6,5 +6,7 @@
     <array>
         <string>group.com.eldenstudios.billable</string>
     </array>
+    <key>com.apple.developer.default-data-protection</key>
+    <string>NSFileProtectionCompleteUntilFirstUserAuthentication</string>
 </dict>
 </plist>

@@ -6,7 +6,7 @@ struct WorkView: View {
     private enum Mode: String, CaseIterable { case projects = "Projects", clients = "Clients" }
 
     @Environment(\.modelContext) private var modelContext
-    @Query private var profiles: [BusinessProfile]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
     @Query(Self.projectsDescriptor) private var activeProjects: [Project]
 
     private static var projectsDescriptor: FetchDescriptor<Project> {

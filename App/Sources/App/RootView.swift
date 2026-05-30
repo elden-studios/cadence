@@ -23,9 +23,16 @@ struct RootView: View {
             }
         }
         .onAppear {
-            // UI-test hook: force-show the onboarding screen so tagline tests
-            // can assert on it regardless of existing simulator state.
-            if CommandLine.arguments.contains("--ui-test-show-onboarding") {
+            // UI-test hooks (checked first, unconditionally, for deterministic
+            // gating regardless of seed/launch-arg order):
+            //  --ui-test-skip-onboarding force-HIDES onboarding so seeded tests
+            //    (e.g. --seed-marketing) land straight in the app even though the
+            //    seed run never stamps onboardingCompletedAt.
+            //  --ui-test-show-onboarding force-SHOWS it so tagline/onboarding tests
+            //    can assert on it regardless of existing simulator state.
+            if CommandLine.arguments.contains("--ui-test-skip-onboarding") {
+                needsOnboarding = false
+            } else if CommandLine.arguments.contains("--ui-test-show-onboarding") {
                 needsOnboarding = true
             } else {
                 needsOnboarding = OnboardingFlags.shouldShow(in: modelContext)
@@ -82,6 +89,18 @@ struct RootView: View {
             }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .active else { return }
+                // Profile upkeep + onboarding re-eval on the SAME foreground seam as
+                // badge/notification resync. Re-evaluating shouldShow here means a
+                // completion synced from another device dismisses onboarding without a
+                // relaunch. The --ui-test-show-onboarding force-show is preserved so
+                // tagline/onboarding UI tests stay deterministic.
+                BusinessProfileMaintenance.run(in: modelContext)
+                // Skip the re-eval entirely under either UI-test gating flag so a
+                // foreground pass can't override the forced state set in onAppear.
+                if !CommandLine.arguments.contains("--ui-test-show-onboarding"),
+                   !CommandLine.arguments.contains("--ui-test-skip-onboarding") {
+                    needsOnboarding = OnboardingFlags.shouldShow(in: modelContext)
+                }
                 Task {
                     let scheduler = Scheduler(
                         center: UNUserNotificationCenter.current(),
