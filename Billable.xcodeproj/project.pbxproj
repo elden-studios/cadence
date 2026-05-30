@@ -12,6 +12,7 @@
 		5FA9EA73F37B0416C02CBA71 /* BusinessProfileMaintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B1643DB590F66D579E365D /* BusinessProfileMaintenance.swift */; };
 		02583F94F7865CCCDC462C8D /* TimerActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F93E4BD359430AA62CB60E /* TimerActions.swift */; };
 		0650D70379A6E945B693D897 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FB284DA23487FF50AD7AFF /* TodayView.swift */; };
+		3AB02143F8BE89F1EBC9780C /* GetStartedSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4417F2D8DF550B97C525A12 /* GetStartedSection.swift */; };
 		0778280DE88787CCB974D010 /* StartTimerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E613D2E8B373B5C6EDBF0A4C /* StartTimerSheet.swift */; };
 		08880CCE2F89200E1C723A26 /* PendingMaterializationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE12ED25B0CCD0F3FC46F7FD /* PendingMaterializationsView.swift */; };
 		13F01DA09E8AAC832ACC171E /* TimelineScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E47D1836002E521CEC4ABED /* TimelineScreen.swift */; };
@@ -125,6 +126,7 @@
 		881EC5A08A9EBDAF0F6E586A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		8EE9B6C751BA214067517AB7 /* RunningTimerCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningTimerCard.swift; sourceTree = "<group>"; };
 		91FB284DA23487FF50AD7AFF /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
+		F4417F2D8DF550B97C525A12 /* GetStartedSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetStartedSection.swift; sourceTree = "<group>"; };
 		95E9742504A11D397C6528B9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		99E489F7B0F9B68D418ED560 /* LaunchTaglineUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchTaglineUITests.swift; sourceTree = "<group>"; };
 		9EF35F789A0B7D626AECE892 /* ClientEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientEditorView.swift; sourceTree = "<group>"; };
@@ -234,6 +236,7 @@
 		58E3895D0D37E88922B9E57E /* Today */ = {
 			isa = PBXGroup;
 			children = (
+				F4417F2D8DF550B97C525A12 /* GetStartedSection.swift */,
 				91FB284DA23487FF50AD7AFF /* TodayView.swift */,
 			);
 			path = Today;
@@ -617,6 +620,7 @@
 				AC7E0D1860B0B7ACEB0A1F14 /* DayTimelineView.swift in Sources */,
 				C2262AA7F35DC1505C63AC40 /* DiagnosticsView.swift in Sources */,
 				E3FA75E6B402FBF0BB1A6EDF /* EntityType+Presentation.swift in Sources */,
+				3AB02143F8BE89F1EBC9780C /* GetStartedSection.swift in Sources */,
 				AC9498FDD4C99CCA94517C37 /* IntentRegistration.swift in Sources */,
 				E39562526A4793650B561132 /* InvoiceDetailView.swift in Sources */,
 				97FBEA7B10420B0ED0942886 /* InvoiceGeneratorView.swift in Sources */,
