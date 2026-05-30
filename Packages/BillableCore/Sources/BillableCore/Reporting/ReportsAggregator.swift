@@ -230,8 +230,26 @@ public enum ReportsAggregator {
     private static func arSummary(_ invoices: [Invoice], range: TimeRange,
                                   bounds: ClosedRange<Date>, asOf now: Date,
                                   calendar: Calendar) -> ARSummary {
-        ARSummary(aging: Aging(current: 0, d1to30: 0, d31to60: 0, d60plus: 0),
-                  overdueCount: 0, avgDaysToPay: nil)
+        var current = Decimal(0), d1 = Decimal(0), d2 = Decimal(0), d3 = Decimal(0)
+        var overdueCount = 0
+        for inv in invoices where inv.status == .sent {
+            if inv.dueAt >= now { current += inv.total; continue }
+            overdueCount += 1
+            let days = calendar.dateComponents([.day], from: inv.dueAt, to: now).day ?? 0
+            switch days {
+            case ...30: d1 += inv.total
+            case 31...60: d2 += inv.total
+            default: d3 += inv.total
+            }
+        }
+        let aging = Aging(current: current, d1to30: d1, d31to60: d2, d60plus: d3)
+
+        let paid = invoices.filter { $0.status == .paid && ($0.paidAt.map { $0 >= bounds.lowerBound && $0 < bounds.upperBound } ?? false) }
+        let avg: Double? = paid.isEmpty ? nil : Double(
+            paid.compactMap { inv in inv.paidAt.map { calendar.dateComponents([.day], from: inv.issuedAt, to: $0).day ?? 0 } }.reduce(0, +)
+        ) / Double(paid.count)
+
+        return ARSummary(aging: aging, overdueCount: overdueCount, avgDaysToPay: avg)
     }
 
     static func performanceSummary(tracked: Decimal, totalHours: Decimal, billableHours: Decimal) -> Performance {

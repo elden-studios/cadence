@@ -45,3 +45,33 @@ struct ReportsMoneySummaryTests {
         #expect(snap.excludedCurrencyCount == 1)   // the EUR invoice
     }
 }
+
+@Suite("ReportsAggregator AR")
+struct ReportsARSummaryTests {
+    @Test("Aging buckets by days past due; overdue excludes paid/draft; avg days-to-pay")
+    func arSummary() {
+        let cal = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        func daysAgo(_ n: Int) -> Date { cal.date(byAdding: .day, value: -n, to: now)! }
+        func daysAhead(_ n: Int) -> Date { cal.date(byAdding: .day, value: n, to: now)! }
+
+        let invoices = [
+            makeInvoice(total: 100, status: .sent, issued: daysAgo(10), due: daysAhead(5)),   // current (not due)
+            makeInvoice(total: 200, status: .sent, issued: daysAgo(40), due: daysAgo(10)),    // overdue 10d → 1–30
+            makeInvoice(total: 300, status: .sent, issued: daysAgo(80), due: daysAgo(45)),    // overdue 45d → 31–60
+            makeInvoice(total: 400, status: .sent, issued: daysAgo(120), due: daysAgo(90)),   // overdue 90d → 60+
+            makeInvoice(total: 500, status: .paid, issued: daysAgo(30), due: daysAgo(15), paid: daysAgo(5)), // paid (not AR); 25d to pay
+            makeInvoice(total: 999, status: .draft, issued: daysAgo(3), due: daysAhead(20)),  // draft (ignored)
+        ]
+        let snap = ReportsAggregator.snapshot(entries: [], invoices: invoices, in: .allTime,
+                                              activeCurrency: "USD", referenceDate: now, calendar: cal)
+        #expect(snap.ar.aging.current == 100)
+        #expect(snap.ar.aging.d1to30 == 200)
+        #expect(snap.ar.aging.d31to60 == 300)
+        #expect(snap.ar.aging.d60plus == 400)
+        #expect(snap.ar.outstanding == 1000)         // 100+200+300+400
+        #expect(snap.ar.overdue == 900)              // 200+300+400
+        #expect(snap.ar.overdueCount == 3)
+        #expect(snap.ar.avgDaysToPay == 25)          // only the one paid invoice
+    }
+}
