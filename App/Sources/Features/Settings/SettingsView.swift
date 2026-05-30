@@ -115,7 +115,7 @@ struct SettingsView: View {
                     HStack {
                         Text("Developer")
                         Spacer()
-                        Text("Cadence by Elden Studios Company")
+                        Text("Elden Studios Company")
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.trailing)
                     }
