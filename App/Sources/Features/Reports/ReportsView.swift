@@ -3,8 +3,11 @@ import SwiftData
 import Charts
 import BillableCore
 
-/// Pro-only screen: a single-screen view of hours, earnings, billable mix,
-/// uninvoiced amount, and an 8-week trend chart.
+/// Pro-only screen: an AR-led financial dashboard (Layout A). Money lenses
+/// (Tracked / Invoiced / Collected) → an "as of today" accounts-receivable card →
+/// performance KPIs → a range-aware Invoiced revenue chart → hours-by-client and
+/// project breakdown. Every figure derives from a memoized `ReportsAggregator`
+/// snapshot recomputed only when its inputs change.
 struct ReportsView: View {
     @Environment(\.modelContext) private var modelContext
 
@@ -15,12 +18,22 @@ struct ReportsView: View {
     @State private var range: ReportsAggregator.TimeRange = .thisMonth
     @State private var showingShareCSV = false
     @State private var csvURL: URL?
+    @State private var exportError: String?
 
-    private var snapshot: ReportsAggregator.Snapshot {
-        ReportsAggregator.snapshot(
+    /// Cached snapshot. Recomputed on input change (range / entries / invoices),
+    /// never per `body` evaluation. SwiftData republishes the `@Query` arrays only
+    /// on a real content change (an invoice marked paid, a rate edited), so this
+    /// won't churn per render.
+    @State private var snapshot: ReportsAggregator.Snapshot?
+
+    private var currencyCode: String { profiles.first?.currencyCode ?? "USD" }
+
+    private func recompute() {
+        snapshot = ReportsAggregator.snapshot(
             entries: allEntries,
+            invoices: allInvoices,
             in: range,
-            currencyCode: profiles.first?.currencyCode ?? "USD"
+            activeCurrency: currencyCode
         )
     }
 
@@ -29,16 +42,21 @@ struct ReportsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     rangePicker
-                    headlineNumbers
-                    if snapshot.totalHours == 0 {
-                        emptyState
-                    } else {
-                        billableMix
-                        clientBars
-                        earningsTrend
-                        projectBreakdown
+                    if let snapshot {
+                        moneyLenses(snapshot)
+                        arCard(snapshot)
+                        performanceTiles(snapshot)
+                        if snapshot.totalHours == 0 && snapshot.revenueTrend.isEmpty {
+                            emptyState
+                        } else {
+                            revenueTrendChart(snapshot)
+                            clientBars(snapshot)
+                            projectBreakdown(snapshot)
+                        }
+                        if snapshot.excludedCurrencyCount > 0 {
+                            excludedCurrencyFootnote(snapshot.excludedCurrencyCount)
+                        }
                     }
-                    uninvoicedCallout
                 }
                 .padding()
             }
@@ -58,10 +76,22 @@ struct ReportsView: View {
                     ShareSheet(items: [csvURL]).ignoresSafeArea()
                 }
             }
+            .alert("Couldn't export", isPresented: Binding(
+                get: { exportError != nil },
+                set: { if !$0 { exportError = nil } }
+            )) {
+                Button("OK", role: .cancel) { exportError = nil }
+            } message: {
+                Text(exportError ?? "")
+            }
+            .onAppear { recompute() }
+            .onChange(of: range) { recompute() }
+            .onChange(of: allEntries) { recompute() }
+            .onChange(of: allInvoices) { recompute() }
         }
     }
 
-    // MARK: - Sections
+    // MARK: - Range picker
 
     private var rangePicker: some View {
         Picker("Range", selection: $range) {
@@ -72,13 +102,18 @@ struct ReportsView: View {
         .pickerStyle(.segmented)
     }
 
-    private var headlineNumbers: some View {
+    // MARK: - Money lenses (Tracked / Invoiced / Collected) — no connecting arrows
+
+    private func moneyLenses(_ snapshot: ReportsAggregator.Snapshot) -> some View {
         HStack(spacing: 12) {
-            tile(label: "HOURS",
-                 value: formatHours(snapshot.totalHours),
+            tile(label: "TRACKED",
+                 value: currency(snapshot.money.tracked, code: snapshot.currencyCode),
+                 color: .secondary)
+            tile(label: "INVOICED",
+                 value: currency(snapshot.money.invoiced, code: snapshot.currencyCode),
                  color: .blue)
-            tile(label: "EARNED",
-                 value: snapshot.totalEarnings.formatted(.currency(code: snapshot.currencyCode)),
+            tile(label: "COLLECTED",
+                 value: currency(snapshot.money.collected, code: snapshot.currencyCode),
                  color: .green)
         }
     }
@@ -89,52 +124,191 @@ struct ReportsView: View {
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.title.weight(.bold).monospacedDigit())
+                .font(.title3.weight(.bold).monospacedDigit())
                 .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(.thinMaterial, in: .rect(cornerRadius: 14))
     }
 
+    // MARK: - AR card ("get paid") — as-of-today snapshot with graceful states
+
     @ViewBuilder
-    private var billableMix: some View {
-        let billable = (snapshot.billableHours as NSDecimalNumber).doubleValue
-        let nonBillable = (snapshot.nonBillableHours as NSDecimalNumber).doubleValue
-        let total = billable + nonBillable
+    private func arCard(_ snapshot: ReportsAggregator.Snapshot) -> some View {
+        let ar = snapshot.ar
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("GET PAID")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("as of today")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
+            if ar.outstanding == 0 && snapshot.money.invoiced == 0 {
+                // No receivable data at all.
+                Text("No invoices yet — track time, then invoice to see what you're owed.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if ar.outstanding == 0 {
+                // Everything paid.
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("All paid up")
+                        .font(.title2.weight(.bold))
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundStyle(.green)
+                }
+                if snapshot.money.collected > 0 {
+                    Text("\(currency(snapshot.money.collected, code: snapshot.currencyCode)) collected")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                // Outstanding money — show the lead figure.
+                Text(currency(ar.outstanding, code: snapshot.currencyCode))
+                    .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
+
+                if ar.overdue > 0 {
+                    overduePill(ar, code: snapshot.currencyCode)
+                } else {
+                    Text("On track")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let avg = ar.avgDaysToPay {
+                    Label("~\(Int(avg.rounded())) days to pay", systemImage: "clock")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                agingBar(ar)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(.thinMaterial, in: .rect(cornerRadius: 14))
+    }
+
+    private func overduePill(_ ar: ReportsAggregator.ARSummary, code: String) -> some View {
+        Text("\(currency(ar.overdue, code: code)) overdue · \(ar.overdueCount)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.red, in: Capsule())
+    }
+
+    /// Stacked aging segments. When nothing is overdue, the bar is a single
+    /// "Current" segment (no empty 30/60/90 slots). Hidden entirely when there's
+    /// no outstanding money (handled by the caller's branch).
+    @ViewBuilder
+    private func agingBar(_ ar: ReportsAggregator.ARSummary) -> some View {
+        let aging = ar.aging
+        let total = (aging.outstanding as NSDecimalNumber).doubleValue
         if total > 0 {
-            VStack(alignment: .leading, spacing: 8) {
-                sectionHeader("Billable vs non-billable")
-                HStack(spacing: 0) {
-                    Rectangle()
-                        .fill(Color.green)
-                        .frame(width: max(20, CGFloat(billable / total) * 320))
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.4))
-                        .frame(width: max(0, CGFloat(nonBillable / total) * 320))
+            let segments: [(label: String, value: Double, color: Color)] = [
+                ("Current", (aging.current as NSDecimalNumber).doubleValue, .green),
+                ("1–30", (aging.d1to30 as NSDecimalNumber).doubleValue, .yellow),
+                ("31–60", (aging.d31to60 as NSDecimalNumber).doubleValue, .orange),
+                ("60+", (aging.d60plus as NSDecimalNumber).doubleValue, .red),
+            ].filter { $0.value > 0 }
+
+            VStack(alignment: .leading, spacing: 6) {
+                GeometryReader { geo in
+                    HStack(spacing: 0) {
+                        ForEach(segments, id: \.label) { seg in
+                            Rectangle()
+                                .fill(seg.color)
+                                .frame(width: max(2, CGFloat(seg.value / total) * geo.size.width))
+                        }
+                    }
                 }
                 .frame(height: 12)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                HStack {
-                    legend(color: .green, label: "Billable \(formatHours(snapshot.billableHours))")
-                    Spacer()
-                    legend(color: .gray, label: "Non-billable \(formatHours(snapshot.nonBillableHours))")
+
+                if ar.overdue > 0 {
+                    HStack(spacing: 12) {
+                        ForEach(segments, id: \.label) { seg in
+                            legend(color: seg.color, label: seg.label)
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
         }
     }
 
-    private func legend(color: Color, label: String) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 8, height: 8)
-            Text(label)
+    // MARK: - Performance KPIs (effective rate / utilization)
+
+    private func performanceTiles(_ snapshot: ReportsAggregator.Snapshot) -> some View {
+        let perf = snapshot.performance
+        let rateValue = perf.effectiveRate.map {
+            "\(currency($0, code: snapshot.currencyCode))/h"
+        } ?? "—"
+        let utilValue = perf.utilization.map {
+            $0.formatted(.percent.precision(.fractionLength(0)))
+        } ?? "—"
+        return HStack(spacing: 12) {
+            tile(label: "EFFECTIVE RATE", value: rateValue, color: .primary)
+            tile(label: "UTILIZATION", value: utilValue, color: .primary)
         }
     }
 
+    // MARK: - Revenue trend (range-aware, Invoiced)
+
     @ViewBuilder
-    private var clientBars: some View {
+    private func revenueTrendChart(_ snapshot: ReportsAggregator.Snapshot) -> some View {
+        if !snapshot.revenueTrend.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("Revenue")
+                Chart {
+                    ForEach(snapshot.revenueTrend) { point in
+                        BarMark(
+                            x: .value("Period", point.bucketStart, unit: chartUnit(snapshot.trendBucket)),
+                            y: .value("Invoiced", (point.amount as NSDecimalNumber).doubleValue)
+                        )
+                        .foregroundStyle(Color.blue.gradient)
+                    }
+                }
+                .frame(height: 150)
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: chartUnit(snapshot.trendBucket))) { _ in
+                        AxisGridLine()
+                        AxisValueLabel(format: trendAxisFormat(snapshot.trendBucket))
+                    }
+                }
+            }
+        }
+    }
+
+    private func chartUnit(_ bucket: ReportsAggregator.TrendBucket) -> Calendar.Component {
+        switch bucket {
+        case .day: .day
+        case .week: .weekOfYear
+        case .month: .month
+        }
+    }
+
+    private func trendAxisFormat(_ bucket: ReportsAggregator.TrendBucket) -> Date.FormatStyle {
+        switch bucket {
+        case .day: .dateTime.month().day()
+        case .week: .dateTime.month().day()
+        case .month: .dateTime.month(.abbreviated)
+        }
+    }
+
+    // MARK: - Hours by client (existing chart)
+
+    @ViewBuilder
+    private func clientBars(_ snapshot: ReportsAggregator.Snapshot) -> some View {
         if !snapshot.clientHours.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 sectionHeader("Hours by client")
@@ -163,33 +337,10 @@ struct ReportsView: View {
         }
     }
 
-    @ViewBuilder
-    private var earningsTrend: some View {
-        if !snapshot.earningsTrend.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                sectionHeader("Earnings — last 8 weeks")
-                Chart {
-                    ForEach(snapshot.earningsTrend) { point in
-                        BarMark(
-                            x: .value("Week", point.weekStart, unit: .weekOfYear),
-                            y: .value("Earnings", (point.amount as NSDecimalNumber).doubleValue)
-                        )
-                        .foregroundStyle(Color.green.gradient)
-                    }
-                }
-                .frame(height: 150)
-                .chartXAxis {
-                    AxisMarks(values: .stride(by: .weekOfYear, count: 2)) { _ in
-                        AxisGridLine()
-                        AxisValueLabel(format: .dateTime.month().day())
-                    }
-                }
-            }
-        }
-    }
+    // MARK: - Project breakdown (existing list)
 
     @ViewBuilder
-    private var projectBreakdown: some View {
+    private func projectBreakdown(_ snapshot: ReportsAggregator.Snapshot) -> some View {
         if !snapshot.projectHours.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 sectionHeader("Hours by project")
@@ -207,7 +358,7 @@ struct ReportsView: View {
                             .font(.subheadline.monospacedDigit())
                             .foregroundStyle(.secondary)
                         if row.isBillable {
-                            Text(row.amount.formatted(.currency(code: snapshot.currencyCode)))
+                            Text(currency(row.amount, code: snapshot.currencyCode))
                                 .font(.subheadline.monospacedDigit())
                                 .frame(width: 80, alignment: .trailing)
                         }
@@ -219,23 +370,13 @@ struct ReportsView: View {
         }
     }
 
-    private var uninvoicedCallout: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("UNINVOICED")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            HStack(alignment: .firstTextBaseline) {
-                Text(snapshot.uninvoicedAmount.formatted(.currency(code: snapshot.currencyCode)))
-                    .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
-                Spacer()
-            }
-            Text("All-time outstanding work, ready to invoice.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(.thinMaterial, in: .rect(cornerRadius: 14))
+    // MARK: - Footnotes / empty state
+
+    private func excludedCurrencyFootnote(_ count: Int) -> some View {
+        Text("\(count) invoice\(count == 1 ? "" : "s") in other currencies aren't included.")
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var emptyState: some View {
@@ -251,6 +392,13 @@ struct ReportsView: View {
         .padding(.vertical, 24)
     }
 
+    private func legend(color: Color, label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 8, height: 8)
+            Text(label)
+        }
+    }
+
     // MARK: - CSV
 
     private func exportCSV() {
@@ -264,7 +412,7 @@ struct ReportsView: View {
             csvURL = url
             showingShareCSV = true
         } catch {
-            // Step 7 polish: surface as toast.
+            exportError = error.localizedDescription
         }
     }
 
@@ -273,6 +421,10 @@ struct ReportsView: View {
     private func sectionHeader(_ text: String) -> some View {
         Text(text)
             .font(.headline)
+    }
+
+    private func currency(_ value: Decimal, code: String) -> String {
+        value.formatted(.currency(code: code))
     }
 
     private func formatHours(_ hours: Decimal) -> String {
