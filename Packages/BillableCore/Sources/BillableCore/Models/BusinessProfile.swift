@@ -52,6 +52,27 @@ public final class BusinessProfile {
         !taxIDNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    // MARK: - Entity type + first-run latches (onboarding redesign)
+
+    /// Raw `EntityType`. Default `.organization` is a back-compat fallback that preserves
+    /// the legacy "Business name" label + visible tax section; onboarding always sets it.
+    public var entityTypeRaw: String = EntityType.organization.rawValue
+
+    public var entityType: EntityType {
+        get { EntityType(rawValue: entityTypeRaw) ?? .organization }
+        set { entityTypeRaw = newValue.rawValue }
+    }
+
+    /// One-way latches (never unset). Stamped by a single owner; double as activation metrics.
+    public var onboardingCompletedAt: Date? = nil
+    public var firstSetupCompletedAt: Date? = nil
+
+    /// "Enriched" = the invoice-completing fields beyond name are present (postal address + a
+    /// payment route). Gates the dismissible enrichment nudge only — never blocks anything.
+    public var isProfileEnriched: Bool {
+        !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasBankDetails
+    }
+
     // MARK: - Invoice email templates (v1.6 / Phase 2)
 
     public var invoiceEmailSubjectTemplate: String = BusinessProfile.defaultInvoiceEmailSubject
@@ -80,6 +101,9 @@ public final class BusinessProfile {
         bankSWIFT: String = "",
         taxIDLabel: String = "",
         taxIDNumber: String = "",
+        entityTypeRaw: String = EntityType.organization.rawValue,
+        onboardingCompletedAt: Date? = nil,
+        firstSetupCompletedAt: Date? = nil,
         invoiceEmailSubjectTemplate: String = BusinessProfile.defaultInvoiceEmailSubject,
         invoiceEmailBodyTemplate: String = BusinessProfile.defaultInvoiceEmailBody,
         createdAt: Date = .now,
@@ -104,6 +128,9 @@ public final class BusinessProfile {
         self.bankSWIFT = bankSWIFT
         self.taxIDLabel = taxIDLabel
         self.taxIDNumber = taxIDNumber
+        self.entityTypeRaw = entityTypeRaw
+        self.onboardingCompletedAt = onboardingCompletedAt
+        self.firstSetupCompletedAt = firstSetupCompletedAt
         self.invoiceEmailSubjectTemplate = invoiceEmailSubjectTemplate
         self.invoiceEmailBodyTemplate = invoiceEmailBodyTemplate
         self.createdAt = createdAt
