@@ -107,6 +107,13 @@ struct SettingsView: View {
                         } label: {
                             Label("Diagnostics", systemImage: "stethoscope")
                         }
+                        #if DEBUG
+                        NavigationLink {
+                            ActivationMetricsView()
+                        } label: {
+                            Label("Activation metrics", systemImage: "chart.bar.xaxis")
+                        }
+                        #endif
                     } header: { Text("Debug") }
                 }
 
