@@ -8,7 +8,6 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Environment(NotificationRouter.self) private var router
-    @State private var showingReportsPaywall = false
     @State private var needsOnboarding: Bool = false
     @State private var selectedTab: Int = 0
     @State private var invoicesPendingTarget: InvoicesView.NavigationTarget?
@@ -66,9 +65,6 @@ struct RootView: View {
                     .tabItem { Label("Settings", systemImage: "gearshape") }
                     .tag(4)
             }
-            .sheet(isPresented: $showingReportsPaywall) {
-                PaywallView(trigger: .reports)
-            }
             .onChange(of: router.pendingDestination) { _, newValue in
                 guard let destination = newValue else { return }
                 switch destination {
@@ -119,41 +115,11 @@ struct RootView: View {
         if subscriptions.isPro {
             ReportsView()
         } else {
-            ReportsLockedView { showingReportsPaywall = true }
-        }
-    }
-}
-
-/// Shown to free users when they tap the Reports tab — the visual sells the
-/// upgrade rather than just blocking the tab.
-private struct ReportsLockedView: View {
-    let onUpgrade: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 22) {
-                Spacer()
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.tint)
-                Text("Reports are part of Pro")
-                    .font(.title2.weight(.semibold))
-                Text("Hours by client, billable vs. non-billable, 8-week earnings trend, plus CSV export for your accountant.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-                Button(action: onUpgrade) {
-                    Label("Upgrade to Pro", systemImage: "sparkles")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .padding(.horizontal, 32)
-                Spacer()
-            }
-            .navigationTitle("Reports")
+            // Render the contextual paywall directly in the locked tab — no cold
+            // lock screen, no bounce to a sheet. The purchase completes in place;
+            // SubscriptionManager.shared is @Observable, so on success `isPro`
+            // flips and this branch swaps to the real ReportsView automatically.
+            PaywallView(trigger: .reports)
         }
     }
 }
