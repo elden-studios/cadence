@@ -124,6 +124,7 @@ struct OnboardingView: View {
                 .padding(14)
                 .background(.white.opacity(0.08), in: .rect(cornerRadius: 12))
                 .foregroundStyle(.white)
+                .accessibilityIdentifier("onboarding.nameField")
             }
             Spacer(minLength: 24)
         }
