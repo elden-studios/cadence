@@ -160,7 +160,7 @@ struct ReportsView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            if ar.outstanding == 0 && snapshot.money.invoiced == 0 {
+            if ar.outstanding == 0 && !snapshot.hasAnyBilledInvoice {
                 // No receivable data at all.
                 Text("No invoices yet — track time, then invoice to see what you're owed.")
                     .font(.subheadline)
@@ -383,7 +383,7 @@ struct ReportsView: View {
     // MARK: - Footnotes / empty state
 
     private func excludedCurrencyFootnote(_ count: Int) -> some View {
-        Text("\(count) invoice\(count == 1 ? "" : "s") in other currencies aren't included.")
+        Text("\(count) invoice\(count == 1 ? " in another currency isn't" : "s in other currencies aren't") included.")
             .font(.caption)
             .foregroundStyle(.tertiary)
             .frame(maxWidth: .infinity, alignment: .leading)

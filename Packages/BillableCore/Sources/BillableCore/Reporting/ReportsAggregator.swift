@@ -113,6 +113,7 @@ public enum ReportsAggregator {
         public let revenueTrend: [TrendPoint]
         public let trendBucket: TrendBucket
         public let excludedCurrencyCount: Int     // invoices skipped for non-matching currency
+        public let hasAnyBilledInvoice: Bool      // any non-draft invoice exists (AS-OF-NOW, not range-scoped)
         public let currencyCode: String
         /// True when there is real activity to report. Deliberately does NOT test
         /// `!revenueTrend.isEmpty` — the trend always emits zero-amount buckets for
@@ -140,6 +141,9 @@ public enum ReportsAggregator {
         // ---- currency-filtered invoice set ----
         let curInvoices = invoices.filter { $0.currencyCodeSnapshot == activeCurrency }
         let excludedCurrencyCount = invoices.count - curInvoices.count
+        // As-of-now (NOT range-scoped): does the user have ANY billed invoice?
+        // Drives the AR card's "No invoices yet" vs "All paid up" state.
+        let hasAnyBilledInvoice = curInvoices.contains { $0.status != .draft }
 
         // ---- entries in range (existing behaviour) ----
         let inRangeEntries = entries.filter { inRange($0.startedAt) }
@@ -176,7 +180,8 @@ public enum ReportsAggregator {
             nonBillableHours: Decimal(nonBillableSeconds/3600),
             clientHours: clientHours, projectHours: projectHours,
             revenueTrend: trend.points, trendBucket: trend.bucket,
-            excludedCurrencyCount: excludedCurrencyCount, currencyCode: activeCurrency)
+            excludedCurrencyCount: excludedCurrencyCount, hasAnyBilledInvoice: hasAnyBilledInvoice,
+            currencyCode: activeCurrency)
     }
 
     // MARK: - Per-client / per-project grouping (existing behaviour, lifted)
