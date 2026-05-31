@@ -55,6 +55,9 @@ struct PaywallView: View {
     /// Records the Reports paywall impression only once per presentation/mount —
     /// the embedded tab stays mounted, so .onAppear re-fires on revisits. (S4-5)
     @State private var didRecordImpression = false
+    /// One-shot guard so the owned-Lifetime funnel event records exactly once per
+    /// presentation even though `ownsLifetime` resolves async after onAppear. (NEW-S1-2)
+    @State private var didRecordLifetimeOwned = false
 
     // Backing data for the `.reports` crisp-taste header. We compute a live
     // snapshot from the user's own entries/invoices so the teaser shows *their*
@@ -83,8 +86,12 @@ struct PaywallView: View {
                         }
                     }
                     lifetimeAffordance
-                    secondaryActions
-                    finePrint
+                    if manager.ownsLifetime {
+                        termsPrivacyLinks
+                    } else {
+                        secondaryActions
+                        finePrint
+                    }
                 }
                 .padding(20)
             }
@@ -95,6 +102,7 @@ struct PaywallView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { dismiss() } label: { Image(systemName: "xmark") }
                             .accessibilityLabel("Close paywall")
+                            .disabled(isProcessing)
                     }
                 }
             }
@@ -114,11 +122,18 @@ struct PaywallView: View {
                 if manager.ownsLifetime {
                     PaywallMetrics.record(.lifetimeOwnedView, variant: PricingConfig.variant,
                                           trigger: trigger.metricKey, tier: "lifetime")
+                    didRecordLifetimeOwned = true
                 }
                 recomputeTeaser()
             }
             .onChange(of: reportEntries) { recomputeTeaser() }
             .onChange(of: reportInvoices) { recomputeTeaser() }
+            .onChange(of: manager.ownsLifetime) { _, owned in
+                guard owned, !didRecordLifetimeOwned else { return }
+                didRecordLifetimeOwned = true
+                PaywallMetrics.record(.lifetimeOwnedView, variant: PricingConfig.variant,
+                                      trigger: trigger.metricKey, tier: "lifetime")
+            }
             .alert("Couldn't complete purchase", isPresented: Binding(
                 get: { error != nil }, set: { if !$0 { error = nil } }
             )) {
@@ -700,6 +715,20 @@ struct PaywallView: View {
                 }
             }
         }
+    }
+
+    /// Terms of Use + Privacy Policy links shown to Lifetime owners in place of
+    /// the full `secondaryActions` row (they don't need a Restore button or the
+    /// auto-renew fine print). (NEW-S1-4)
+    private var termsPrivacyLinks: some View {
+        HStack {
+            Spacer()
+            Link("Terms", destination: URL(string: "https://elden-studios.github.io/cadence/legal/terms")!)
+                .font(.subheadline)
+            Link("Privacy", destination: URL(string: "https://elden-studios.github.io/cadence/legal/privacy")!)
+                .font(.subheadline)
+        }
+        .foregroundStyle(.secondary)
     }
 
     private var secondaryActions: some View {
