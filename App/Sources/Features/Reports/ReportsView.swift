@@ -11,7 +11,7 @@ import BillableCore
 struct ReportsView: View {
     @Environment(\.modelContext) private var modelContext
 
-    @Query private var allEntries: [TimeEntry]
+    @Query(Self.entriesDescriptor) private var allEntries: [TimeEntry]
     @Query private var allInvoices: [Invoice]
     @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
@@ -27,6 +27,16 @@ struct ReportsView: View {
     @State private var snapshot: ReportsAggregator.Snapshot?
 
     private var currencyCode: String { profiles.first?.currencyCode ?? "USD" }
+
+    /// Prefetch the relationships the aggregator walks per entry (project +
+    /// project.client) to avoid N+1 faulting when the snapshot computes — mirrors
+    /// TodayView. The @State snapshot cache is KEPT (it prevents recompute on
+    /// unrelated state flips; prefetching only reduces faulting when it does run).
+    private static var entriesDescriptor: FetchDescriptor<TimeEntry> {
+        var d = FetchDescriptor<TimeEntry>()
+        d.relationshipKeyPathsForPrefetching = [\.project, \.project?.client]
+        return d
+    }
 
     private func recompute() {
         snapshot = ReportsAggregator.snapshot(

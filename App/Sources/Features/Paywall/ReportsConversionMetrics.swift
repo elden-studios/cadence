@@ -2,6 +2,9 @@ import Foundation
 
 /// On-device-only, privacy-pure conversion counters for the Reports paywall.
 /// UserDefaults; never transmitted. Read in the DEBUG ActivationMetrics readout.
+/// `@MainActor` (matching `BadgeCount`/`ActivationMetrics`) so the read-modify-write
+/// increments are serialized — all callers are already main-actor.
+@MainActor
 enum ReportsConversionMetrics {
     private static let impressionsKey = "reports.paywall.impressions"
     private static let conversionsKey = "reports.paywall.conversions"

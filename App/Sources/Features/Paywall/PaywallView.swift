@@ -128,7 +128,11 @@ struct PaywallView: View {
     /// have something reportable, else from `ReportsSampleData`. Decorative — the
     /// real headline sits above it; the figures themselves are `accessibilityHidden`.
     private var crispTasteHeader: some View {
-        let model = teaserModel ?? makeTeaserModel()
+        // Don't run the O(N) ReportsAggregator.snapshot in `body`: on the first
+        // frame (before .onAppear memoizes the real model) use an O(1) sample
+        // placeholder, redacted so no figures flash before the real numbers land.
+        let isPlaceholder = (teaserModel == nil)
+        let model = teaserModel ?? sampleTeaserModel()
 
         return VStack(alignment: .leading, spacing: 14) {
             Text(trigger.headline)
@@ -139,12 +143,13 @@ struct PaywallView: View {
             VStack(alignment: .leading, spacing: 10) {
                 teaserARCard(model)
                 teaserTileRow(model)
-                if model.isSample {
+                if model.isSample && !isPlaceholder {
                     Text("Sample preview")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
             }
+            .redacted(reason: isPlaceholder ? .placeholder : [])
             .accessibilityHidden(true)
 
             Text(trigger.subhead)
@@ -172,6 +177,23 @@ struct PaywallView: View {
     private func recomputeTeaser() {
         guard trigger == .reports else { return }
         teaserModel = makeTeaserModel()
+    }
+
+    /// O(1) placeholder for the first frame, before `recomputeTeaser()` memoizes the
+    /// real snapshot. Pure static sample — never touches @Query data, so it costs
+    /// nothing in `body`; real numbers replace it on `.onAppear`.
+    private func sampleTeaserModel() -> ReportsTeaserModel {
+        ReportsTeaserModel(
+            currencyCode: profiles.first?.currencyCode ?? "USD",
+            outstanding: ReportsSampleData.outstanding,
+            overdue: ReportsSampleData.overdue,
+            overdueCount: ReportsSampleData.overdueCount,
+            avgDaysToPay: ReportsSampleData.avgDaysToPay,
+            invoiced: ReportsSampleData.invoiced,
+            collected: ReportsSampleData.collected,
+            effectiveRate: ReportsSampleData.effectiveRate,
+            isSample: true
+        )
     }
 
     /// Compute the teaser from the user's real snapshot when they have reportable
