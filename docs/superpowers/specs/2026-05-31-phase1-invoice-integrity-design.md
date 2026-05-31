@@ -46,7 +46,7 @@ This is the first of four committed phases (Phases 5–8 parked). It is the data
 **B. Reopen-to-draft (the sent-by-mistake exit).**
 - New `InvoiceStatusMachine` transition `reopenToDraft(at:)`: guard `status == .sent` (only sent, never paid) → set `status = .draft`, clear `sentAt`, bump `updatedAt`.
 - Caller (new destructive action in `InvoiceDetailView`'s ⋯ menu, shown only for `.sent`): re-mark the invoice's source entries uninvoiced (`entry.invoiceID == invoice.uuid` → `nil`), and **cancel the reminders** that `markSent` scheduled via `didMarkSentHook` (use the existing `ReminderService`/`Scheduler` cancel path — confirm exact API at plan time).
-- **Invoice number policy:** reopening **keeps** the already-issued number (standard accounting — issued numbers are not reused; gaps are fine). Re-finalizing a reopened invoice must **reuse that number** rather than consuming a fresh one — so `finalizeAndSend` skips `consumeNextInvoiceNumber()` when the invoice already carries a consumed (non-preview) number. (Design a small "already numbered" check; detail at plan time.)
+- **Invoice number policy (final — number-reuse retired):** reopening keeps the already-issued number on the now-draft invoice (cosmetic). There is **no in-place re-send path** — `InvoiceDetailView` exposes only Delete/Share on a draft — so a reopened invoice is resolved by deleting it (existing Delete-draft action) or re-generating. **No number-reuse logic and no `finalizeAndSend` change are needed**: a reopened invoice can never reach `finalizeAndSend` a second time, so the earlier "reuse the number on re-finalize / already-numbered check" idea is dropped. A deleted reopened invoice simply leaves a number gap (standard accounting).
 - Confirmation dialog before reopen: "Reopen INV-xxxx to draft? Its tracked time becomes uninvoiced again and scheduled reminders are cancelled." Keep `.paid` invoices non-reopenable.
 
 ### Error handling
@@ -54,7 +54,7 @@ This is the first of four committed phases (Phases 5–8 parked). It is the data
 - The existing empty-`Data` guard (don't cache 0 bytes) is preserved and centralized in Item 2.
 
 ### Testing
-- BillableCore: `reopenToDraft` throws from `.draft` and `.paid`; succeeds from `.sent`, clearing `sentAt`. Re-finalize after reopen reuses the same number (no consume). Cancelled send (result≠`.sent`) leaves status `.draft`, number not consumed, entries still uninvoiced. Successful send consumes exactly one number and marks entries.
+- BillableCore: `reopenToDraft` throws from `.draft` and `.paid`; succeeds from `.sent`, clearing `sentAt`. Cancelled send (result≠`.sent`) leaves status `.draft`, number not consumed, entries still uninvoiced. Successful send consumes exactly one number and marks entries.
 - UI: cancel the mail composer → invoice remains a draft, uninvoiced balance unchanged; reopen a sent invoice → entries uninvoiced again + reminders cancelled.
 
 ---
