@@ -52,6 +52,9 @@ struct PaywallView: View {
     @State private var isProcessing = false
     @State private var error: String?
     @State private var teaserModel: ReportsTeaserModel?
+    /// Records the Reports paywall impression only once per presentation/mount —
+    /// the embedded tab stays mounted, so .onAppear re-fires on revisits. (S4-5)
+    @State private var didRecordImpression = false
 
     // Backing data for the `.reports` crisp-taste header. We compute a live
     // snapshot from the user's own entries/invoices so the teaser shows *their*
@@ -99,7 +102,10 @@ struct PaywallView: View {
             .onAppear {
                 // Privacy-pure, on-device impression count for the Reports
                 // paywall (UserDefaults; never transmitted). See spec §5.
-                if trigger == .reports { ReportsConversionMetrics.recordImpression() }
+                if trigger == .reports && !didRecordImpression {
+                    ReportsConversionMetrics.recordImpression()
+                    didRecordImpression = true
+                }
                 // On-device funnel: every paywall impression, plus a distinct
                 // counter when an owning user re-opens it (so the owned-state
                 // view rate is sliceable from genuine sale opportunities).
