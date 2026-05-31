@@ -77,7 +77,8 @@ struct ReportsARSummaryTests {
 
     @Test("avgDaysToPay is as-of-now: a paid invoice outside the selected range still counts")
     func avgDaysToPayAsOfNow() {
-        let cal = Calendar(identifier: .gregorian)
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         func daysAgo(_ n: Int) -> Date { cal.date(byAdding: .day, value: -n, to: now)! }
         // Paid 40 days ago — OUTSIDE 'this week'. issued→paid = 10 days.

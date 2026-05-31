@@ -64,7 +64,8 @@ struct CSVExporterTests {
 struct EntriesInRangeTests {
     @Test("Uses the same half-open predicate as the snapshot (upperBound excluded)")
     func halfOpen() throws {
-        let cal = Calendar(identifier: .gregorian)
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
         let now = Date(timeIntervalSince1970: 1_700_000_000)   // 2023-11-14
         let container = try BillableModelContainer.inMemory()
         let context = ModelContext(container)

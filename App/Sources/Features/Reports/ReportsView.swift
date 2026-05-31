@@ -66,11 +66,11 @@ struct ReportsView: View {
                         arCard(snapshot)            // as-of-now — ABOVE the picker (S4-1)
                     }
                     rangePicker
-                    Text(rangeScopeCaption)         // labels what the picker governs (S4-1)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     if let snapshot {
+                        Text(rangeScopeCaption)         // labels what the picker governs (S4-1)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         moneyLenses(snapshot)
                         performanceTiles(snapshot)
                         if !snapshot.hasReportableData {
