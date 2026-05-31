@@ -136,12 +136,15 @@ struct ClientDetailView: View {
         } message: {
             Text("This permanently removes the project and all of its time entries.")
         }
-        .alert("Can't delete — billing records",
-               isPresented: Binding(get: { blockedDeleteName != nil },
-                                    set: { if !$0 { blockedDeleteName = nil } })) {
+        .alert(
+            "Can't delete — billing records",
+            isPresented: Binding(get: { blockedDeleteName != nil },
+                                 set: { if !$0 { blockedDeleteName = nil } }),
+            presenting: blockedDeleteName
+        ) { _ in
             Button("Cancel", role: .cancel) { blockedDeleteName = nil }
-        } message: {
-            Text("\(blockedDeleteName ?? "This project") has time on sent or paid invoices. Archive it instead to keep your billing records.")
+        } message: { name in
+            Text("\(name) has time on sent or paid invoices. Archive it instead to keep your billing records.")
         }
     }
 }

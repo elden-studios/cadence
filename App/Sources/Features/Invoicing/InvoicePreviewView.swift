@@ -340,6 +340,11 @@ struct InvoicePreviewView: View {
         flushPendingDescriptionEdits()
         let theDraft: Invoice
         if let existing = draft {
+            // Reusing the draft (e.g. after a cancelled send): copy the latest
+            // preview edits onto it so the rendered/finalized invoice isn't stale.
+            existing.lineItems = lineItems
+            existing.notes = notes
+            existing.scopeOfWork = scopeOfWork
             theDraft = existing
         } else {
             do {

@@ -400,11 +400,10 @@ struct InvoiceDetailView: View {
         let invoiceUUID = invoice.uuid
         do { try invoice.reopenToDraft() } catch { return }
         // Re-mark this invoice's source entries uninvoiced.
-        // Fetch all entries and filter in-memory: #Predicate on optional UUID?
-        // equality can produce a compiler error in some Swift/SwiftData versions.
-        let entries = (try? modelContext.fetch(FetchDescriptor<TimeEntry>()))?.filter {
-            $0.invoiceID == invoiceUUID
-        } ?? []
+        let descriptor = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate { $0.invoiceID == invoiceUUID }
+        )
+        let entries = (try? modelContext.fetch(descriptor)) ?? []
         for entry in entries { entry.invoiceID = nil; entry.updatedAt = .now }
         invoice.pdfDataCached = nil
         modelContext.saveOrLog("reopen invoice to draft")
