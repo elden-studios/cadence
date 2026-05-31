@@ -11,7 +11,7 @@ public enum DurationFormatting {
 
     /// "Xh YYm" from decimal hours (e.g. ReportsView).
     public static func hoursMinutes(decimalHours: Decimal) -> String {
-        let seconds = TimeInterval(truncating: (decimalHours * 3600) as NSDecimalNumber)
+        let seconds = (decimalHours * 3600 as NSDecimalNumber).doubleValue
         return hoursMinutes(seconds: seconds)
     }
 }

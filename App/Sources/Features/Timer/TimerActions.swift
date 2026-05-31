@@ -97,6 +97,7 @@ enum TimerActions {
         // Defense-in-depth: mirror logCompletedEntry's future-start guard so a
         // future start cannot be written even if a caller bypasses the picker bound.
         guard start <= .now else { return false }
+        guard !project.isArchived else { return false }
         entry.project = project
         if flattenBreaks {
             entry.accumulatedSeconds = 0
@@ -110,6 +111,7 @@ enum TimerActions {
         do {
             try context.save()
         } catch {
+            context.rollback()
             return false
         }
         WidgetCenter.shared.reloadAllTimelines()

@@ -64,7 +64,7 @@ struct ManualEntrySheet: View {
                     // Cap the upper bound to now: a manual entry cannot start in
                     // the future. End is bounded by the chosen start.
                     DatePicker("Start", selection: $startDate, in: ...Date.now)
-                    DatePicker("End", selection: $endDate, in: startDate...)
+                    DatePicker("End", selection: $endDate, in: startDate...max(startDate, Date.now))
                     LabeledContent("Duration", value: durationLabel)
                 }
 
