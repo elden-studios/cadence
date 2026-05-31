@@ -219,11 +219,16 @@ struct InvoicePreviewView: View {
                             showingMailComposer = false
                             mailComposerAttachment = nil
                             mailComposerRecipients = []
-                            if result == .sent || result == .saved {
+                            // Finalize + leave the preview ONLY on a real send. On
+                            // .cancelled / .failed / .saved (saved = an unsent draft
+                            // email sitting in Mail), stay on the preview with the
+                            // reusable draft intact so the user can retry — nothing is
+                            // marked Sent and the user isn't ejected from the preview.
+                            if result == .sent {
                                 if let theDraft = draft { commitFinalize(theDraft) }
+                                dismiss()
+                                onDone()
                             }
-                            dismiss()
-                            onDone()
                         }
                     )
                 }
