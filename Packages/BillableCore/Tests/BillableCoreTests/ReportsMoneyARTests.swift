@@ -74,6 +74,21 @@ struct ReportsARSummaryTests {
         #expect(snap.ar.overdueCount == 3)
         #expect(snap.ar.avgDaysToPay == 25)          // only the one paid invoice
     }
+
+    @Test("avgDaysToPay is as-of-now: a paid invoice outside the selected range still counts")
+    func avgDaysToPayAsOfNow() {
+        let cal = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        func daysAgo(_ n: Int) -> Date { cal.date(byAdding: .day, value: -n, to: now)! }
+        // Paid 40 days ago — OUTSIDE 'this week'. issued→paid = 10 days.
+        let invoices = [
+            makeInvoice(total: 500, status: .paid, issued: daysAgo(50), due: daysAgo(45), paid: daysAgo(40))
+        ]
+        let snap = ReportsAggregator.snapshot(entries: [], invoices: invoices, in: .thisWeek,
+                                              activeCurrency: "USD", referenceDate: now, calendar: cal)
+        // Range-scoped (old) would exclude it → nil. As-of-now (fixed) includes it → 10.
+        #expect(snap.ar.avgDaysToPay == 10)
+    }
 }
 
 @Suite("ReportsAggregator performance")
