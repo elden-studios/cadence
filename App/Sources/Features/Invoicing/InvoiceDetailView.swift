@@ -24,6 +24,7 @@ struct InvoiceDetailView: View {
     @State private var mailComposerAttachment: Data?
     @State private var mailComposerRecipients: [String] = []
     @State private var showingNoClientEmailAlert = false
+    @State private var showingReopenConfirm = false
     @State private var scopeDraft: String = ""
     @State private var lastSavedScope: String = ""
 
@@ -85,6 +86,11 @@ struct InvoiceDetailView: View {
                         } label: {
                             Label("Send reminder email", systemImage: "envelope")
                         }
+                        Button(role: .destructive) {
+                            showingReopenConfirm = true
+                        } label: {
+                            Label("Reopen to draft", systemImage: "arrow.uturn.backward")
+                        }
                     }
                     if invoice.status == .draft {
                         Button(role: .destructive) {
@@ -138,6 +144,13 @@ struct InvoiceDetailView: View {
                 dismiss()
             }
             Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Reopen \(invoice.number) to draft?",
+                            isPresented: $showingReopenConfirm, titleVisibility: .visible) {
+            Button("Reopen to draft", role: .destructive) { reopenToDraft() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Its tracked time becomes uninvoiced again and any scheduled payment reminders are cancelled. The invoice number is kept; delete the draft if you don't need it.")
         }
     }
 
@@ -394,6 +407,30 @@ struct InvoiceDetailView: View {
         try? invoice.markPaid()
         modelContext.saveOrLog("mark invoice paid")
         promptReviewIfFirstTime()
+    }
+
+    private func reopenToDraft() {
+        guard invoice.status == .sent else { return }
+        let invoiceUUID = invoice.uuid
+        do { try invoice.reopenToDraft() } catch { return }
+        // Re-mark this invoice's source entries uninvoiced.
+        // Fetch all entries and filter in-memory: #Predicate on optional UUID?
+        // equality can produce a compiler error in some Swift/SwiftData versions.
+        let entries = (try? modelContext.fetch(FetchDescriptor<TimeEntry>()))?.filter {
+            $0.invoiceID == invoiceUUID
+        } ?? []
+        for entry in entries { entry.invoiceID = nil; entry.updatedAt = .now }
+        invoice.pdfDataCached = nil
+        modelContext.saveOrLog("reopen invoice to draft")
+        // Cancel scheduled reminders for this invoice.
+        Task { @MainActor in
+            let scheduler = Scheduler(
+                center: UNUserNotificationCenter.current(),
+                modelContext: modelContext
+            )
+            let service = ReminderService(scheduler: scheduler, modelContext: modelContext)
+            try? await service.cancelForInvoice(invoice)
+        }
     }
 
     private func promptReviewIfFirstTime() {
