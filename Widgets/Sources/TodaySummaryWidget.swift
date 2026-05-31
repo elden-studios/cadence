@@ -45,27 +45,42 @@ struct TodaySummaryProvider: TimelineProvider {
         let context = ModelContext(container)
         let cal = Calendar.current
 
-        var allDescriptor = FetchDescriptor<TimeEntry>()
-        allDescriptor.relationshipKeyPathsForPrefetching = [\.project]
-        let all = (try? context.fetch(allDescriptor)) ?? []
+        // --- Today-scoped fetch (HOURS + EARNED) ---
+        let startOfDay = cal.startOfDay(for: now)
+        var todayDescriptor = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate { $0.startedAt >= startOfDay }
+        )
+        todayDescriptor.relationshipKeyPathsForPrefetching = [\.project]
+        let todays = (try? context.fetch(todayDescriptor)) ?? []
 
         // Mirror the Today screen's filter: entries whose startedAt falls on
         // today. Uses `duration(asOf:)` so breaks are excluded and running
         // entries frozen on a break don't keep ticking.
-        let todays = all.filter { entry in
-            cal.isDate(entry.startedAt, inSameDayAs: now)
-        }
         let todaysSeconds = todays.reduce(into: TimeInterval(0)) { acc, e in
             acc += e.duration(asOf: now)   // worked time, breaks excluded
         }
         let todaysAmount = todays.reduce(into: Decimal(0)) { acc, e in
             acc += e.amount(asOf: now)     // uses duration() internally
         }
-        let uninvoiced = all
-            .filter { $0.invoiceID == nil }
+
+        // --- All-time uninvoiced fetch (UNINVOICED · ALL PROJECTS) ---
+        var uninvoicedDescriptor = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate { $0.invoiceID == nil }
+        )
+        uninvoicedDescriptor.relationshipKeyPathsForPrefetching = [\.project]
+        let uninvoicedEntries = (try? context.fetch(uninvoicedDescriptor)) ?? []
+        let uninvoiced = uninvoicedEntries
             .reduce(into: Decimal(0)) { $0 += $1.amount(asOf: now) }
 
-        let recents = recentProjects(from: all)
+        // --- 30-day fetch for recent project tiles ---
+        let cutoff = now.addingTimeInterval(-30 * 24 * 3600)
+        var recentsDescriptor = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate { $0.startedAt > cutoff }
+        )
+        recentsDescriptor.relationshipKeyPathsForPrefetching = [\.project]
+        let recentEntries = (try? context.fetch(recentsDescriptor)) ?? []
+
+        let recents = recentProjects(from: recentEntries)
 
         let currencyCode = ((try? context.fetch(FetchDescriptor<BusinessProfile>())) ?? [])
             .first?.currencyCode ?? "USD"
@@ -81,9 +96,8 @@ struct TodaySummaryProvider: TimelineProvider {
     }
 
     private func recentProjects(from entries: [TimeEntry]) -> [RecentTile] {
-        let cutoff = Date.now.addingTimeInterval(-30 * 24 * 3600)
+        // entries are already pre-filtered to the 30-day window by the caller
         let recent = entries
-            .filter { $0.startedAt > cutoff }
             .sorted(by: { $0.startedAt > $1.startedAt })
         var seen = Set<String>()
         var result: [RecentTile] = []
@@ -149,9 +163,14 @@ struct TodaySummaryWidgetView: View {
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(entry.uninvoicedAmount, format: .currency(code: entry.currencyCode))
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(.primary)
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("UNINVOICED")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text(entry.uninvoicedAmount, format: .currency(code: entry.currencyCode))
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.primary)
+                }
             }
 
             HStack(spacing: 14) {

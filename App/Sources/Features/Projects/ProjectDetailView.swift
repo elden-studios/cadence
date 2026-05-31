@@ -185,7 +185,7 @@ struct ProjectDetailView: View {
 
     private func uninvoicedTile(stats: ProjectStats) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("UNINVOICED")
+            Text("UNINVOICED · THIS PROJECT")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text(stats.uninvoicedAmount.formatted(.currency(code: currencyCode)))
