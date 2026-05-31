@@ -24,6 +24,8 @@ public enum TimerService {
         case alreadyOnBreak
         /// Caller asked to resume but the active session is not on break.
         case notOnBreak
+        /// The provided start date is in the future (after the current time).
+        case startInFuture
     }
 
     public enum AdjustError: Error, Equatable, Sendable {
@@ -151,6 +153,10 @@ public enum TimerService {
 
     /// Log a completed entry with explicit start/end times (after-the-fact entry).
     /// Marks `isManual = true`.
+    ///
+    /// Throws `TimerError.startInFuture` when `start > .now` — a manual entry
+    /// cannot begin in the future. This is defense-in-depth behind the UI picker
+    /// bound (`in: ...Date.now`) added to `ManualEntrySheet`.
     @MainActor
     @discardableResult
     public static func logCompletedEntry(
@@ -161,6 +167,7 @@ public enum TimerService {
         in context: ModelContext
     ) throws -> TimeEntry {
         guard !project.isArchived else { throw TimerError.projectIsArchived }
+        guard start <= .now else { throw TimerError.startInFuture }
         let safeEnd = max(end, start.addingTimeInterval(1))
         let entry = TimeEntry(
             startedAt: start,

@@ -62,4 +62,60 @@ enum TimerActions {
         Task { try? await StopTimerIntent().donate() }
         WidgetCenter.shared.reloadAllTimelines()
     }
+
+    /// Log a manually-entered completed entry and reload widgets.
+    /// Returns `nil` on failure (archived project, future start, save error, etc.).
+    @discardableResult
+    static func logCompleted(
+        project: Project,
+        start: Date,
+        end: Date,
+        notes: String?,
+        in context: ModelContext
+    ) -> TimeEntry? {
+        guard let entry = try? TimerService.logCompletedEntry(
+            project: project, start: start, end: end, notes: notes, in: context
+        ) else { return nil }
+        WidgetCenter.shared.reloadAllTimelines()
+        return entry
+    }
+
+    /// Persist edits to an existing manual (or completed) entry and reload
+    /// widgets. When the edited entry is the currently-running one (unusual
+    /// but theoretically possible), the Live Activity is refreshed to match
+    /// the updated start time.
+    /// Returns `false` on save failure.
+    @discardableResult
+    static func saveEdit(
+        entry: TimeEntry,
+        project: Project,
+        start: Date,
+        end: Date,
+        notes: String?,
+        flattenBreaks: Bool,
+        in context: ModelContext
+    ) -> Bool {
+        entry.project = project
+        if flattenBreaks {
+            entry.accumulatedSeconds = 0
+            entry.activeSegmentStartedAt = nil
+            entry.isManual = true
+        }
+        entry.startedAt = start
+        entry.endedAt = end
+        entry.notes = notes
+        entry.updatedAt = .now
+        do {
+            try context.save()
+        } catch {
+            return false
+        }
+        // If this entry happens to be the currently-running one (no endedAt),
+        // refresh the Live Activity so its anchor reflects the new start time.
+        if entry.endedAt == nil {
+            Task { await TimerActivityController.shared.resumeActivity(runningEntry: entry) }
+        }
+        WidgetCenter.shared.reloadAllTimelines()
+        return true
+    }
 }

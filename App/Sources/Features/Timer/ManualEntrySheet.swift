@@ -7,6 +7,7 @@ import BillableCore
 struct ManualEntrySheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppErrorPresenter.self) private var errorPresenter
 
     @Query(filter: #Predicate<Client> { !$0.isArchived }, sort: \Client.name)
     private var clients: [Client]
@@ -15,6 +16,9 @@ struct ManualEntrySheet: View {
     @State private var startDate: Date
     @State private var endDate: Date
     @State private var notes: String = ""
+
+    /// Drives the "Recalculate this entry?" confirmation dialog.
+    @State private var showingBreakWarning = false
 
     /// When non-nil, the sheet edits the given entry instead of creating a new one.
     let editing: TimeEntry?
@@ -38,6 +42,14 @@ struct ManualEntrySheet: View {
     private var rangeIsValid: Bool { endDate > startDate }
     private var canSave: Bool { selectedProject != nil && rangeIsValid }
 
+    /// True when editing an existing entry whose times have changed AND it has
+    /// banked break data that would be silently destroyed by flattening.
+    private var wouldDestroyBreaks: Bool {
+        guard let editing else { return false }
+        guard editing.accumulatedSeconds > 0 else { return false }
+        return editing.startedAt != startDate || editing.endedAt != endDate
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -46,7 +58,9 @@ struct ManualEntrySheet: View {
                 }
 
                 Section("When") {
-                    DatePicker("Start", selection: $startDate)
+                    // Cap the upper bound to now: a manual entry cannot start in
+                    // the future. End is bounded by the chosen start.
+                    DatePicker("Start", selection: $startDate, in: ...Date.now)
                     DatePicker("End", selection: $endDate, in: startDate...)
                     LabeledContent("Duration", value: durationLabel)
                 }
@@ -67,6 +81,18 @@ struct ManualEntrySheet: View {
                         .bold()
                         .disabled(!canSave)
                 }
+            }
+            .confirmationDialog(
+                "Recalculate this entry?",
+                isPresented: $showingBreakWarning,
+                titleVisibility: .visible
+            ) {
+                Button("Recalculate & Save", role: .destructive) {
+                    commitEdit(flattenBreaks: true)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Editing the times recalculates this entry from start to end and clears its recorded breaks.")
             }
         }
     }
@@ -128,34 +154,56 @@ struct ManualEntrySheet: View {
     }
 
     private func save() {
-        guard let project = selectedProject, rangeIsValid else { return }
-        let trimmedNotes = notes.trimmingCharacters(in: .whitespaces)
-        let storedNotes: String? = trimmedNotes.isEmpty ? nil : trimmedNotes
+        guard rangeIsValid else { return }
 
-        if let editing {
-            editing.project = project
-            if editing.startedAt != startDate || editing.endedAt != endDate {
-                // Flatten any banked break data so duration() equals the new
-                // wall-clock span (startedAt…endedAt). Per-break timestamps are
-                // not stored, so the edited span is the only reliable truth.
-                editing.accumulatedSeconds = 0
-                editing.activeSegmentStartedAt = nil
-            }
-            editing.startedAt = startDate
-            editing.endedAt = endDate
-            editing.notes = storedNotes
-            editing.isManual = true
-            editing.updatedAt = .now
-            modelContext.saveOrLog("edit manual entry")
+        if editing != nil, wouldDestroyBreaks {
+            // Warn before silently wiping banked break data.
+            showingBreakWarning = true
+        } else if let editing {
+            // Times unchanged or no banked breaks — save without flattening.
+            let timesChanged = editing.startedAt != startDate || editing.endedAt != endDate
+            commitEdit(flattenBreaks: timesChanged && editing.accumulatedSeconds == 0)
         } else {
-            _ = try? TimerService.logCompletedEntry(
-                project: project,
-                start: startDate,
-                end: endDate,
-                notes: storedNotes,
-                in: modelContext
-            )
+            commitNew()
+        }
+    }
+
+    /// Persist a new completed entry via TimerActions (fires widget reload).
+    private func commitNew() {
+        guard let project = selectedProject, rangeIsValid else { return }
+        let storedNotes = storedNotesValue()
+        guard TimerActions.logCompleted(
+            project: project, start: startDate, end: endDate,
+            notes: storedNotes, in: modelContext
+        ) != nil else {
+            errorPresenter.present("Couldn't save the entry — please try again.")
+            return
         }
         dismiss()
+    }
+
+    /// Persist edits to the existing entry via TimerActions (fires widget reload).
+    /// `flattenBreaks` controls whether accumulated break seconds are zeroed out.
+    private func commitEdit(flattenBreaks: Bool) {
+        guard let editing, let project = selectedProject, rangeIsValid else { return }
+        let storedNotes = storedNotesValue()
+        guard TimerActions.saveEdit(
+            entry: editing,
+            project: project,
+            start: startDate,
+            end: endDate,
+            notes: storedNotes,
+            flattenBreaks: flattenBreaks,
+            in: modelContext
+        ) else {
+            errorPresenter.present("Couldn't save the entry — please try again.")
+            return
+        }
+        dismiss()
+    }
+
+    private func storedNotesValue() -> String? {
+        let trimmed = notes.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
