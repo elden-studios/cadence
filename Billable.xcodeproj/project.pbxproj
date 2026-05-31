@@ -49,6 +49,7 @@
 		97FBEA7B10420B0ED0942886 /* InvoiceGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A6E72016CCD549BFCBEBE2E /* InvoiceGeneratorView.swift */; };
 		AC7E0D1860B0B7ACEB0A1F14 /* DayTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40BA4466AFACC0C783C06598 /* DayTimelineView.swift */; };
 		AC9498FDD4C99CCA94517C37 /* IntentRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2886369E15E77C0BF85347CE /* IntentRegistration.swift */; };
+		AEB85E8275FD99CACCC28418 /* ProjectSessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E847F13AF6208E653F97B62 /* ProjectSessionsView.swift */; };
 		B1FD44CA0631170789683FB8 /* BillableWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3C50D41C7D1E70A67970DA90 /* BillableWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B655C2DC2191EF2F05EF8390 /* BusinessProfileMaintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3A71E342925E0776F22CD41 /* BusinessProfileMaintenance.swift */; };
 		BA98F29AC021C5D409756033 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = CD9446B66A54E767E5C2CE8D /* PrivacyInfo.xcprivacy */; };
@@ -123,6 +124,7 @@
 		56AC735AE9894CA166F3F644 /* TimelineGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineGeometry.swift; sourceTree = "<group>"; };
 		591084DA183D854DBB380551 /* NotificationTapFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationTapFlowUITests.swift; sourceTree = "<group>"; };
 		5BFD0B16A9AEBF1189186DEE /* BillableWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillableWidgetBundle.swift; sourceTree = "<group>"; };
+		5E847F13AF6208E653F97B62 /* ProjectSessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSessionsView.swift; sourceTree = "<group>"; };
 		67186A12889E18CA99C96468 /* ProjectEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectEditorView.swift; sourceTree = "<group>"; };
 		6B4CE4F3496BC81EE3278AA8 /* Billable.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Billable.entitlements; sourceTree = "<group>"; };
 		70D5726F1FA7DA14C4B5B011 /* ClientDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientDetailView.swift; sourceTree = "<group>"; };
@@ -221,6 +223,7 @@
 			children = (
 				46168250CF2ADDD5E63A9ED9 /* ProjectDetailView.swift */,
 				67186A12889E18CA99C96468 /* ProjectEditorView.swift */,
+				5E847F13AF6208E653F97B62 /* ProjectSessionsView.swift */,
 			);
 			path = Projects;
 			sourceTree = "<group>";
@@ -651,6 +654,7 @@
 				BE072A98744F034E800A6378 /* PricingConfig.swift in Sources */,
 				3E4A4F845E80F6CDCA4E772C /* ProjectDetailView.swift in Sources */,
 				45F34A925B9B048BB38C04E4 /* ProjectEditorView.swift in Sources */,
+				AEB85E8275FD99CACCC28418 /* ProjectSessionsView.swift in Sources */,
 				37C6C0308B1818FF8998144D /* RecurrenceEditorView.swift in Sources */,
 				CE99BEFA8F985754461255B2 /* RecurringRulesView.swift in Sources */,
 				41B0D8E4FAF2EEDF61386F4D /* ReportsConversionMetrics.swift in Sources */,

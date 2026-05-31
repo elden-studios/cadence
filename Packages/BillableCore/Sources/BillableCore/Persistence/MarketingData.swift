@@ -112,6 +112,27 @@ public enum MarketingData {
             context.insert(TimeEntry(startedAt: t14, endedAt: t17, notes: "Dashboard wireframes", project: apexDashboard))
         }
 
+        // MARK: - Deep history on one project (Website Refresh)
+        // Gives northwindWeb ~12 total sessions so the project-detail screen's
+        // 5-row preview + "See all N sessions ›" affordance is demonstrable in
+        // the seeded demo (most projects above have ≤5 entries). Dated across
+        // the last ~11 weeks so the month-grouped full-history screen also shows
+        // multiple month headers.
+        let websiteHistory = [
+            "Nav + IA wireframes", "Component library setup", "Homepage build",
+            "Responsive breakpoints", "Accessibility audit", "Design QA fixes",
+            "CMS integration", "Performance tuning", "Cross-browser QA",
+            "Content migration", "Pre-launch checklist",
+        ]
+        for (i, note) in websiteHistory.enumerated() {
+            let dayOffset = -5 * (i + 1) - 2                 // -7, -12, … spread over weeks
+            guard let day = cal.date(byAdding: .day, value: dayOffset, to: referenceDate),
+                  let start = cal.date(bySettingHour: 9 + (i % 3), minute: 0, second: 0, of: day)
+            else { continue }
+            guard let end = cal.date(byAdding: .minute, value: 75 + 30 * (i % 4), to: start) else { continue }
+            context.insert(TimeEntry(startedAt: start, endedAt: end, notes: note, project: northwindWeb))
+        }
+
         // MARK: - Invoices
         // Sent + paid invoice (Northwind, last billing cycle)
         let lastMonth = cal.date(byAdding: .day, value: -21, to: referenceDate)!

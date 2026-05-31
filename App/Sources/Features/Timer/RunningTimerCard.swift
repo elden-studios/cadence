@@ -360,3 +360,65 @@ struct AdjustStartTimePickerSheet: View {
         .presentationDetents([.medium, .large])
     }
 }
+
+// MARK: - Timer start↔running motion
+
+/// User-selectable motion for the Start ↔ Running-card swap on the project-detail
+/// screen, surfaced via a DEBUG-only picker in Settings so the feel can be chosen
+/// live. All three are render-transform (opacity + scale/offset) transitions —
+/// none clip or frame-constrain the card, so none can "squish" its content the
+/// way the earlier height-animated expand did.
+enum TimerMotionStyle: String, CaseIterable, Identifiable {
+    /// Proposed default — grows into place with a soft overshoot.
+    case spring
+    /// Calm native cross-fade.
+    case fadeScale
+    /// Most drama — blooms open from the button's top edge.
+    case heroMorph
+
+    static let storageKey = "timerMotionStyle"
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .spring: return "Spring Pop"
+        case .fadeScale: return "Fade + Scale"
+        case .heroMorph: return "Hero Morph"
+        }
+    }
+
+    var blurb: String {
+        switch self {
+        case .spring: return "Grows into place with a soft overshoot."
+        case .fadeScale: return "Quiet cross-fade — the native default."
+        case .heroMorph: return "Blooms open from the button's edge."
+        }
+    }
+
+    func animation(reduceMotion: Bool) -> Animation {
+        if reduceMotion { return .easeInOut(duration: 0.16) }
+        switch self {
+        case .spring: return .spring(response: 0.42, dampingFraction: 0.72)
+        case .fadeScale: return .easeOut(duration: 0.28)
+        case .heroMorph: return .spring(response: 0.5, dampingFraction: 0.66)
+        }
+    }
+
+    func transition(reduceMotion: Bool) -> AnyTransition {
+        if reduceMotion { return .opacity }
+        switch self {
+        case .spring:
+            return .asymmetric(
+                insertion: .opacity.combined(with: .scale(scale: 0.82, anchor: .top)),
+                removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+        case .fadeScale:
+            return .opacity.combined(with: .scale(scale: 0.96))
+        case .heroMorph:
+            return .asymmetric(
+                insertion: .opacity
+                    .combined(with: .scale(scale: 0.6, anchor: .top))
+                    .combined(with: .offset(y: -10)),
+                removal: .opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
+        }
+    }
+}
