@@ -107,6 +107,11 @@ struct RootView: View {
                     try? await UNUserNotificationCenter.current().setBadgeCount(count)
                 }
             }
+            .onAppear {
+                // UI-test hook: deep-link straight to the Reports tab (tag 3) so the
+                // Reports dashboard / locked paywall can be screenshot-verified.
+                if CommandLine.arguments.contains("--ui-test-open-reports") { selectedTab = 3 }
+            }
         }
     }
 
@@ -119,7 +124,7 @@ struct RootView: View {
             // lock screen, no bounce to a sheet. The purchase completes in place;
             // SubscriptionManager.shared is @Observable, so on success `isPro`
             // flips and this branch swaps to the real ReportsView automatically.
-            PaywallView(trigger: .reports)
+            PaywallView(trigger: .reports, isEmbedded: true)
         }
     }
 }

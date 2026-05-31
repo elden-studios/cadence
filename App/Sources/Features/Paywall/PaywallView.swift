@@ -34,6 +34,10 @@ struct PaywallView: View {
     }
 
     let trigger: Trigger
+    /// When rendered embedded in a tab (the locked Reports tab) rather than
+    /// presented as a sheet, there is nothing to dismiss — hide the toolbar
+    /// close button so it isn't a dead control.
+    var isEmbedded: Bool = false
     @State private var manager = SubscriptionManager.shared
     @State private var selection: Plan = .yearly
     @State private var isProcessing = false
@@ -67,9 +71,11 @@ struct PaywallView: View {
             .background(Color(.systemBackground))
             .navigationTitle("")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { dismiss() } label: { Image(systemName: "xmark") }
-                        .accessibilityLabel("Close paywall")
+                if !isEmbedded {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { dismiss() } label: { Image(systemName: "xmark") }
+                            .accessibilityLabel("Close paywall")
+                    }
                 }
             }
             .task { manager.start() }
