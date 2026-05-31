@@ -56,4 +56,9 @@ public final class Client {
     public var activeProjects: [Project] {
         projects.filter { !$0.isArchived }
     }
+
+    /// True if any of this client's projects has invoiced time. See `Project.hasInvoicedTime`.
+    public var hasInvoicedTime: Bool {
+        projects.contains { $0.hasInvoicedTime }
+    }
 }
