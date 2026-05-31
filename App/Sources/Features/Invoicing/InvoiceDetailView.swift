@@ -25,6 +25,7 @@ struct InvoiceDetailView: View {
     @State private var mailComposerRecipients: [String] = []
     @State private var showingNoClientEmailAlert = false
     @State private var showingReopenConfirm = false
+    @State private var showingRemoveWatermarkPaywall = false
     @State private var scopeDraft: String = ""
     @State private var lastSavedScope: String = ""
 
@@ -55,6 +56,9 @@ struct InvoiceDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 reminderBanner
                 statusBanner
+                if !subscriptions.canRemoveWatermark, invoice.status != .draft {
+                    WatermarkUpgradeBanner { showingRemoveWatermarkPaywall = true }
+                }
                 projectTagAndScope
                 pdfPreview
                 actionButtons
@@ -151,6 +155,9 @@ struct InvoiceDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Its tracked time becomes uninvoiced again and any scheduled payment reminders are cancelled. The invoice number is kept; delete the draft if you don't need it.")
+        }
+        .sheet(isPresented: $showingRemoveWatermarkPaywall) {
+            PaywallView(trigger: .removeWatermark)
         }
     }
 
