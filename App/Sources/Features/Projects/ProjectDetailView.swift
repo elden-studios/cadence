@@ -11,11 +11,14 @@ struct ProjectDetailView: View {
     @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
     @Query(Self.runningDescriptor) private var runningEntries: [TimeEntry]
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(TimerMotionStyle.storageKey) private var motionStyleRaw = TimerMotionStyle.spring.rawValue
+    private var motionStyle: TimerMotionStyle { TimerMotionStyle(rawValue: motionStyleRaw) ?? .spring }
+
     @State private var showingEdit = false
     @State private var showingInvoiceGenerator = false
     @State private var showingCompleteConfirm = false
     @State private var showingSwitchSheet = false
-    @State private var sessionLimit = 50
 
     private static var runningDescriptor: FetchDescriptor<TimeEntry> {
         var d = FetchDescriptor<TimeEntry>(predicate: #Predicate { $0.endedAt == nil })
@@ -45,17 +48,17 @@ struct ProjectDetailView: View {
         // duration/amount values tick), so we hoist them out of the per-second
         // content closure.
         let sortedEntries = project.entries.sorted { $0.startedAt > $1.startedAt }
-        let groupedEntries = groupedByMonth(Array(sortedEntries.prefix(sessionLimit)))
+        let groupedEntries = Array(sortedEntries.prefix(5)).groupedByMonth()
         let totalCount = sortedEntries.count
         return ScrollView {
-            Group {
-                if runningEntryForProject != nil {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        content(asOf: context.date, groupedEntries: groupedEntries, totalCount: totalCount)
-                    }
-                } else {
-                    content(asOf: .now, groupedEntries: groupedEntries, totalCount: totalCount)
-                }
+            // ONE stable TimelineView — ticks every second only while a timer is
+            // running (TimerTickSchedule), otherwise emits a single frame. Keeping
+            // the timer area in a single, non-conditional TimelineView means the
+            // Start ↔ Running swap animates in place rather than the whole subtree
+            // being destroyed/recreated on start/stop (which previously killed the
+            // transition).
+            TimelineView(TimerTickSchedule(running: runningEntryForProject != nil)) { context in
+                content(asOf: context.date, groupedEntries: groupedEntries, totalCount: totalCount)
             }
             .padding()
         }
@@ -64,7 +67,23 @@ struct ProjectDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Edit") { showingEdit = true }
+                Menu {
+                    Button { showingEdit = true } label: {
+                        Label("Edit project", systemImage: "pencil")
+                    }
+                    if project.isArchived {
+                        Button { restoreProject() } label: {
+                            Label("Restore project", systemImage: "tray.and.arrow.up")
+                        }
+                    } else {
+                        Button(role: .destructive) { showingCompleteConfirm = true } label: {
+                            Label("Complete project", systemImage: "checkmark.circle")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("Project options")
             }
         }
         .sheet(isPresented: $showingEdit) {
@@ -96,11 +115,11 @@ struct ProjectDetailView: View {
         VStack(alignment: .leading, spacing: 20) {
             hero(stats: stats)
             engagementLine(stats: stats)
-            if project.isBillable && !project.isArchived {
-                uninvoicedTile(stats: stats)
-            }
+            // Timer moved up — the most time-sensitive control is reachable
+            // without scrolling past the uninvoiced tile or session history.
             timerArea(asOf: asOf)
             if project.isBillable && !project.isArchived {
+                uninvoicedTile(stats: stats)
                 Button {
                     showingInvoiceGenerator = true
                 } label: {
@@ -110,7 +129,6 @@ struct ProjectDetailView: View {
                 .buttonStyle(.bordered)
             }
             recentSessions(asOf: asOf, groupedEntries: groupedEntries, totalCount: totalCount)
-            lifecycleButton()
         }
     }
 
@@ -185,31 +203,44 @@ struct ProjectDetailView: View {
 
     @ViewBuilder
     private func timerArea(asOf: Date) -> some View {
-        if let running = runningEntryForProject {
-            RunningTimerCard(
-                entry: running, asOf: asOf, currencyCode: currencyCode,
-                onStop: { TimerActions.stop(in: modelContext) },
-                onSwitch: { showingSwitchSheet = true },
-                onTakeBreak: { TimerActions.takeBreak(in: modelContext) },
-                onResume: { TimerActions.resume(in: modelContext) }
-            )
-            .id(running.persistentModelID)
-        } else if !project.isArchived {
-            Button {
-                if anotherProjectRunning {
-                    TimerActions.switchTo(project: project, currencyCode: currencyCode, in: modelContext)
-                } else {
-                    TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
-                }
-            } label: {
-                Label(anotherProjectRunning ? "Switch to this project" : "Start timer",
-                      systemImage: "play.fill")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
+        Group {
+            if let running = runningEntryForProject {
+                RunningTimerCard(
+                    entry: running, asOf: asOf, currencyCode: currencyCode,
+                    onStop: { TimerActions.stop(in: modelContext) },
+                    onSwitch: { showingSwitchSheet = true },
+                    onTakeBreak: { TimerActions.takeBreak(in: modelContext) },
+                    onResume: { TimerActions.resume(in: modelContext) }
+                )
+                .id(running.persistentModelID)
+                .transition(motionStyle.transition(reduceMotion: reduceMotion))
+            } else if !project.isArchived {
+                startTimerButton
+                    .transition(motionStyle.transition(reduceMotion: reduceMotion))
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.timerAccent)
         }
+        // Auto-animate the Start ↔ Running swap with the selected motion. Keyed
+        // on the running entry's identity so it fires on start (nil→id), stop
+        // (id→nil) and switch (id→id′).
+        .animation(motionStyle.animation(reduceMotion: reduceMotion),
+                   value: runningEntryForProject?.persistentModelID)
+    }
+
+    private var startTimerButton: some View {
+        Button {
+            if anotherProjectRunning {
+                TimerActions.switchTo(project: project, currencyCode: currencyCode, in: modelContext)
+            } else {
+                TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
+            }
+        } label: {
+            Label(anotherProjectRunning ? "Switch to this project" : "Start timer",
+                  systemImage: "play.fill")
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.timerAccent)
     }
 
     // MARK: Recent sessions
@@ -228,53 +259,33 @@ struct ProjectDetailView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     ForEach(entries) { entry in
-                        sessionRow(entry, asOf: asOf)
+                        // Only the running row needs the ticking `asOf`; completed
+                        // rows have a constant duration/amount, so pin them to a
+                        // stable date to skip per-second re-evaluation under the
+                        // TimelineView (Gemini PR #13 r3).
+                        SessionRow(entry: entry,
+                                   asOf: entry.isRunning ? asOf : (entry.endedAt ?? entry.startedAt),
+                                   currencyCode: currencyCode, isBillable: project.isBillable)
                     }
                 }
                 if totalCount > shownCount {
-                    Button("See all \(totalCount) sessions") { sessionLimit = totalCount }
+                    NavigationLink {
+                        ProjectSessionsView(project: project, currencyCode: currencyCode)
+                    } label: {
+                        HStack {
+                            Text("See all \(totalCount) sessions")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                         .font(.subheadline)
+                    }
+                    .padding(.top, 2)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func sessionRow(_ entry: TimeEntry, asOf: Date) -> some View {
-        HStack {
-            Text(entry.startedAt.formatted(.dateTime.weekday().day()))
-            Spacer()
-            Text(hoursString(entry.duration(asOf: asOf)))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-            if project.isBillable {
-                Text(entry.amount(asOf: asOf).formatted(.currency(code: currencyCode)))
-                    .monospacedDigit()
-                    .foregroundStyle(.green)
-                    .frame(minWidth: 70, alignment: .trailing)
-            }
-        }
-        .font(.subheadline)
-        .padding(.vertical, 4)
-    }
-
-    // MARK: Lifecycle button
-
-    @ViewBuilder
-    private func lifecycleButton() -> some View {
-        if project.isArchived {
-            Button { restoreProject() } label: {
-                Label("Restore project", systemImage: "tray.and.arrow.up")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-        } else {
-            Button(role: .destructive) { showingCompleteConfirm = true } label: {
-                Label("Complete project", systemImage: "checkmark.circle")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-        }
     }
 
     // MARK: Actions
@@ -300,19 +311,16 @@ struct ProjectDetailView: View {
         let totalMinutes = Int(seconds / 60)
         return "\(totalMinutes / 60)h \(String(format: "%02d", totalMinutes % 60))m"
     }
+}
 
-    private func groupedByMonth(_ entries: [TimeEntry]) -> [(String, [TimeEntry])] {
-        let calendar = Calendar.current
-        var order: [DateComponents] = []
-        var buckets: [DateComponents: [TimeEntry]] = [:]
-        for entry in entries {
-            let comps = calendar.dateComponents([.year, .month], from: entry.startedAt)
-            if buckets[comps] == nil { order.append(comps); buckets[comps] = [] }
-            buckets[comps]?.append(entry)
-        }
-        return order.map { comps in
-            let label = (calendar.date(from: comps) ?? .now).formatted(.dateTime.month(.wide).year())
-            return (label, buckets[comps] ?? [])
-        }
+/// Ticks every second only while a timer is running; otherwise emits a single
+/// frame. Lets the project-detail timer area live in ONE stable `TimelineView`
+/// across start/stop (see `body`) so the Start ↔ Running swap can animate.
+private struct TimerTickSchedule: TimelineSchedule, Equatable {
+    let running: Bool
+    func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnySequence<Date> {
+        running
+            ? AnySequence(PeriodicTimelineSchedule(from: startDate, by: 1).entries(from: startDate, mode: mode))
+            : AnySequence([startDate])
     }
 }
