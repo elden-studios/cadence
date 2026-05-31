@@ -96,6 +96,10 @@ struct TimeBlockView: View {
     private var combinedDrag: some Gesture {
         DragGesture(minimumDistance: 4)
             .onChanged { value in
+                // Running blocks track the live clock; dragging them would animate
+                // then snap back (commitActiveDrag early-returns for running entries).
+                // Suppress drag entirely — tap/long-press still open the editor.
+                guard !isRunning else { return }
                 if activeMode == nil {
                     activeMode = hitTest(startY: value.startLocation.y)
                 }
@@ -103,6 +107,7 @@ struct TimeBlockView: View {
                 onDrag(mode, value.translation.height)
             }
             .onEnded { _ in
+                guard !isRunning else { return }
                 if let mode = activeMode {
                     onDragEnd(mode)
                 }
