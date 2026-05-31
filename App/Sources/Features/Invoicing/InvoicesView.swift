@@ -12,7 +12,7 @@ struct InvoicesView: View {
         case outstanding, paid, drafts, recurring
         var label: String {
             switch self {
-            case .outstanding: "Outstanding"
+            case .outstanding: "Unpaid"
             case .paid:        "Paid"
             case .drafts:      "Drafts"
             case .recurring:   "Recurring"
@@ -129,7 +129,12 @@ struct InvoicesView: View {
     private var filteredInvoices: [Invoice] {
         switch filter {
         case .outstanding:
-            return invoices.filter { $0.status == .sent }
+            return invoices
+                .filter { $0.status == .sent }
+                .sorted { lhs, rhs in
+                    if lhs.isOverdue() != rhs.isOverdue() { return lhs.isOverdue() }  // overdue first
+                    return lhs.issuedAt > rhs.issuedAt                                 // then newest
+                }
         case .paid:
             return invoices.filter { $0.status == .paid }
         case .drafts:
