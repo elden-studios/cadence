@@ -386,7 +386,7 @@ struct PaywallView: View {
             // the `--mock-paywall-prices` launch arg; never active in prod.
             VStack(spacing: 10) {
                 mockPlanRow(.yearly,  price: "$39.99", perCycle: "Just $3.33 per month, billed yearly")
-                mockPlanRow(.monthly, price: "$3.99",  perCycle: "Billed every month")
+                mockPlanRow(.monthly, price: "$3.99",  perCycle: "Billed monthly · Cancel anytime")
             }
         } else {
         switch manager.loadState {
@@ -568,7 +568,10 @@ struct PaywallView: View {
     /// Hidden until both products load so it can't flash an incorrect figure.
     @ViewBuilder
     private var savingsPill: some View {
-        if let m = manager.monthly?.price, let y = manager.yearly?.price,
+        let monthlyCurrency = manager.monthly?.priceFormatStyle.locale.currency?.identifier
+        let yearlyCurrency  = manager.yearly?.priceFormatStyle.locale.currency?.identifier
+        if let monthlyCurrency, let yearlyCurrency, monthlyCurrency == yearlyCurrency,
+           let m = manager.monthly?.price, let y = manager.yearly?.price,
            let s = PricingDisplay.annualSavings(monthlyPrice: m, yearlyPrice: y) {
             Text(PricingDisplay.savingsBadge(s, currencyCode: yearlyCurrencyCode))
                 .font(.caption2.weight(.bold))
@@ -598,7 +601,7 @@ struct PaywallView: View {
             let perMonth = formatter.string(from: monthly as NSDecimalNumber) ?? ""
             return "Just \(perMonth) per month, billed yearly"
         case .monthly:
-            return "Billed every month"
+            return "Billed monthly · Cancel anytime"
         case .lifetime:
             // Lifetime isn't shown in the tier picker (it lives in the demoted
             // affordance), so this is defensive — keep the switch exhaustive.
