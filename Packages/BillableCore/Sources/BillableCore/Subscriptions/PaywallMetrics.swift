@@ -3,6 +3,9 @@ import Foundation
 /// On-device-only, privacy-pure paywall funnel counters (no SDK, no network,
 /// no identifiers). Every counter is stamped with the pricing/layout variant id
 /// so a future price/layout change keeps pre-change data sliceable.
+/// `@MainActor` (matching `ReportsConversionMetrics`) serializes the non-atomic
+/// UserDefaults read-modify-write — all callers (PaywallView) are already main-actor.
+@MainActor
 public enum PaywallMetrics {
     public enum Event: String {
         case paywallView = "paywall_view"

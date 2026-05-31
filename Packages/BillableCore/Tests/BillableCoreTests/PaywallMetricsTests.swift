@@ -3,6 +3,7 @@ import Testing
 @testable import BillableCore
 
 @Suite("PaywallMetrics funnel keys")
+@MainActor
 struct PaywallMetricsTests {
     @Test("event key composes variant + trigger + event + tier")
     func keyComposition() {

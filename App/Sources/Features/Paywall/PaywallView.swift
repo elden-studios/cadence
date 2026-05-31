@@ -653,12 +653,21 @@ struct PaywallView: View {
     /// not as a co-equal third tier. When the user already owns Lifetime it
     /// collapses to the owned-state label (the rest of the purchase UI is hidden
     /// by the body's `!ownsLifetime` guard), which doubles as the double-buy guard.
+    /// Display price for the Lifetime tier, or nil when it shouldn't be offered.
+    /// Real path: the loaded StoreKit product's localized price. Mock path
+    /// (`--mock-paywall-prices`, no live products): a static list price so the
+    /// affordance + CTA render in marketing screenshots / demos. nil ⇒ hide it.
+    private var lifetimeDisplayPrice: String? {
+        if let lifetime = manager.lifetime { return lifetime.displayPrice }
+        return mockPaywallPrices ? "$99.99" : nil
+    }
+
     @ViewBuilder
     private var lifetimeAffordance: some View {
         if manager.ownsLifetime {
             Label(PricingConfig.ownedTitle, systemImage: "checkmark.seal.fill")
                 .font(.subheadline.weight(.semibold)).foregroundStyle(.green)
-        } else if let lifetime = manager.lifetime {
+        } else if let price = lifetimeDisplayPrice {
             Divider().padding(.vertical, 4)
             Button {
                 selection = .lifetime
@@ -668,12 +677,14 @@ struct PaywallView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(PricingConfig.lifetimeAffordanceTitle).font(.subheadline.weight(.semibold))
-                        Text("\(PricingConfig.lifetimeAffordanceSubtitle) — \(lifetime.displayPrice)")
+                        Text("\(PricingConfig.lifetimeAffordanceSubtitle) — \(price)")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
                     Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                 }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
