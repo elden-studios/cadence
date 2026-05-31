@@ -58,6 +58,7 @@ struct PaywallView: View {
     /// One-shot guard so the owned-Lifetime funnel event records exactly once per
     /// presentation even though `ownsLifetime` resolves async after onAppear. (NEW-S1-2)
     @State private var didRecordLifetimeOwned = false
+    @State private var restoreNotice: String?
 
     // Backing data for the `.reports` crisp-taste header. We compute a live
     // snapshot from the user's own entries/invoices so the teaser shows *their*
@@ -140,6 +141,13 @@ struct PaywallView: View {
                 Button("OK", role: .cancel) { error = nil }
             } message: {
                 Text(error ?? "")
+            }
+            .alert("Restore purchases", isPresented: Binding(
+                get: { restoreNotice != nil }, set: { if !$0 { restoreNotice = nil } }
+            )) {
+                Button("OK", role: .cancel) { restoreNotice = nil }
+            } message: {
+                Text(restoreNotice ?? "")
             }
         }
         .interactiveDismissDisabled(isProcessing)
@@ -802,6 +810,10 @@ struct PaywallView: View {
         isProcessing = true
         defer { isProcessing = false }
         let restored = await manager.restore()
-        if restored { dismiss() }
+        if restored {
+            dismiss()
+        } else {
+            restoreNotice = "No active purchases were found for your Apple ID."
+        }
     }
 }
