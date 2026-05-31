@@ -53,6 +53,7 @@
 		B1FD44CA0631170789683FB8 /* BillableWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3C50D41C7D1E70A67970DA90 /* BillableWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B655C2DC2191EF2F05EF8390 /* BusinessProfileMaintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3A71E342925E0776F22CD41 /* BusinessProfileMaintenance.swift */; };
 		BA98F29AC021C5D409756033 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = CD9446B66A54E767E5C2CE8D /* PrivacyInfo.xcprivacy */; };
+		BE072A98744F034E800A6378 /* PricingConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424660DFE063D2A17EAF6CAA /* PricingConfig.swift */; };
 		BF665524A4D7640150D356DC /* BillableCore in Frameworks */ = {isa = PBXBuildFile; productRef = 395F2979670525E0A6D0127A /* BillableCore */; };
 		C2262AA7F35DC1505C63AC40 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD383FD631A4DEA4B774CA4C /* DiagnosticsView.swift */; };
 		CB24424A092E9FB3F14CCB6E /* ClientDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70D5726F1FA7DA14C4B5B011 /* ClientDetailView.swift */; };
@@ -116,6 +117,7 @@
 		348BBD35CE9E77443AB397E5 /* InvoicePreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoicePreviewView.swift; sourceTree = "<group>"; };
 		3C50D41C7D1E70A67970DA90 /* BillableWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BillableWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		40BA4466AFACC0C783C06598 /* DayTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayTimelineView.swift; sourceTree = "<group>"; };
+		424660DFE063D2A17EAF6CAA /* PricingConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingConfig.swift; sourceTree = "<group>"; };
 		43745976E9C74DF7790C99F6 /* RecurrenceEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceEditorView.swift; sourceTree = "<group>"; };
 		46168250CF2ADDD5E63A9ED9 /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
 		5120185E61165F6EB9DFFB00 /* BillableApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillableApp.swift; sourceTree = "<group>"; };
@@ -329,6 +331,7 @@
 			isa = PBXGroup;
 			children = (
 				302F61C46763394ECD4E199B /* PaywallView.swift */,
+				424660DFE063D2A17EAF6CAA /* PricingConfig.swift */,
 				041C663394E2151FD149F6DA /* ReportsConversionMetrics.swift */,
 			);
 			path = Paywall;
@@ -648,6 +651,7 @@
 				49D52608F66166AA6374F027 /* PaymentRemindersView.swift in Sources */,
 				EFAE46DE1F000F3FDD237A19 /* PaywallView.swift in Sources */,
 				08880CCE2F89200E1C723A26 /* PendingMaterializationsView.swift in Sources */,
+				BE072A98744F034E800A6378 /* PricingConfig.swift in Sources */,
 				3E4A4F845E80F6CDCA4E772C /* ProjectDetailView.swift in Sources */,
 				45F34A925B9B048BB38C04E4 /* ProjectEditorView.swift in Sources */,
 				AEB85E8275FD99CACCC28418 /* ProjectSessionsView.swift in Sources */,

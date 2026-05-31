@@ -31,6 +31,15 @@ struct PaywallView: View {
             case .removeWatermark: "Pro removes 'Sent with Cadence' from your invoice PDFs and unlocks Reports + CSV export."
             }
         }
+        /// Stable, snake_cased trigger id stamped into every funnel metric so a
+        /// future price/layout test slices cleanly by entry point.
+        var metricKey: String {
+            switch self {
+            case .reports:         "reports"
+            case .settings:        "settings"
+            case .removeWatermark: "remove_watermark"
+            }
+        }
     }
 
     let trigger: Trigger
@@ -52,7 +61,7 @@ struct PaywallView: View {
     @Query private var reportInvoices: [Invoice]
     @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
-    enum Plan: String, CaseIterable { case yearly, monthly }
+    enum Plan: String, CaseIterable { case yearly, monthly, lifetime }
 
     var body: some View {
         NavigationStack {
@@ -60,9 +69,17 @@ struct PaywallView: View {
                 VStack(alignment: .leading, spacing: 26) {
                     headerSection
                     valueBullets
-                    pricePicker
-                    purchaseButton
-                    trialTerms
+                    // When the user already owns Lifetime, the tier picker + CTA
+                    // collapse to the owned label (the double-buy guard); only
+                    // the affordance block renders.
+                    if !manager.ownsLifetime {
+                        VStack(alignment: .leading, spacing: 12) {
+                            pricePicker
+                            purchaseButton
+                            trialTerms
+                        }
+                    }
+                    lifetimeAffordance
                     secondaryActions
                     finePrint
                 }
@@ -83,6 +100,15 @@ struct PaywallView: View {
                 // Privacy-pure, on-device impression count for the Reports
                 // paywall (UserDefaults; never transmitted). See spec §5.
                 if trigger == .reports { ReportsConversionMetrics.recordImpression() }
+                // On-device funnel: every paywall impression, plus a distinct
+                // counter when an owning user re-opens it (so the owned-state
+                // view rate is sliceable from genuine sale opportunities).
+                PaywallMetrics.record(.paywallView, variant: PricingConfig.variant,
+                                      trigger: trigger.metricKey)
+                if manager.ownsLifetime {
+                    PaywallMetrics.record(.lifetimeOwnedView, variant: PricingConfig.variant,
+                                          trigger: trigger.metricKey, tier: "lifetime")
+                }
                 recomputeTeaser()
             }
             .onChange(of: reportEntries) { recomputeTeaser() }
@@ -307,8 +333,6 @@ struct PaywallView: View {
                    "Invoiced, collected, what you're owed — plus hours by client and project.")
             bullet("square.and.arrow.up", "CSV export",
                    "Clean exports for your accountant.")
-            bullet("infinity", "Lifetime — when it lands",
-                   "A one-time purchase option is on the way for subscribers.")
         }
     }
 
@@ -332,8 +356,8 @@ struct PaywallView: View {
             // with prices from Billable.storekit baked in. Triggered only by
             // the `--mock-paywall-prices` launch arg; never active in prod.
             VStack(spacing: 10) {
-                mockPlanRow(.yearly,  price: "$34.99", perCycle: "Just $2.92 per month, billed yearly")
-                mockPlanRow(.monthly, price: "$5.99",  perCycle: "Billed every month")
+                mockPlanRow(.yearly,  price: "$39.99", perCycle: "Just $3.33 per month, billed yearly")
+                mockPlanRow(.monthly, price: "$3.99",  perCycle: "Billed every month")
             }
         } else {
         switch manager.loadState {
@@ -370,40 +394,67 @@ struct PaywallView: View {
     }
 
     /// Visual twin of `planRow` that takes raw display strings instead of a
-    /// StoreKit `Product`. Used only when `--mock-paywall-prices` is set.
+    /// StoreKit `Product`. Used only when `--mock-paywall-prices` is set. Mirrors
+    /// the hero/recede styling so marketing screenshots match the real layout.
     @ViewBuilder
     private func mockPlanRow(_ plan: Plan, price: String, perCycle: String) -> some View {
         let isSelected = selection == plan
+        let isHero = (plan == .yearly)
         Button {
             selection = plan
+            PaywallMetrics.record(.tierSelected, variant: PricingConfig.variant,
+                                  trigger: trigger.metricKey, tier: plan.rawValue)
         } label: {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(plan == .yearly ? "Yearly" : "Monthly")
+                        Text(isHero ? "Yearly" : "Monthly")
                             .font(.headline)
-                        if plan == .yearly {
+                        if isHero {
                             Text("BEST VALUE")
                                 .font(.caption2.weight(.bold))
                                 .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Color.accentColor.opacity(0.18), in: .capsule)
-                                .foregroundStyle(.tint)
-                            savingsPill
+                                .background(.white.opacity(0.22), in: .capsule)
+                                .foregroundStyle(.white)
+                            // Live products are absent in mock mode, so the
+                            // computed `savingsPill` would be empty — use a
+                            // static figure ($47.88 − $39.99) for screenshots.
+                            Text("SAVE $7.89 · about 2 months free")
+                                .font(.caption2.weight(.bold))
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(Color.green.opacity(0.18), in: .capsule)
+                                .foregroundStyle(.green)
                         }
                     }
                     Text(perCycle)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isHero ? AnyShapeStyle(.white.opacity(0.85))
+                                                : AnyShapeStyle(.secondary))
                 }
                 Spacer()
                 Text(price)
                     .font(.title3.weight(.semibold).monospacedDigit())
+                if isHero && isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.white)
+                }
             }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(isSelected ? Color.accentColor.opacity(0.10) : Color(.secondarySystemBackground))
-            )
+            .padding(.vertical, isHero ? 20 : 14)
+            .padding(.horizontal, 14)
+            .foregroundStyle(isHero ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                if isHero {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(LinearGradient(
+                            colors: [Color.accentColor, Color.accentColor.opacity(0.85)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing))
+                } else {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color(.secondarySystemBackground))
+                }
+            }
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
                     .strokeBorder(isSelected ? Color.accentColor : Color.gray.opacity(0.18),
@@ -416,28 +467,32 @@ struct PaywallView: View {
     @ViewBuilder
     private func planRow(_ plan: Plan) -> some View {
         let isSelected = selection == plan
-        let product: Product? = (plan == .yearly) ? manager.yearly : manager.monthly
+        let isHero = (plan == .yearly)
+        let product: Product? = isHero ? manager.yearly : manager.monthly
 
         Button {
             selection = plan
+            PaywallMetrics.record(.tierSelected, variant: PricingConfig.variant,
+                                  trigger: trigger.metricKey, tier: plan.rawValue)
         } label: {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(plan == .yearly ? "Yearly" : "Monthly")
+                        Text(isHero ? "Yearly" : "Monthly")
                             .font(.headline)
-                        if plan == .yearly {
+                        if isHero {
                             Text("BEST VALUE")
                                 .font(.caption2.weight(.bold))
                                 .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Color.accentColor.opacity(0.18), in: .capsule)
-                                .foregroundStyle(.tint)
+                                .background(.white.opacity(0.22), in: .capsule)
+                                .foregroundStyle(.white)
                             savingsPill
                         }
                     }
                     Text(perCycleLabel(for: plan, product: product))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isHero ? AnyShapeStyle(.white.opacity(0.85))
+                                                : AnyShapeStyle(.secondary))
                 }
                 Spacer()
                 if let product {
@@ -445,13 +500,31 @@ struct PaywallView: View {
                         .font(.title3.weight(.semibold).monospacedDigit())
                 } else {
                     ProgressView().controlSize(.small)
+                        .tint(isHero ? .white : nil)
+                }
+                if isHero && isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.white)
                 }
             }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(isSelected ? Color.accentColor.opacity(0.10) : Color(.secondarySystemBackground))
-            )
+            // The hero gets taller padding + a solid accent fill + white text so
+            // Yearly is the unmistakable default; Monthly recedes to a plain card.
+            .padding(.vertical, isHero ? 20 : 14)
+            .padding(.horizontal, 14)
+            .foregroundStyle(isHero ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                if isHero {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(LinearGradient(
+                            colors: [Color.accentColor, Color.accentColor.opacity(0.85)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing))
+                } else {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color(.secondarySystemBackground))
+                }
+            }
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
                     .strokeBorder(isSelected ? Color.accentColor : Color.gray.opacity(0.18),
@@ -461,14 +534,28 @@ struct PaywallView: View {
         .buttonStyle(.plain)
     }
 
-    /// "SAVE 51%" badge on the yearly tier — yearly ($34.99) vs. 12× monthly
-    /// ($5.99 → $71.88) is ~51% cheaper.
+    /// Computed savings badge on the yearly tier — the real saving vs. 12× monthly,
+    /// led by the tangible "$X · about N months free" framing (never a stale string).
+    /// Hidden until both products load so it can't flash an incorrect figure.
+    @ViewBuilder
     private var savingsPill: some View {
-        Text("SAVE 51%")
-            .font(.caption2.weight(.bold))
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(Color.green.opacity(0.18), in: .capsule)
-            .foregroundStyle(.green)
+        if let m = manager.monthly?.price, let y = manager.yearly?.price,
+           let s = PricingDisplay.annualSavings(monthlyPrice: m, yearlyPrice: y) {
+            Text(PricingDisplay.savingsBadge(s, currencyCode: yearlyCurrencyCode))
+                .font(.caption2.weight(.bold))
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Color.green.opacity(0.18), in: .capsule)
+                .foregroundStyle(.green)
+        }
+    }
+
+    /// ISO currency code for badge/copy money. `Decimal.FormatStyle.Currency`
+    /// doesn't expose its code on this SDK, so derive it from the product's own
+    /// locale, falling back to the device currency then USD.
+    private var yearlyCurrencyCode: String {
+        manager.yearly?.priceFormatStyle.locale.currency?.identifier
+            ?? Locale.current.currency?.identifier
+            ?? "USD"
     }
 
     private func perCycleLabel(for plan: Plan, product: Product?) -> String {
@@ -483,6 +570,10 @@ struct PaywallView: View {
             return "Just \(perMonth) per month, billed yearly"
         case .monthly:
             return "Billed every month"
+        case .lifetime:
+            // Lifetime isn't shown in the tier picker (it lives in the demoted
+            // affordance), so this is defensive — keep the switch exhaustive.
+            return "One-time purchase"
         }
     }
 
@@ -506,6 +597,10 @@ struct PaywallView: View {
     }
 
     private var purchaseButtonTitle: String {
+        // Lifetime is a one-time buy — never a trial; name the price on the CTA.
+        if selection == .lifetime {
+            return "Buy Lifetime — \(manager.lifetime?.displayPrice ?? "$99.99")"
+        }
         // In marketing-screenshot mode, surface the strongest CTA — the free
         // trial — since the SubscriptionManager has no real products to derive
         // eligibility from.
@@ -513,26 +608,99 @@ struct PaywallView: View {
         return manager.eligibleForIntroOffer ? "Start 7-day free trial" : "Subscribe"
     }
 
-    /// Trial-terms line under the CTA. Shows the free-trial framing when the
-    /// user is intro-eligible (or in screenshot mode); otherwise a plain
-    /// auto-renew note. The yearly price is taken from the live product when
-    /// available, falling back to the storekit list price.
+    /// Trial-/terms copy under the CTA. Lifetime is a one-time buy, so it shows
+    /// nothing here. For subscriptions the trial reassurance is promoted out of
+    /// fine print into a prominent `.footnote` immediately under the CTA (the
+    /// strongest objection-killer), with the price/auto-renew note beneath. The
+    /// price + billing cycle track the CURRENTLY-SELECTED plan (so selecting
+    /// Monthly reads "$3.99/month", not the yearly price).
     @ViewBuilder
     private var trialTerms: some View {
-        let yearlyPrice = (mockPaywallPrices ? nil : manager.yearly?.displayPrice) ?? "$34.99"
-        let showsTrial = mockPaywallPrices || manager.eligibleForIntroOffer
-        Text(showsTrial
-             ? "7 days free, then \(yearlyPrice)/year · Cancel anytime"
-             : "\(yearlyPrice)/year · Cancel anytime")
-            .font(.caption)
-            .foregroundStyle(.secondary)
+        if selection != .lifetime {
+            let price = selectedPlanPrice
+            let cycle = selection == .yearly ? "year" : "month"
+            let showsTrial = mockPaywallPrices || manager.eligibleForIntroOffer
+            VStack(spacing: 6) {
+                if showsTrial {
+                    Text(PricingConfig.trialReassurance)
+                        .font(.footnote)
+                        .foregroundStyle(.primary)
+                    Text("7 days free, then \(price)/\(cycle)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("\(price)/\(cycle) · Cancel anytime")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
             .frame(maxWidth: .infinity, alignment: .center)
             .multilineTextAlignment(.center)
+        }
+    }
+
+    /// Display price for the currently-selected plan, with the list-price
+    /// fallback used in marketing-screenshot mode (no live products).
+    private var selectedPlanPrice: String {
+        switch selection {
+        case .yearly:   return (mockPaywallPrices ? nil : manager.yearly?.displayPrice) ?? "$39.99"
+        case .monthly:  return (mockPaywallPrices ? nil : manager.monthly?.displayPrice) ?? "$3.99"
+        case .lifetime: return manager.lifetime?.displayPrice ?? "$99.99"
+        }
+    }
+
+    /// Demoted "or pay once" lifetime option — rendered BELOW the trial-led CTA,
+    /// not as a co-equal third tier. When the user already owns Lifetime it
+    /// collapses to the owned-state label (the rest of the purchase UI is hidden
+    /// by the body's `!ownsLifetime` guard), which doubles as the double-buy guard.
+    /// Display price for the Lifetime tier, or nil when it shouldn't be offered.
+    /// Real path: the loaded StoreKit product's localized price. Mock path
+    /// (`--mock-paywall-prices`, no live products): a static list price so the
+    /// affordance + CTA render in marketing screenshots / demos. nil ⇒ hide it.
+    private var lifetimeDisplayPrice: String? {
+        if let lifetime = manager.lifetime { return lifetime.displayPrice }
+        return mockPaywallPrices ? "$99.99" : nil
+    }
+
+    @ViewBuilder
+    private var lifetimeAffordance: some View {
+        if manager.ownsLifetime {
+            Label(PricingConfig.ownedTitle, systemImage: "checkmark.seal.fill")
+                .font(.subheadline.weight(.semibold)).foregroundStyle(.green)
+        } else if let price = lifetimeDisplayPrice {
+            Divider().padding(.vertical, 4)
+            Button {
+                selection = .lifetime
+                PaywallMetrics.record(.tierSelected, variant: PricingConfig.variant,
+                                      trigger: trigger.metricKey, tier: "lifetime")
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(PricingConfig.lifetimeAffordanceTitle).font(.subheadline.weight(.semibold))
+                        Text("\(PricingConfig.lifetimeAffordanceSubtitle) — \(price)")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .overlay(alignment: .center) {
+                if selection == .lifetime {
+                    RoundedRectangle(cornerRadius: 10).strokeBorder(Color.accentColor, lineWidth: 2)
+                }
+            }
+        }
     }
 
     private var secondaryActions: some View {
         HStack {
             Button("Restore purchases") {
+                PaywallMetrics.record(.restoreTapped, variant: PricingConfig.variant,
+                                      trigger: trigger.metricKey)
                 Task { await restore() }
             }
             .font(.subheadline)
@@ -555,22 +723,42 @@ struct PaywallView: View {
     // MARK: - Behavior
 
     private var selectedProduct: Product? {
-        selection == .yearly ? manager.yearly : manager.monthly
+        switch selection {
+        case .yearly:   manager.yearly
+        case .monthly:  manager.monthly
+        case .lifetime: manager.lifetime
+        }
     }
 
     private func runPurchase() async {
         guard let product = selectedProduct else { return }
+        // Snapshot the tier + trial-eligibility up front so the funnel stamp is
+        // stable even if state changes during the await.
+        let tier = selection
+        let wasIntroEligibleSub = (tier != .lifetime) && manager.eligibleForIntroOffer
         isProcessing = true
         defer { isProcessing = false }
+        PaywallMetrics.record(.purchaseStart, variant: PricingConfig.variant,
+                              trigger: trigger.metricKey, tier: tier.rawValue)
         let outcome = await manager.purchase(product)
         switch outcome {
         case .success:
+            PaywallMetrics.record(.purchaseSuccess, variant: PricingConfig.variant,
+                                  trigger: trigger.metricKey, tier: tier.rawValue)
+            // A trial only begins for an intro-eligible subscription, never the
+            // one-time Lifetime buy.
+            if wasIntroEligibleSub {
+                PaywallMetrics.record(.trialStart, variant: PricingConfig.variant,
+                                      trigger: trigger.metricKey, tier: tier.rawValue)
+            }
             // Count a Reports-attributed conversion (on-device only). See spec §5.
             if trigger == .reports { ReportsConversionMetrics.recordConversion() }
             dismiss()
         case .pending, .userCancelled:
             break
         case .failed(let message):
+            PaywallMetrics.record(.purchaseFailure, variant: PricingConfig.variant,
+                                  trigger: trigger.metricKey, tier: tier.rawValue)
             error = message
         }
     }
