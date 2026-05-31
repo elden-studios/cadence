@@ -245,8 +245,8 @@ public enum ReportsAggregator {
 
     // MARK: - AR / Performance / Trend
     //
-    // Stubs land here so the file compiles after Task 1's reshape. Tasks 2–4 give
-    // them real bodies + tests; Task 5 asserts the integrated result.
+    // AR is as-of-now (computed against `now`, not range-scoped); performance and
+    // trend derive from the range-scoped sets prepared in `snapshot(...)`.
 
     private static func arSummary(_ invoices: [Invoice], asOf now: Date,
                                   calendar: Calendar) -> ARSummary {
