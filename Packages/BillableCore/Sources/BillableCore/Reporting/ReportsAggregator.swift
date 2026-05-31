@@ -122,6 +122,18 @@ public enum ReportsAggregator {
         public var hasReportableData: Bool { totalHours > 0 || money.invoiced > 0 || money.collected > 0 || ar.outstanding > 0 }
     }
 
+    // MARK: - Range scoping (single source of truth, S4-3)
+
+    /// Entries whose `startedAt` falls in `range`, using the SAME half-open
+    /// predicate the snapshot uses (`>= lower && < upper`). Single source of the
+    /// range boundary so CSV export scopes to exactly what the dashboard shows. (S4-3)
+    public static func entriesInRange(_ entries: [TimeEntry], range: TimeRange,
+                                      asOf referenceDate: Date = .now,
+                                      calendar: Calendar = .current) -> [TimeEntry] {
+        let bounds = range.range(asOf: referenceDate, calendar: calendar)
+        return entries.filter { $0.startedAt >= bounds.lowerBound && $0.startedAt < bounds.upperBound }
+    }
+
     // MARK: - Aggregation
 
     /// Compute a complete report snapshot for the given entries + invoices. Time
@@ -145,8 +157,8 @@ public enum ReportsAggregator {
         // Drives the AR card's "No invoices yet" vs "All paid up" state.
         let hasAnyBilledInvoice = curInvoices.contains { $0.status != .draft }
 
-        // ---- entries in range (existing behaviour) ----
-        let inRangeEntries = entries.filter { inRange($0.startedAt) }
+        // ---- entries in range (routed through shared helper, S4-3) ----
+        let inRangeEntries = entriesInRange(entries, range: range, asOf: referenceDate, calendar: calendar)
         var totalSeconds: TimeInterval = 0, billableSeconds: TimeInterval = 0, nonBillableSeconds: TimeInterval = 0
         var tracked = Decimal(0)
         for entry in inRangeEntries {

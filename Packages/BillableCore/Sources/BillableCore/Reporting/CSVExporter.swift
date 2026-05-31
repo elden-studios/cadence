@@ -89,15 +89,14 @@ public enum CSVExporter {
         invoiceLookup: [UUID: Invoice]
     ) -> [Row] {
         entries.compactMap { entry in
-            guard let project = entry.project,
-                  let client = project.client else { return nil }
+            guard let project = entry.project else { return nil }   // keep project guard; allow client-less (S4-4)
             let seconds = entry.duration()
             let hours = Decimal(seconds / 3600)
             let amount = entry.amount()
             let invoiceNumber: String? = entry.invoiceID.flatMap { invoiceLookup[$0]?.number }
             return Row(
                 date: entry.startedAt,
-                clientName: client.name,
+                clientName: project.client?.name ?? "",   // mirror ReportsAggregator → screen/CSV reconcile
                 projectName: project.name,
                 startedAt: entry.startedAt,
                 endedAt: entry.endedAt,

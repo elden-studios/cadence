@@ -427,11 +427,14 @@ struct ReportsView: View {
     // MARK: - CSV
 
     private func exportCSV() {
+        // Match the on-screen range (S4-3): scope to the SAME entries the dashboard
+        // shows via the shared half-open helper. .allTime is a natural no-op.
+        let scopedEntries = ReportsAggregator.entriesInRange(allEntries, range: range)
         let invoiceLookup = Dictionary(uniqueKeysWithValues: allInvoices.map { ($0.uuid, $0) })
-        let rows = CSVExporter.rows(from: allEntries, invoiceLookup: invoiceLookup)
+        let rows = CSVExporter.rows(from: scopedEntries, invoiceLookup: invoiceLookup)
         let csv = CSVExporter.csv(for: rows)
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("BillableTimeEntries.csv")
+            .appendingPathComponent("BillableTimeEntries-\(range.label).csv")
         do {
             try csv.data(using: .utf8)?.write(to: url, options: .atomic)
             csvURL = url
