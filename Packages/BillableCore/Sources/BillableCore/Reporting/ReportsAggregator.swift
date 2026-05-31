@@ -114,7 +114,11 @@ public enum ReportsAggregator {
         public let trendBucket: TrendBucket
         public let excludedCurrencyCount: Int     // invoices skipped for non-matching currency
         public let currencyCode: String
-        public var hasReportableData: Bool { totalHours > 0 || !revenueTrend.isEmpty || ar.outstanding > 0 || money.invoiced > 0 }
+        /// True when there is real activity to report. Deliberately does NOT test
+        /// `!revenueTrend.isEmpty` — the trend always emits zero-amount buckets for
+        /// the date range, so that would never be false. Drives the paywall teaser's
+        /// real-vs-sample choice, so it must be false for a brand-new (no-data) user.
+        public var hasReportableData: Bool { totalHours > 0 || money.invoiced > 0 || money.collected > 0 || ar.outstanding > 0 }
     }
 
     // MARK: - Aggregation

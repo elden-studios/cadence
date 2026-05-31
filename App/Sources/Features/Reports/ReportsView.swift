@@ -46,7 +46,7 @@ struct ReportsView: View {
                         moneyLenses(snapshot)
                         arCard(snapshot)
                         performanceTiles(snapshot)
-                        if snapshot.totalHours == 0 && snapshot.revenueTrend.isEmpty {
+                        if !snapshot.hasReportableData {
                             emptyState
                         } else {
                             revenueTrendChart(snapshot)
