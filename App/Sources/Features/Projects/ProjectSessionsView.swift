@@ -57,11 +57,10 @@ struct SessionRow: View {
 /// (if any) is normally the top row on the detail screen the user came from.
 struct ProjectSessionsView: View {
     @Bindable var project: Project
-    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
-
-    private var currencyCode: String {
-        profiles.first?.currencyCode ?? Locale.current.currency?.identifier ?? "USD"
-    }
+    /// Supplied by the parent (`ProjectDetailView` already resolves it) so this
+    /// pushed history screen doesn't run its own redundant `@Query<BusinessProfile>`
+    /// (Gemini PR #13 finding 4).
+    let currencyCode: String
 
     var body: some View {
         let grouped = groupedSessionsByMonth(project.entries.sorted { $0.startedAt > $1.startedAt })

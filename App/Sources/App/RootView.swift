@@ -41,16 +41,7 @@ struct RootView: View {
 
     @ViewBuilder
     private var mainShell: some View {
-        if CommandLine.arguments.contains("--ui-test-open-website-refresh"),
-           let project = try? modelContext.fetch(
-               FetchDescriptor<Project>(predicate: #Predicate { $0.name == "Website Refresh" })
-           ).first {
-            // Verification hook: deep-link straight to the deep-history project's
-            // detail (12 seeded sessions) so the "5 most recent + See all N ›"
-            // sessions IA and the ⋯ menu can be screenshot-verified without
-            // driving the Work-tab navigation.
-            NavigationStack { ProjectDetailView(project: project) }
-        } else if CommandLine.arguments.contains("--show-timeline") {
+        if CommandLine.arguments.contains("--show-timeline") {
             NavigationStack { TimelineScreen() }
         } else {
             TabView(selection: $selectedTab) {

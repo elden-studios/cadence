@@ -107,24 +107,6 @@ struct ProjectDetailView: View {
         } message: {
             Text("Marks the project complete and moves it to Archived. Logged time stays on past invoices and reports.")
         }
-        .onAppear {
-            // Verification hook (launch-arg gated, inert in normal use): auto-start
-            // the timer shortly after the screen appears so the Start→Running morph
-            // can be screen-recorded without a synthetic tap.
-            guard CommandLine.arguments.contains("--ui-test-autostart-timer"),
-                  runningEntryForProject == nil, !project.isArchived else { return }
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(1.5))
-                guard runningEntryForProject == nil else { return }
-                // Mirror the Start-button logic so the morph fires cleanly even
-                // when the seed has another project's timer running.
-                if anotherProjectRunning {
-                    TimerActions.switchTo(project: project, currencyCode: currencyCode, in: modelContext)
-                } else {
-                    TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
-                }
-            }
-        }
     }
 
     @ViewBuilder
@@ -283,7 +265,7 @@ struct ProjectDetailView: View {
                 }
                 if totalCount > shownCount {
                     NavigationLink {
-                        ProjectSessionsView(project: project)
+                        ProjectSessionsView(project: project, currencyCode: currencyCode)
                     } label: {
                         HStack {
                             Text("See all \(totalCount) sessions")
