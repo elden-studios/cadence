@@ -15,7 +15,6 @@ struct ProjectDetailView: View {
     @State private var showingInvoiceGenerator = false
     @State private var showingCompleteConfirm = false
     @State private var showingSwitchSheet = false
-    @State private var sessionLimit = 50
 
     private static var runningDescriptor: FetchDescriptor<TimeEntry> {
         var d = FetchDescriptor<TimeEntry>(predicate: #Predicate { $0.endedAt == nil })
@@ -45,7 +44,7 @@ struct ProjectDetailView: View {
         // duration/amount values tick), so we hoist them out of the per-second
         // content closure.
         let sortedEntries = project.entries.sorted { $0.startedAt > $1.startedAt }
-        let groupedEntries = groupedByMonth(Array(sortedEntries.prefix(sessionLimit)))
+        let groupedEntries = groupedSessionsByMonth(Array(sortedEntries.prefix(5)))
         let totalCount = sortedEntries.count
         return ScrollView {
             Group {
@@ -64,7 +63,23 @@ struct ProjectDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Edit") { showingEdit = true }
+                Menu {
+                    Button { showingEdit = true } label: {
+                        Label("Edit project", systemImage: "pencil")
+                    }
+                    if project.isArchived {
+                        Button { restoreProject() } label: {
+                            Label("Restore project", systemImage: "tray.and.arrow.up")
+                        }
+                    } else {
+                        Button(role: .destructive) { showingCompleteConfirm = true } label: {
+                            Label("Complete project", systemImage: "checkmark.circle")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("Project options")
             }
         }
         .sheet(isPresented: $showingEdit) {
@@ -96,11 +111,11 @@ struct ProjectDetailView: View {
         VStack(alignment: .leading, spacing: 20) {
             hero(stats: stats)
             engagementLine(stats: stats)
-            if project.isBillable && !project.isArchived {
-                uninvoicedTile(stats: stats)
-            }
+            // Timer moved up — the most time-sensitive control is reachable
+            // without scrolling past the uninvoiced tile or session history.
             timerArea(asOf: asOf)
             if project.isBillable && !project.isArchived {
+                uninvoicedTile(stats: stats)
                 Button {
                     showingInvoiceGenerator = true
                 } label: {
@@ -110,7 +125,6 @@ struct ProjectDetailView: View {
                 .buttonStyle(.bordered)
             }
             recentSessions(asOf: asOf, groupedEntries: groupedEntries, totalCount: totalCount)
-            lifecycleButton()
         }
     }
 
@@ -228,53 +242,28 @@ struct ProjectDetailView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     ForEach(entries) { entry in
-                        sessionRow(entry, asOf: asOf)
+                        SessionRow(entry: entry, asOf: asOf,
+                                   currencyCode: currencyCode, isBillable: project.isBillable)
                     }
                 }
                 if totalCount > shownCount {
-                    Button("See all \(totalCount) sessions") { sessionLimit = totalCount }
+                    NavigationLink {
+                        ProjectSessionsView(project: project)
+                    } label: {
+                        HStack {
+                            Text("See all \(totalCount) sessions")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                         .font(.subheadline)
+                    }
+                    .padding(.top, 2)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func sessionRow(_ entry: TimeEntry, asOf: Date) -> some View {
-        HStack {
-            Text(entry.startedAt.formatted(.dateTime.weekday().day()))
-            Spacer()
-            Text(hoursString(entry.duration(asOf: asOf)))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-            if project.isBillable {
-                Text(entry.amount(asOf: asOf).formatted(.currency(code: currencyCode)))
-                    .monospacedDigit()
-                    .foregroundStyle(.green)
-                    .frame(minWidth: 70, alignment: .trailing)
-            }
-        }
-        .font(.subheadline)
-        .padding(.vertical, 4)
-    }
-
-    // MARK: Lifecycle button
-
-    @ViewBuilder
-    private func lifecycleButton() -> some View {
-        if project.isArchived {
-            Button { restoreProject() } label: {
-                Label("Restore project", systemImage: "tray.and.arrow.up")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-        } else {
-            Button(role: .destructive) { showingCompleteConfirm = true } label: {
-                Label("Complete project", systemImage: "checkmark.circle")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-        }
     }
 
     // MARK: Actions
@@ -299,20 +288,5 @@ struct ProjectDetailView: View {
     private func hoursString(_ seconds: TimeInterval) -> String {
         let totalMinutes = Int(seconds / 60)
         return "\(totalMinutes / 60)h \(String(format: "%02d", totalMinutes % 60))m"
-    }
-
-    private func groupedByMonth(_ entries: [TimeEntry]) -> [(String, [TimeEntry])] {
-        let calendar = Calendar.current
-        var order: [DateComponents] = []
-        var buckets: [DateComponents: [TimeEntry]] = [:]
-        for entry in entries {
-            let comps = calendar.dateComponents([.year, .month], from: entry.startedAt)
-            if buckets[comps] == nil { order.append(comps); buckets[comps] = [] }
-            buckets[comps]?.append(entry)
-        }
-        return order.map { comps in
-            let label = (calendar.date(from: comps) ?? .now).formatted(.dateTime.month(.wide).year())
-            return (label, buckets[comps] ?? [])
-        }
     }
 }
