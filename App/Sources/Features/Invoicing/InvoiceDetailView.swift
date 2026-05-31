@@ -338,37 +338,16 @@ struct InvoiceDetailView: View {
 
     @ViewBuilder
     private var actionButtons: some View {
-        VStack(spacing: 10) {
-            if invoice.status == .sent {
-                Button {
-                    markPaid()
-                } label: {
-                    Label("Mark as paid", systemImage: "checkmark.circle.fill")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-            }
+        if invoice.status == .sent {
             Button {
-                showingShare = true
+                markPaid()
             } label: {
-                Label("Share PDF", systemImage: "square.and.arrow.up")
+                Label("Mark as paid", systemImage: "checkmark.circle.fill")
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
             }
-            .buttonStyle(.bordered)
-
-            if invoice.status != .draft {
-                Button {
-                    presentEmailInvoice()
-                } label: {
-                    Label("Email invoice", systemImage: "envelope")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                }
-                .buttonStyle(.bordered)
-            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
         }
     }
 
