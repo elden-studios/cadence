@@ -146,12 +146,10 @@ struct InvoiceGeneratorView: View {
                             }
                         } else {
                             // Items 1/2: show correct empty-state; otherwise show three-choice picker.
-                            let allActive = selectedClient?.projects.filter { !$0.isArchived } ?? []
-                            if allActive.isEmpty {
-                                Text("This client has no active projects.").foregroundStyle(.secondary)
-                            } else if activeProjects.isEmpty {
-                                Text("This client's active projects are all non-billable — only billable time can be invoiced.")
-                                    .foregroundStyle(.secondary)
+                            // M-1: reuse nonBillableEmptyStateMessage (single source of truth).
+                            let hasAnyActiveProject = !(selectedClient?.projects.filter { !$0.isArchived }.isEmpty ?? true)
+                            if !hasAnyActiveProject || activeProjects.isEmpty {
+                                Text(nonBillableEmptyStateMessage).foregroundStyle(.secondary)
                             } else {
                                 // Item 1: three-choice Picker (single project / consolidated / nil)
                                 Picker("Project", selection: $projectScope) {
@@ -487,7 +485,9 @@ struct InvoiceGeneratorView: View {
         case .project(let p):
             eligibleEntries = InvoiceBuilder.eligibleEntries(for: p, in: resolvedRange, context: modelContext)
         case .allConsolidated:
+            // M-2: exclude entries from archived projects (mirrors activeProjects and invoiceAllProjects).
             eligibleEntries = InvoiceBuilder.eligibleEntries(for: client, in: resolvedRange, context: modelContext)
+                .filter { !($0.project?.isArchived ?? true) }
         case nil:
             eligibleEntries = []
         }
@@ -530,7 +530,8 @@ struct InvoiceGeneratorView: View {
         case .project(let p):
             eligibleEntries = byProject[p] ?? []
         case .allConsolidated:
-            eligibleEntries = clientEntries
+            // M-2: exclude entries from archived projects (already filtered out of projectsWithEligible above).
+            eligibleEntries = clientEntries.filter { !($0.project?.isArchived ?? true) }
         case nil:
             eligibleEntries = []
         }
