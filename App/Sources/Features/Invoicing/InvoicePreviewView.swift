@@ -90,7 +90,7 @@ struct InvoicePreviewView: View {
             taxAmount: taxAmount,
             total: total,
             currencyCode: profile.currencyCode,
-            watermark: subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
+            watermark: subscriptions.canRemoveWatermark ? nil : InvoiceTemplateData.watermarkText
         )
         data.bankBeneficiaryName = profile.bankBeneficiaryName
         data.bankName = profile.bankName
