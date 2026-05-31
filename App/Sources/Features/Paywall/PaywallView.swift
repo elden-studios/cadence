@@ -573,7 +573,7 @@ struct PaywallView: View {
         if let monthlyCurrency, let yearlyCurrency, monthlyCurrency == yearlyCurrency,
            let m = manager.monthly?.price, let y = manager.yearly?.price,
            let s = PricingDisplay.annualSavings(monthlyPrice: m, yearlyPrice: y) {
-            Text(PricingDisplay.savingsBadge(s, currencyCode: yearlyCurrencyCode))
+            Text(PricingDisplay.savingsBadge(s, currencyCode: yearlyCurrency))
                 .font(.caption2.weight(.bold))
                 .padding(.horizontal, 6).padding(.vertical, 2)
                 .background(Color.green.opacity(0.18), in: .capsule)

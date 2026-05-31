@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var showingPaywall = false
     @State private var showingManageSubscriptions = false
     @State private var restoreNotice: String?
+    @State private var isRestoring = false
     private var subscriptions = SubscriptionManager.shared
     #if DEBUG
     @AppStorage(TimerMotionStyle.storageKey) private var timerMotionRaw = TimerMotionStyle.spring.rawValue
@@ -82,13 +83,19 @@ struct SettingsView: View {
                             Label("Upgrade to Pro", systemImage: "sparkles")
                         }
                         Button {
+                            isRestoring = true
                             Task {
+                                defer { isRestoring = false }
                                 let restored = await subscriptions.restore()
                                 if !restored { restoreNotice = "No active purchases were found for your Apple ID." }
                             }
                         } label: {
                             Label("Restore purchases", systemImage: "arrow.clockwise")
                                 .foregroundStyle(.tint)
+                        }
+                        .disabled(isRestoring)
+                        .overlay(alignment: .trailing) {
+                            if isRestoring { ProgressView().padding(.trailing, 4) }
                         }
                     }
                 }
