@@ -129,7 +129,7 @@ public enum MarketingData {
             guard let day = cal.date(byAdding: .day, value: dayOffset, to: referenceDate),
                   let start = cal.date(bySettingHour: 9 + (i % 3), minute: 0, second: 0, of: day)
             else { continue }
-            let end = cal.date(byAdding: .minute, value: 75 + 30 * (i % 4), to: start)!
+            guard let end = cal.date(byAdding: .minute, value: 75 + 30 * (i % 4), to: start) else { continue }
             context.insert(TimeEntry(startedAt: start, endedAt: end, notes: note, project: northwindWeb))
         }
 

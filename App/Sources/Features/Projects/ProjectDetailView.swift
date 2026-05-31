@@ -48,7 +48,7 @@ struct ProjectDetailView: View {
         // duration/amount values tick), so we hoist them out of the per-second
         // content closure.
         let sortedEntries = project.entries.sorted { $0.startedAt > $1.startedAt }
-        let groupedEntries = groupedSessionsByMonth(Array(sortedEntries.prefix(5)))
+        let groupedEntries = Array(sortedEntries.prefix(5)).groupedByMonth()
         let totalCount = sortedEntries.count
         return ScrollView {
             // ONE stable TimelineView — ticks every second only while a timer is
@@ -311,7 +311,7 @@ struct ProjectDetailView: View {
 /// Ticks every second only while a timer is running; otherwise emits a single
 /// frame. Lets the project-detail timer area live in ONE stable `TimelineView`
 /// across start/stop (see `body`) so the Start ↔ Running swap can animate.
-private struct TimerTickSchedule: TimelineSchedule {
+private struct TimerTickSchedule: TimelineSchedule, Equatable {
     let running: Bool
     func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnySequence<Date> {
         running

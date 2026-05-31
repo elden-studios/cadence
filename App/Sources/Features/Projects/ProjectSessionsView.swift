@@ -2,20 +2,22 @@ import SwiftUI
 import SwiftData
 import BillableCore
 
-/// Groups time entries by calendar month, preserving the input order (newest-first).
-/// Shared by `ProjectDetailView`'s 5-session preview and the full `ProjectSessionsView`.
-func groupedSessionsByMonth(_ entries: [TimeEntry]) -> [(String, [TimeEntry])] {
-    let calendar = Calendar.current
-    var order: [DateComponents] = []
-    var buckets: [DateComponents: [TimeEntry]] = [:]
-    for entry in entries {
-        let comps = calendar.dateComponents([.year, .month], from: entry.startedAt)
-        if buckets[comps] == nil { order.append(comps); buckets[comps] = [] }
-        buckets[comps]?.append(entry)
-    }
-    return order.map { comps in
-        let label = (calendar.date(from: comps) ?? .now).formatted(.dateTime.month(.wide).year())
-        return (label, buckets[comps] ?? [])
+extension Sequence where Element == TimeEntry {
+    /// Groups time entries by calendar month, preserving the input order (newest-first).
+    /// Shared by `ProjectDetailView`'s 5-session preview and the full `ProjectSessionsView`.
+    func groupedByMonth() -> [(String, [TimeEntry])] {
+        let calendar = Calendar.current
+        var order: [DateComponents] = []
+        var buckets: [DateComponents: [TimeEntry]] = [:]
+        for entry in self {
+            let comps = calendar.dateComponents([.year, .month], from: entry.startedAt)
+            if buckets[comps] == nil { order.append(comps); buckets[comps] = [] }
+            buckets[comps]?.append(entry)
+        }
+        return order.map { comps in
+            let label = (calendar.date(from: comps) ?? .now).formatted(.dateTime.month(.wide).year())
+            return (label, buckets[comps] ?? [])
+        }
     }
 }
 
@@ -63,7 +65,7 @@ struct ProjectSessionsView: View {
     let currencyCode: String
 
     var body: some View {
-        let grouped = groupedSessionsByMonth(project.entries.sorted { $0.startedAt > $1.startedAt })
+        let grouped = project.entries.sorted { $0.startedAt > $1.startedAt }.groupedByMonth()
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 10) {
                 if grouped.isEmpty {
