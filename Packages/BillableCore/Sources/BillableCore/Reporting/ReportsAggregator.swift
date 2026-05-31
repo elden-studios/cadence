@@ -275,14 +275,17 @@ public enum ReportsAggregator {
         guard lower <= upper,
               let firstStart = calendar.dateInterval(of: comp, for: lower)?.start else { return ([], bucket) }
 
+        // Pre-group billed invoices by bucket-start (O(N)) so each bucket is an
+        // O(1) lookup instead of re-filtering every invoice per bucket (was O(N×M)).
+        let billedByBucket = Dictionary(grouping: billed) { inv in
+            calendar.dateInterval(of: comp, for: inv.issuedAt)?.start ?? inv.issuedAt
+        }
         var points: [TrendPoint] = []
         var cursor = firstStart
         var guardCount = 0
         while cursor <= upper && guardCount < 400 {
             guard let next = calendar.date(byAdding: comp, value: 1, to: cursor) else { break }
-            let amount = billed
-                .filter { $0.issuedAt >= cursor && $0.issuedAt < next }
-                .reduce(Decimal(0)) { $0 + $1.total }
+            let amount = (billedByBucket[cursor] ?? []).reduce(Decimal(0)) { $0 + $1.total }
             points.append(TrendPoint(id: cursor, bucketStart: cursor, amount: amount))
             cursor = next; guardCount += 1
         }
