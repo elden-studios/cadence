@@ -107,6 +107,18 @@ struct ProjectDetailView: View {
         } message: {
             Text("Marks the project complete and moves it to Archived. Logged time stays on past invoices and reports.")
         }
+        .onAppear {
+            // Verification hook (launch-arg gated, inert in normal use): auto-start
+            // the timer shortly after the screen appears so the Start→Running morph
+            // can be screen-recorded without a synthetic tap.
+            guard CommandLine.arguments.contains("--ui-test-autostart-timer"),
+                  runningEntryForProject == nil, !project.isArchived else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.5))
+                guard runningEntryForProject == nil else { return }
+                TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
+            }
+        }
     }
 
     @ViewBuilder
