@@ -17,6 +17,8 @@ struct ProjectDetailView: View {
     @State private var showingSwitchSheet = false
     @State private var sessionLimit = 50
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private static var runningDescriptor: FetchDescriptor<TimeEntry> {
         var d = FetchDescriptor<TimeEntry>(predicate: #Predicate { $0.endedAt == nil })
         d.fetchLimit = 1
@@ -48,14 +50,12 @@ struct ProjectDetailView: View {
         let groupedEntries = groupedByMonth(Array(sortedEntries.prefix(sessionLimit)))
         let totalCount = sortedEntries.count
         return ScrollView {
-            Group {
-                if runningEntryForProject != nil {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        content(asOf: context.date, groupedEntries: groupedEntries, totalCount: totalCount)
-                    }
-                } else {
-                    content(asOf: .now, groupedEntries: groupedEntries, totalCount: totalCount)
-                }
+            // One STABLE TimelineView so the timer area's hero-morph isn't
+            // destroyed/recreated on start/stop (which would kill the animation).
+            // It ticks every 1s only while running; otherwise it emits a single
+            // entry and idles.
+            TimelineView(TimerTickSchedule(running: runningEntryForProject != nil)) { context in
+                content(asOf: context.date, groupedEntries: groupedEntries, totalCount: totalCount)
             }
             .padding()
         }
@@ -185,31 +185,45 @@ struct ProjectDetailView: View {
 
     @ViewBuilder
     private func timerArea(asOf: Date) -> some View {
-        if let running = runningEntryForProject {
-            RunningTimerCard(
-                entry: running, asOf: asOf, currencyCode: currencyCode,
-                onStop: { TimerActions.stop(in: modelContext) },
-                onSwitch: { showingSwitchSheet = true },
-                onTakeBreak: { TimerActions.takeBreak(in: modelContext) },
-                onResume: { TimerActions.resume(in: modelContext) }
-            )
-            .id(running.persistentModelID)
-        } else if !project.isArchived {
-            Button {
-                if anotherProjectRunning {
-                    TimerActions.switchTo(project: project, currencyCode: currencyCode, in: modelContext)
-                } else {
-                    TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
+        // Hero morph: the Start/Switch button "unfolds" into the running card
+        // (and folds back on Stop). The card renders at its natural size — only
+        // the surrounding frame height is animated (button height → card height)
+        // and the overflow clipped — so the card's contents never squish. Reduce
+        // Motion drops the height morph for a plain cross-fade.
+        let isRunning = runningEntryForProject != nil
+        ZStack(alignment: .top) {
+            if let running = runningEntryForProject {
+                RunningTimerCard(
+                    entry: running, asOf: asOf, currencyCode: currencyCode,
+                    onStop: { TimerActions.stop(in: modelContext) },
+                    onSwitch: { showingSwitchSheet = true },
+                    onTakeBreak: { TimerActions.takeBreak(in: modelContext) },
+                    onResume: { TimerActions.resume(in: modelContext) }
+                )
+                .id(running.persistentModelID)
+                .transition(reduceMotion ? .opacity
+                                         : .timerExpand(collapsedHeight: 52, fullHeight: 300))
+            } else if !project.isArchived {
+                Button {
+                    if anotherProjectRunning {
+                        TimerActions.switchTo(project: project, currencyCode: currencyCode, in: modelContext)
+                    } else {
+                        TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
+                    }
+                } label: {
+                    Label(anotherProjectRunning ? "Switch to this project" : "Start timer",
+                          systemImage: "play.fill")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
                 }
-            } label: {
-                Label(anotherProjectRunning ? "Switch to this project" : "Start timer",
-                      systemImage: "play.fill")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
+                .buttonStyle(.borderedProminent)
+                .tint(.timerAccent)
+                .transition(.opacity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.timerAccent)
         }
+        .animation(reduceMotion ? .easeInOut(duration: 0.2)
+                                : .spring(response: 0.5, dampingFraction: 0.86),
+                   value: isRunning)
     }
 
     // MARK: Recent sessions
@@ -313,6 +327,58 @@ struct ProjectDetailView: View {
         return order.map { comps in
             let label = (calendar.date(from: comps) ?? .now).formatted(.dateTime.month(.wide).year())
             return (label, buckets[comps] ?? [])
+        }
+    }
+}
+
+/// The Start-button → running-card "unfold" morph. The card lays out at its
+/// natural size (so its contents never squish); we animate the *frame height*
+/// from the button height up to the card's and clip the overflow with a rounded
+/// rect whose corner radius eases button→card. Content below slides smoothly as
+/// the height grows. Clipping (and the height constraint) are dropped at rest so
+/// the card keeps its natural height + shadow.
+private struct TimerExpandModifier: ViewModifier, @preconcurrency Animatable {
+    var progress: CGFloat            // 0 = collapsed (button), 1 = expanded (card)
+    let collapsedHeight: CGFloat
+    let fullHeight: CGFloat
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+    func body(content: Content) -> some View {
+        let p = max(0, min(1, progress))
+        let h = collapsedHeight + (fullHeight - collapsedHeight) * p
+        let sized = content
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(height: p < 1 ? max(h, 1) : nil, alignment: .top)
+            .opacity(Double(min(1, p * 1.5)))
+        if p < 1 {
+            return AnyView(sized.clipShape(RoundedRectangle(cornerRadius: 14 + 8 * p, style: .continuous)))
+        } else {
+            return AnyView(sized)
+        }
+    }
+}
+
+private extension AnyTransition {
+    static func timerExpand(collapsedHeight: CGFloat, fullHeight: CGFloat) -> AnyTransition {
+        .modifier(
+            active: TimerExpandModifier(progress: 0, collapsedHeight: collapsedHeight, fullHeight: fullHeight),
+            identity: TimerExpandModifier(progress: 1, collapsedHeight: collapsedHeight, fullHeight: fullHeight)
+        )
+    }
+}
+
+/// Ticks every second while a timer is running (to advance the elapsed display),
+/// idling to a single entry otherwise — so `ProjectDetailView`'s content stays a
+/// stable view across start/stop and the timer hero-morph can animate.
+private struct TimerTickSchedule: TimelineSchedule {
+    let running: Bool
+    func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnySequence<Date> {
+        if running {
+            return AnySequence(PeriodicTimelineSchedule(from: startDate, by: 1).entries(from: startDate, mode: mode))
+        } else {
+            return AnySequence([startDate])
         }
     }
 }
