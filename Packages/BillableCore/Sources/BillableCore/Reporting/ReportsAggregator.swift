@@ -245,9 +245,13 @@ public enum ReportsAggregator {
         let aging = Aging(current: current, d1to30: d1, d31to60: d2, d60plus: d3)
 
         let paid = invoices.filter { $0.status == .paid && ($0.paidAt.map { $0 >= bounds.lowerBound && $0 < bounds.upperBound } ?? false) }
-        let avg: Double? = paid.isEmpty ? nil : Double(
-            paid.compactMap { inv in inv.paidAt.map { calendar.dateComponents([.day], from: calendar.startOfDay(for: inv.issuedAt), to: calendar.startOfDay(for: $0)).day ?? 0 } }.reduce(0, +)
-        ) / Double(paid.count)
+        let paidDays: [Int] = paid.compactMap { inv in
+            guard let paidAt = inv.paidAt else { return nil }
+            return calendar.dateComponents([.day],
+                                           from: calendar.startOfDay(for: inv.issuedAt),
+                                           to: calendar.startOfDay(for: paidAt)).day ?? 0
+        }
+        let avg: Double? = paidDays.isEmpty ? nil : Double(paidDays.reduce(0, +)) / Double(paidDays.count)
 
         return ARSummary(aging: aging, overdueCount: overdueCount, avgDaysToPay: avg)
     }
