@@ -477,6 +477,25 @@ public struct InvoiceTemplateData: Sendable {
 }
 
 public extension InvoiceTemplateData {
+    /// Single source of truth for the free-tier watermark literal.
+    /// All call sites that need to stamp or compare the watermark must
+    /// reference this constant — never re-type the string.
+    static let watermarkText = "Sent with Cadence"
+
+    /// Build template data from a SwiftData `Invoice`, optionally stamping
+    /// the free-tier watermark.
+    ///
+    /// - Parameters:
+    ///   - invoice: The SwiftData invoice model to convert.
+    ///   - watermarked: When `true`, sets `data.watermark` to `watermarkText`.
+    ///                  When `false`, leaves `data.watermark` as `nil`.
+    @MainActor
+    static func from(_ invoice: Invoice, watermarked: Bool) -> InvoiceTemplateData {
+        var data = from(invoice)
+        data.watermark = watermarked ? watermarkText : nil
+        return data
+    }
+
     /// Build template data from a SwiftData `Invoice`.
     @MainActor
     static func from(_ invoice: Invoice) -> InvoiceTemplateData {
