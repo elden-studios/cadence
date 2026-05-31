@@ -8,6 +8,7 @@ import BillableCore
 struct BillableApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @MainActor private let notificationRouter = NotificationRouter()
+    @MainActor private let errorPresenter = AppErrorPresenter()
     private let container: ModelContainer
 
     init() {
@@ -101,6 +102,7 @@ struct BillableApp: App {
         WindowGroup {
             RootView()
                 .environment(notificationRouter)
+                .environment(errorPresenter)
                 .task { await reconcileLiveActivity() }
                 .task { performStartupWiring() }
         }

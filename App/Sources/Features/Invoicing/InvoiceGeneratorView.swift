@@ -9,6 +9,7 @@ import BillableCore
 struct InvoiceGeneratorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppErrorPresenter.self) private var errorPresenter
 
     @Query(filter: #Predicate<Client> { !$0.isArchived }, sort: \Client.name)
     private var clients: [Client]
@@ -37,7 +38,6 @@ struct InvoiceGeneratorView: View {
     @State private var recurrenceWeekday: RecurrenceCadence.Weekday = .monday
     @State private var recurrenceEndDate: Date? = nil
     @State private var savingRecurrence = false
-    @State private var saveErrorAlert = false          // Item 3
     @State private var permissionDeniedAlert = false
     @State private var invoiceAllResult: Int?
 
@@ -385,12 +385,6 @@ struct InvoiceGeneratorView: View {
                     Text("Created \(invoiceAllResult ?? 0) draft invoice(s) — one per project with billable time.")
                 }
             }
-            // Item 3: surface recurrence-save failure to the user.
-            .alert("Couldn't save the schedule", isPresented: $saveErrorAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("Your data wasn't changed — please try again.")
-            }
             .alert("Notifications are off", isPresented: $permissionDeniedAlert) {
                 Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -613,12 +607,12 @@ struct InvoiceGeneratorView: View {
         do {
             try modelContext.save()
         } catch {
-            // Item 3: roll back the insertion, log, and surface the failure to the user
-            // via saveErrorAlert instead of silently returning.
+            // Roll back the insertion, log, and surface the failure to the user
+            // via the shared AppErrorPresenter instead of a local alert.
             modelContext.rollback()
             Logger(subsystem: "com.eldenstudios.billable", category: "InvoiceGenerator")
                 .error("Failed to save recurrence template: \(error.localizedDescription, privacy: .public)")
-            saveErrorAlert = true
+            errorPresenter.present("Couldn't save the recurring schedule — your data wasn't changed. Try again.")
             return
         }
 

@@ -10,6 +10,7 @@ import BillableCore
 struct InvoicePreviewView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppErrorPresenter.self) private var errorPresenter
 
     let client: Client
     let project: Project?
@@ -26,7 +27,6 @@ struct InvoicePreviewView: View {
     @State private var finalized: Invoice?
     @State private var draft: Invoice?          // created on first finalize tap; finalized only on delivery success
     @State private var isFinalizing = false     // synchronous re-entrancy guard
-    @State private var finalizeError = false    // local error surface (Phase 4 unifies)
     @State private var showingRemoveWatermarkPaywall = false
     @State private var showingMailComposer = false
     @State private var mailComposerSubject = ""
@@ -220,9 +220,6 @@ struct InvoicePreviewView: View {
                    message: {
                 Text("This client doesn't have an email on file. Add one in the client's details to send invoices by email.")
             })
-            .alert("Couldn't finalize the invoice", isPresented: $finalizeError, actions: {
-                Button("OK", role: .cancel) {}
-            }, message: { Text("Something went wrong creating or sending this invoice. Your tracked time was not changed — try again.") })
             .sheet(isPresented: $showingRemoveWatermarkPaywall) {
                 PaywallView(trigger: .removeWatermark)
             }
@@ -373,7 +370,7 @@ struct InvoicePreviewView: View {
             try InvoiceBuilder.finalizeAndSend(theDraft, sourceEntries: sourceEntries, profile: profile, context: modelContext)
             finalized = theDraft
         } catch {
-            finalizeError = true
+            errorPresenter.present("Couldn't finalize the invoice — your tracked time wasn't changed. Try again.")
         }
     }
 
@@ -385,7 +382,10 @@ struct InvoicePreviewView: View {
         }
         isFinalizing = true
         defer { isFinalizing = false }
-        guard let (theDraft, data) = ensureDraftAndPDF() else { finalizeError = true; return }
+        guard let (theDraft, data) = ensureDraftAndPDF() else {
+            errorPresenter.present("Couldn't finalize the invoice — your tracked time wasn't changed. Try again.")
+            return
+        }
         pdfData = data
 
         let senderName = profile.name
@@ -452,7 +452,10 @@ struct InvoicePreviewView: View {
         guard !isFinalizing, finalized == nil else { return }
         isFinalizing = true
         defer { isFinalizing = false }
-        guard let (_, data) = ensureDraftAndPDF() else { finalizeError = true; return }
+        guard let (_, data) = ensureDraftAndPDF() else {
+            errorPresenter.present("Couldn't finalize the invoice — your tracked time wasn't changed. Try again.")
+            return
+        }
         pdfData = data
         showingShare = true              // finalize happens in ShareSheet completion
     }

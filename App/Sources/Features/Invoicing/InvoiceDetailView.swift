@@ -10,6 +10,7 @@ struct InvoiceDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.requestReview) private var requestReview
+    @Environment(AppErrorPresenter.self) private var errorPresenter
 
     @Bindable var invoice: Invoice
 
@@ -390,7 +391,12 @@ struct InvoiceDetailView: View {
     // MARK: - Behavior
 
     private func markPaid() {
-        try? invoice.markPaid()
+        do {
+            try invoice.markPaid()
+        } catch {
+            errorPresenter.present("Couldn't mark the invoice as paid — please try again.")
+            return
+        }
         modelContext.saveOrLog("mark invoice paid")
         promptReviewIfFirstTime()
     }
