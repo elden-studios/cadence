@@ -48,4 +48,16 @@ extension Invoice {
             Task { @MainActor in await hook(invoice) }
         }
     }
+
+    /// Reverse a Sent invoice back to Draft (the only legal reverse transition).
+    /// Clears `sentAt` and bumps `updatedAt`. Paid invoices cannot be reopened.
+    /// The CALLER re-marks source entries uninvoiced and cancels reminders.
+    public func reopenToDraft(at date: Date = .now) throws {
+        guard status == .sent else {
+            throw InvoiceTransitionError.illegalTransition(from: status, to: .draft)
+        }
+        status = .draft
+        sentAt = nil
+        updatedAt = date
+    }
 }

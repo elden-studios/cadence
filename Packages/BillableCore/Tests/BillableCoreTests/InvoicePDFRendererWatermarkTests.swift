@@ -50,14 +50,14 @@ struct InvoicePDFRendererWatermarkTests {
         let fullText = (0..<document.pageCount)
             .compactMap { document.page(at: $0)?.string }
             .joined(separator: "\n")
-        #expect(!fullText.contains("Sent with Cadence"),
+        #expect(!fullText.contains(InvoiceTemplateData.watermarkText),
                 "PDF without watermark must NOT contain watermark string")
     }
 
     @Test("renderer includes 'Sent with Cadence' watermark when set")
     func renderWithWatermark() {
         let pdfData = InvoicePDFRenderer.renderPDFData(
-            for: sampleData(watermark: "Sent with Cadence"),
+            for: sampleData(watermark: InvoiceTemplateData.watermarkText),
             accent: .blue
         )
         #expect(!pdfData.isEmpty)
@@ -68,7 +68,7 @@ struct InvoicePDFRendererWatermarkTests {
         let fullText = (0..<document.pageCount)
             .compactMap { document.page(at: $0)?.string }
             .joined(separator: "\n")
-        #expect(fullText.contains("Sent with Cadence"),
+        #expect(fullText.contains(InvoiceTemplateData.watermarkText),
                 "PDF with watermark must contain 'Sent with Cadence' in extracted text")
     }
 }

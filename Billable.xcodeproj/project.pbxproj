@@ -35,6 +35,7 @@
 		4B16F873C6D7529C4A8CC954 /* GetStartedSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D28D9E3CE50B0B13577C0E90 /* GetStartedSection.swift */; };
 		4E20EA71CA7E5E5BA7C08157 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C68760A988C395BA97FAAC11 /* PrivacyInfo.xcprivacy */; };
 		502D2CB4CDF9B2E982C61085 /* WorkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FE2A7B79A97F51D90807DB7 /* WorkView.swift */; };
+		517501F6E3956AB1A0D159C0 /* WatermarkUpgradeBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2205052C79653F5ED444AE9 /* WatermarkUpgradeBanner.swift */; };
 		54B2A96BFF44D4D7560DFFCE /* InvoicePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348BBD35CE9E77443AB397E5 /* InvoicePreviewView.swift */; };
 		5968C3A45765993AD87D0C98 /* InvoicePreviewLineItemEditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7200BC7FE89C2B41C10DBB39 /* InvoicePreviewLineItemEditUITests.swift */; };
 		5B3E36C7C4F81A453DD76FB0 /* BillableApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5120185E61165F6EB9DFFB00 /* BillableApp.swift */; };
@@ -150,6 +151,7 @@
 		A9B9A55293CE419E21F6C2DE /* SettingsAboutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutUITests.swift; sourceTree = "<group>"; };
 		AE12ED25B0CCD0F3FC46F7FD /* PendingMaterializationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMaterializationsView.swift; sourceTree = "<group>"; };
 		AEEC7C6934436D870B713A6B /* ReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsView.swift; sourceTree = "<group>"; };
+		B2205052C79653F5ED444AE9 /* WatermarkUpgradeBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatermarkUpgradeBanner.swift; sourceTree = "<group>"; };
 		BBADB4F0E80F455CCAE9BBEB /* CatchUpBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatchUpBanner.swift; sourceTree = "<group>"; };
 		BD383FD631A4DEA4B774CA4C /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		BD3AC7ABEFEA2F890535AE82 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -304,6 +306,14 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		6F4EC68EA51AFF723BBA3593 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				B2205052C79653F5ED444AE9 /* WatermarkUpgradeBanner.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
 		789A72A711F4A6CCA6EE8085 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -382,6 +392,7 @@
 		92E9171082D2E347A1015AA8 /* Invoicing */ = {
 			isa = PBXGroup;
 			children = (
+				6F4EC68EA51AFF723BBA3593 /* Components */,
 				9F5BA9432580555D1EF5E8B6 /* InvoiceDetailView.swift */,
 				7A6E72016CCD549BFCBEBE2E /* InvoiceGeneratorView.swift */,
 				348BBD35CE9E77443AB397E5 /* InvoicePreviewView.swift */,
@@ -670,6 +681,7 @@
 				02583F94F7865CCCDC462C8D /* TimerActions.swift in Sources */,
 				5C71AAA78052A9C57E4CC207 /* TimerActivityController.swift in Sources */,
 				0650D70379A6E945B693D897 /* TodayView.swift in Sources */,
+				517501F6E3956AB1A0D159C0 /* WatermarkUpgradeBanner.swift in Sources */,
 				502D2CB4CDF9B2E982C61085 /* WorkView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

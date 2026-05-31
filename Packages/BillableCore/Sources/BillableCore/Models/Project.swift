@@ -22,6 +22,13 @@ public final class Project {
     @Relationship(deleteRule: .cascade, inverse: \TimeEntry.project)
     public var entries: [TimeEntry] = []
 
+    /// True if any tracked entry on this project is on a sent/paid invoice
+    /// (`invoiceID` is stamped only at finalize/markSent). Used to block deletes
+    /// that would destroy the records behind issued invoices.
+    public var hasInvoicedTime: Bool {
+        entries.contains { $0.invoiceID != nil }
+    }
+
     public init(
         name: String,
         hourlyRate: Decimal,

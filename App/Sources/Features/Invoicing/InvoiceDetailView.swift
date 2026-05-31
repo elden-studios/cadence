@@ -24,6 +24,8 @@ struct InvoiceDetailView: View {
     @State private var mailComposerAttachment: Data?
     @State private var mailComposerRecipients: [String] = []
     @State private var showingNoClientEmailAlert = false
+    @State private var showingReopenConfirm = false
+    @State private var showingRemoveWatermarkPaywall = false
     @State private var scopeDraft: String = ""
     @State private var lastSavedScope: String = ""
 
@@ -54,6 +56,9 @@ struct InvoiceDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 reminderBanner
                 statusBanner
+                if !subscriptions.canRemoveWatermark, invoice.status != .draft {
+                    WatermarkUpgradeBanner { showingRemoveWatermarkPaywall = true }
+                }
                 projectTagAndScope
                 pdfPreview
                 actionButtons
@@ -84,6 +89,11 @@ struct InvoiceDetailView: View {
                             sendReminder()
                         } label: {
                             Label("Send reminder email", systemImage: "envelope")
+                        }
+                        Button(role: .destructive) {
+                            showingReopenConfirm = true
+                        } label: {
+                            Label("Reopen to draft", systemImage: "arrow.uturn.backward")
                         }
                     }
                     if invoice.status == .draft {
@@ -138,6 +148,16 @@ struct InvoiceDetailView: View {
                 dismiss()
             }
             Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Reopen \(invoice.number) to draft?",
+                            isPresented: $showingReopenConfirm, titleVisibility: .visible) {
+            Button("Reopen to draft", role: .destructive) { reopenToDraft() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Its tracked time becomes uninvoiced again and any scheduled payment reminders are cancelled. The invoice number is kept; delete the draft if you don't need it.")
+        }
+        .sheet(isPresented: $showingRemoveWatermarkPaywall) {
+            PaywallView(trigger: .removeWatermark)
         }
     }
 
@@ -287,9 +307,7 @@ struct InvoiceDetailView: View {
 
     /// Template data for the live-render fallback (used when pdfDataCached is nil).
     private var liveTemplateData: InvoiceTemplateData {
-        var data = InvoiceTemplateData.from(invoice)
-        data.watermark = subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
-        return data
+        .from(invoice, watermarked: !subscriptions.canRemoveWatermark)
     }
 
     private var pdfPreview: some View {
@@ -320,37 +338,16 @@ struct InvoiceDetailView: View {
 
     @ViewBuilder
     private var actionButtons: some View {
-        VStack(spacing: 10) {
-            if invoice.status == .sent {
-                Button {
-                    markPaid()
-                } label: {
-                    Label("Mark as paid", systemImage: "checkmark.circle.fill")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-            }
+        if invoice.status == .sent {
             Button {
-                showingShare = true
+                markPaid()
             } label: {
-                Label("Share PDF", systemImage: "square.and.arrow.up")
+                Label("Mark as paid", systemImage: "checkmark.circle.fill")
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
             }
-            .buttonStyle(.bordered)
-
-            if invoice.status != .draft {
-                Button {
-                    presentEmailInvoice()
-                } label: {
-                    Label("Email invoice", systemImage: "envelope")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                }
-                .buttonStyle(.bordered)
-            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
         }
     }
 
@@ -396,6 +393,29 @@ struct InvoiceDetailView: View {
         try? invoice.markPaid()
         modelContext.saveOrLog("mark invoice paid")
         promptReviewIfFirstTime()
+    }
+
+    private func reopenToDraft() {
+        guard invoice.status == .sent else { return }
+        let invoiceUUID = invoice.uuid
+        do { try invoice.reopenToDraft() } catch { return }
+        // Re-mark this invoice's source entries uninvoiced.
+        let descriptor = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate { $0.invoiceID == invoiceUUID }
+        )
+        let entries = (try? modelContext.fetch(descriptor)) ?? []
+        for entry in entries { entry.invoiceID = nil; entry.updatedAt = .now }
+        invoice.pdfDataCached = nil
+        modelContext.saveOrLog("reopen invoice to draft")
+        // Cancel scheduled reminders for this invoice.
+        Task { @MainActor in
+            let scheduler = Scheduler(
+                center: UNUserNotificationCenter.current(),
+                modelContext: modelContext
+            )
+            let service = ReminderService(scheduler: scheduler, modelContext: modelContext)
+            try? await service.cancelForInvoice(invoice)
+        }
     }
 
     private func promptReviewIfFirstTime() {
@@ -454,8 +474,7 @@ struct InvoiceDetailView: View {
            !Self.cacheIsStale(cached, shouldHaveWatermark: shouldHaveWatermark) {
             return cached
         }
-        var templateData = InvoiceTemplateData.from(invoice)
-        templateData.watermark = subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
+        let templateData = InvoiceTemplateData.from(invoice, watermarked: !subscriptions.canRemoveWatermark)
         let data = InvoicePDFRenderer.renderPDFData(
             for: templateData,
             accent: invoice.clientColor.swiftUIColor
@@ -660,12 +679,10 @@ struct InvoiceDetailView: View {
            !Self.cacheIsStale(cached, shouldHaveWatermark: shouldHaveWatermark) {
             bytes = cached
         } else {
-            var templateData = InvoiceTemplateData.from(invoice)
-            templateData.watermark = subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
-            bytes = InvoicePDFRenderer.renderPDFData(
-                for: templateData,
-                accent: invoice.clientColor.swiftUIColor
-            )
+            let templateData = InvoiceTemplateData.from(invoice, watermarked: !subscriptions.canRemoveWatermark)
+            let rendered = InvoicePDFRenderer.renderPDFData(for: templateData, accent: invoice.clientColor.swiftUIColor)
+            guard !rendered.isEmpty else { return nil }   // parity with ensurePDFData's 0-byte guard
+            bytes = rendered
             invoice.pdfDataCached = bytes
             modelContext.saveOrLog("cache invoice pdf")
         }
@@ -679,7 +696,7 @@ struct InvoiceDetailView: View {
     /// the current entitlement, meaning the cache must be discarded and re-rendered.
     private static func cacheIsStale(_ data: Data, shouldHaveWatermark: Bool) -> Bool {
         guard let text = PDFDocument(data: data)?.string else { return false }
-        let hasWatermark = text.contains("Sent with Cadence")
+        let hasWatermark = text.contains(InvoiceTemplateData.watermarkText)
         return hasWatermark != shouldHaveWatermark
     }
 }
