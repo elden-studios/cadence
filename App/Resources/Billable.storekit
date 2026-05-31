@@ -1,7 +1,23 @@
 {
   "identifier" : "BILLABLE_STOREKIT_CONFIG",
   "nonRenewingSubscriptions" : [],
-  "products" : [],
+  "products" : [
+    {
+      "displayPrice" : "99.99",
+      "familyShareable" : false,
+      "internalID" : "LIFETIME_ID",
+      "localizations" : [
+        {
+          "description" : "Pay once. Own Cadence Pro forever — unlimited invoicing, reports, exports, no watermark.",
+          "displayName" : "Billable Pro — Lifetime",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.eldenstudios.billable.pro.lifetime",
+      "referenceName" : "Pro Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
   "settings" : {
     "_applicationInternalID" : "1234567890",
     "_developerTeamID" : "TEAMID000",
@@ -36,7 +52,7 @@
         {
           "adHocOffers" : [],
           "codeOffers" : [],
-          "displayPrice" : "5.99",
+          "displayPrice" : "3.99",
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "MONTHLY_ID",
@@ -63,7 +79,7 @@
         {
           "adHocOffers" : [],
           "codeOffers" : [],
-          "displayPrice" : "34.99",
+          "displayPrice" : "39.99",
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "YEARLY_ID",
