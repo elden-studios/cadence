@@ -88,7 +88,7 @@ struct TodaySummaryProvider: TimelineProvider {
 
         return TodaySummaryEntry(
             date: now,
-            todaysHoursLabel: formatHours(todaysSeconds),
+            todaysHoursLabel: DurationFormatting.hoursMinutes(seconds: todaysSeconds),
             todaysAmount: todaysAmount,
             uninvoicedAmount: uninvoiced,
             currencyCode: currencyCode,
@@ -120,12 +120,6 @@ struct TodaySummaryProvider: TimelineProvider {
         return result
     }
 
-    private func formatHours(_ seconds: TimeInterval) -> String {
-        let totalMinutes = Int(seconds / 60)
-        let h = totalMinutes / 60
-        let m = totalMinutes % 60
-        return "\(h)h \(String(format: "%02d", m))m"
-    }
 }
 
 // MARK: - Entry

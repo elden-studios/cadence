@@ -438,10 +438,6 @@ struct ReportsView: View {
     }
 
     private func formatHours(_ hours: Decimal) -> String {
-        let totalSeconds = (hours as NSDecimalNumber).doubleValue * 3600
-        let totalMinutes = Int(totalSeconds / 60)
-        let h = totalMinutes / 60
-        let m = totalMinutes % 60
-        return "\(h)h \(String(format: "%02d", m))m"
+        DurationFormatting.hoursMinutes(decimalHours: hours)
     }
 }

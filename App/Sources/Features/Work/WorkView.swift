@@ -300,9 +300,7 @@ private struct ProjectBrowserRow: View {
 
     private func statsLine(asOf: Date) -> String {
         let stats = ProjectStats.compute(for: project, asOf: asOf)
-        let hours = Int(stats.lifetimeSeconds / 3600)
-        let mins = (Int(stats.lifetimeSeconds) % 3600) / 60
-        let time = "\(hours)h \(String(format: "%02d", mins))m"
+        let time = DurationFormatting.hoursMinutes(seconds: stats.lifetimeSeconds)
         guard project.isBillable else { return time }
         return "\(time) · \(stats.lifetimeValue.formatted(.currency(code: currencyCode)))"
     }

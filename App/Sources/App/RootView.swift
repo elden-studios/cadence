@@ -8,6 +8,7 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Environment(NotificationRouter.self) private var router
+    @Environment(AppErrorPresenter.self) private var errorPresenter
     @State private var needsOnboarding: Bool = false
     @State private var selectedTab: Int = 0
     @State private var invoicesPendingTarget: InvoicesView.NavigationTarget?
@@ -36,6 +37,16 @@ struct RootView: View {
             } else {
                 needsOnboarding = OnboardingFlags.shouldShow(in: modelContext)
             }
+        }
+        .alert("Something went wrong",
+               isPresented: Binding(
+                   get: { errorPresenter.message != nil },
+                   set: { if !$0 { errorPresenter.message = nil } }
+               ),
+               presenting: errorPresenter.message) { _ in
+            Button("OK", role: .cancel) { errorPresenter.message = nil }
+        } message: { msg in
+            Text(msg)
         }
     }
 
@@ -133,6 +144,7 @@ struct RootView: View {
     RootView()
         .modelContainer(previewContainer)
         .environment(NotificationRouter())
+        .environment(AppErrorPresenter())
 }
 
 @MainActor

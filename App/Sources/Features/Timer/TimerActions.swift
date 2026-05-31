@@ -62,4 +62,59 @@ enum TimerActions {
         Task { try? await StopTimerIntent().donate() }
         WidgetCenter.shared.reloadAllTimelines()
     }
+
+    /// Log a manually-entered completed entry and reload widgets.
+    /// Returns `nil` on failure (archived project, future start, save error, etc.).
+    @discardableResult
+    static func logCompleted(
+        project: Project,
+        start: Date,
+        end: Date,
+        notes: String?,
+        in context: ModelContext
+    ) -> TimeEntry? {
+        guard let entry = try? TimerService.logCompletedEntry(
+            project: project, start: start, end: end, notes: notes, in: context
+        ) else { return nil }
+        WidgetCenter.shared.reloadAllTimelines()
+        return entry
+    }
+
+    /// Persist edits to an existing completed entry and reload widgets.
+    /// Running entries are not editable via this path (ManualEntrySheet blocks
+    /// them), so no Live-Activity reconcile is needed here.
+    /// Returns `false` on save failure.
+    @discardableResult
+    static func saveEdit(
+        entry: TimeEntry,
+        project: Project,
+        start: Date,
+        end: Date,
+        notes: String?,
+        flattenBreaks: Bool,
+        in context: ModelContext
+    ) -> Bool {
+        // Defense-in-depth: mirror logCompletedEntry's future-start guard so a
+        // future start cannot be written even if a caller bypasses the picker bound.
+        guard start <= .now else { return false }
+        guard !project.isArchived else { return false }
+        entry.project = project
+        if flattenBreaks {
+            entry.accumulatedSeconds = 0
+            entry.activeSegmentStartedAt = nil
+            entry.isManual = true
+        }
+        entry.startedAt = start
+        entry.endedAt = end
+        entry.notes = notes
+        entry.updatedAt = .now
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            return false
+        }
+        WidgetCenter.shared.reloadAllTimelines()
+        return true
+    }
 }

@@ -21,7 +21,6 @@ struct TodayView: View {
 
     @State private var showingManualEntry = false
     @State private var showingStartTimer = false
-    @State private var editingEntry: TimeEntry?
     @State private var enrichmentSnoozedThisSession = false
 
     var body: some View {
@@ -87,9 +86,6 @@ struct TodayView: View {
             }
             .sheet(isPresented: $showingManualEntry) {
                 ManualEntrySheet()
-            }
-            .sheet(item: $editingEntry) { entry in
-                ManualEntrySheet(editing: entry)
             }
         }
     }
@@ -426,7 +422,7 @@ private struct TodaySummarySection: View {
             Text("Today")
                 .font(.title3.weight(.semibold))
             HStack(spacing: 12) {
-                SummaryTile(label: "Hours", value: formatHours(todaysSeconds), color: .blue)
+                SummaryTile(label: "Hours", value: DurationFormatting.hoursMinutes(seconds: todaysSeconds), color: .blue)
                 SummaryTile(
                     label: "Earnings",
                     value: todaysAmount.formatted(.currency(code: currencyCode)),
@@ -442,12 +438,6 @@ private struct TodaySummarySection: View {
         }
     }
 
-    private func formatHours(_ seconds: TimeInterval) -> String {
-        let totalMinutes = Int(seconds / 60)
-        let h = totalMinutes / 60
-        let m = totalMinutes % 60
-        return "\(h)h \(String(format: "%02d", m))m"
-    }
 }
 
 private struct SummaryTile: View {

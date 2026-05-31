@@ -49,6 +49,9 @@ struct DayTimelineView: View {
                 .background(Color(.systemBackground))
                 .onAppear { scrollToInterestingHour(scroller) }
                 .onChange(of: day) { scrollToInterestingHour(scroller) }
+                .sheet(item: $selectedEntry) { entry in
+                    ManualEntrySheet(editing: entry)
+                }
             }
         }
     }
