@@ -35,6 +35,13 @@ struct ActivationMetricsView: View {
             } else {
                 Text("Computing\u{2026}").font(.caption).foregroundStyle(.secondary)
             }
+
+            Section {
+                LabeledContent("Reports paywall",
+                               value: "\(ReportsConversionMetrics.impressions) seen \u{00B7} \(ReportsConversionMetrics.conversions) converted")
+            } header: { Text("Conversion") } footer: {
+                Text("On-device-only counters (UserDefaults; never transmitted): impressions of the Reports paywall and purchases completed from it.")
+            }
         }
         .navigationTitle("Activation")
         .navigationBarTitleDisplayMode(.inline)
