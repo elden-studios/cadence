@@ -339,11 +339,33 @@ private struct JumpBackInSection: View {
 // MARK: - Summary numbers
 
 private struct TodaySummarySection: View {
-    @Query(Self.entriesDescriptor) private var allEntries: [TimeEntry]
+    // F15: Split into two bounded queries instead of one full-store fetch.
+    //
+    // recentEntries (today's Hours/Earnings): mirrors JumpBackInSection.recentDescriptor —
+    // most-recent 200 entries, reverse-sorted by startedAt, project prefetched.
+    // Today's entries always fall within the 200-entry window, so the per-second
+    // filter produces the same result as scanning all entries.
+    @Query(Self.recentDescriptor) private var recentEntries: [TimeEntry]
+
+    // uninvoicedEntries (Uninvoiced amount): predicate-filtered to invoiceID == nil only.
+    // Running entries have invoiceID == nil so the live-ticking running entry is included.
+    @Query(filter: #Predicate<TimeEntry> { $0.invoiceID == nil },
+           sort: \TimeEntry.startedAt,
+           order: .reverse)
+    private var uninvoicedEntries: [TimeEntry]
+
     let currencyCode: String
 
-    private static var entriesDescriptor: FetchDescriptor<TimeEntry> {
-        var d = FetchDescriptor<TimeEntry>()
+    @State private var showingGenerator = false
+
+    private static var recentDescriptor: FetchDescriptor<TimeEntry> {
+        // No Date.now predicate: @Query captures the descriptor at view-init so a date
+        // predicate would freeze the cutoff. Fetch the 200 most-recent entries and filter
+        // to today in content(asOf:) with a fresh Date reference each second.
+        var d = FetchDescriptor<TimeEntry>(
+            sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
+        )
+        d.fetchLimit = 200
         d.relationshipKeyPathsForPrefetching = [\.project]
         return d
     }
@@ -352,12 +374,15 @@ private struct TodaySummarySection: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             content(asOf: context.date)
         }
+        .sheet(isPresented: $showingGenerator) {
+            InvoiceGeneratorView()
+        }
     }
 
     @ViewBuilder
     private func content(asOf referenceDate: Date) -> some View {
         let cal = Calendar.current
-        let todays = allEntries.filter { entry in
+        let todays = recentEntries.filter { entry in
             cal.isDate(entry.startedAt, inSameDayAs: referenceDate)
         }
         let todaysSeconds = todays.reduce(into: TimeInterval(0)) { acc, e in
@@ -366,8 +391,7 @@ private struct TodaySummarySection: View {
         let todaysAmount = todays.reduce(into: Decimal(0)) { acc, e in
             acc += e.amount(asOf: referenceDate)      // uses duration() internally
         }
-        let uninvoiced = allEntries
-            .filter { $0.invoiceID == nil }
+        let uninvoiced = uninvoicedEntries
             .reduce(into: Decimal(0)) { $0 += $1.amount(asOf: referenceDate) }
 
         VStack(alignment: .leading, spacing: 14) {
@@ -381,7 +405,12 @@ private struct TodaySummarySection: View {
                     color: .green
                 )
             }
-            UninvoicedTile(amount: uninvoiced, currency: currencyCode)
+            // F46: pass onTap only when there is uninvoiced work to invoice.
+            UninvoicedTile(
+                amount: uninvoiced,
+                currency: currencyCode,
+                onTap: uninvoiced > 0 ? { showingGenerator = true } : nil
+            )
         }
     }
 
@@ -416,17 +445,41 @@ private struct SummaryTile: View {
 private struct UninvoicedTile: View {
     let amount: Decimal
     let currency: String
+    /// F46: When non-nil the tile is tappable and presents the invoice generator.
+    /// Pass nil (the default) when `amount == 0` to keep the tile inert.
+    var onTap: (() -> Void)? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("UNINVOICED")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(amount.formatted(.currency(code: currency)))
-                .font(.system(size: 36, weight: .bold, design: .rounded).monospacedDigit())
-            Text("Hours you've tracked but haven't invoiced yet.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        let tileContent = tileBody
+        if let onTap {
+            Button(action: onTap) {
+                tileContent
+            }
+            .buttonStyle(.plain)
+        } else {
+            tileContent
+        }
+    }
+
+    private var tileBody: some View {
+        // F20: label updated to "UNINVOICED · ALL PROJECTS" to clarify scope.
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("UNINVOICED · ALL PROJECTS")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(amount.formatted(.currency(code: currency)))
+                    .font(.system(size: 36, weight: .bold, design: .rounded).monospacedDigit())
+                Text("Hours you've tracked but haven't invoiced yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if onTap != nil {
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
