@@ -38,6 +38,7 @@ struct PaywallView: View {
     @State private var selection: Plan = .yearly
     @State private var isProcessing = false
     @State private var error: String?
+    @State private var teaserModel: ReportsTeaserModel?
 
     // Backing data for the `.reports` crisp-taste header. We compute a live
     // snapshot from the user's own entries/invoices so the teaser shows *their*
@@ -76,7 +77,10 @@ struct PaywallView: View {
                 // Privacy-pure, on-device impression count for the Reports
                 // paywall (UserDefaults; never transmitted). See spec §5.
                 if trigger == .reports { ReportsConversionMetrics.recordImpression() }
+                recomputeTeaser()
             }
+            .onChange(of: reportEntries) { recomputeTeaser() }
+            .onChange(of: reportInvoices) { recomputeTeaser() }
             .alert("Couldn't complete purchase", isPresented: Binding(
                 get: { error != nil }, set: { if !$0 { error = nil } }
             )) {
@@ -118,7 +122,7 @@ struct PaywallView: View {
     /// have something reportable, else from `ReportsSampleData`. Decorative — the
     /// real headline sits above it; the figures themselves are `accessibilityHidden`.
     private var crispTasteHeader: some View {
-        let model = reportsTeaserModel
+        let model = teaserModel ?? makeTeaserModel()
 
         return VStack(alignment: .leading, spacing: 14) {
             Text(trigger.headline)
@@ -156,9 +160,17 @@ struct PaywallView: View {
         let isSample: Bool
     }
 
+    /// Memoize the teaser so the O(N) `ReportsAggregator.snapshot` isn't recomputed
+    /// on every body evaluation (mirrors ReportsView's memoization). Only `.reports`
+    /// renders the teaser, so other triggers skip the work.
+    private func recomputeTeaser() {
+        guard trigger == .reports else { return }
+        teaserModel = makeTeaserModel()
+    }
+
     /// Compute the teaser from the user's real snapshot when they have reportable
     /// data; otherwise use the representative sample slice.
-    private var reportsTeaserModel: ReportsTeaserModel {
+    private func makeTeaserModel() -> ReportsTeaserModel {
         let code = profiles.first?.currencyCode ?? "USD"
         let snap = ReportsAggregator.snapshot(
             entries: reportEntries,

@@ -235,7 +235,7 @@ public enum ReportsAggregator {
         for inv in invoices where inv.status == .sent {
             if inv.dueAt >= now { current += inv.total; continue }
             overdueCount += 1
-            let days = calendar.dateComponents([.day], from: inv.dueAt, to: now).day ?? 0
+            let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: inv.dueAt), to: calendar.startOfDay(for: now)).day ?? 0
             switch days {
             case ...30: d1 += inv.total
             case 31...60: d2 += inv.total
@@ -246,7 +246,7 @@ public enum ReportsAggregator {
 
         let paid = invoices.filter { $0.status == .paid && ($0.paidAt.map { $0 >= bounds.lowerBound && $0 < bounds.upperBound } ?? false) }
         let avg: Double? = paid.isEmpty ? nil : Double(
-            paid.compactMap { inv in inv.paidAt.map { calendar.dateComponents([.day], from: inv.issuedAt, to: $0).day ?? 0 } }.reduce(0, +)
+            paid.compactMap { inv in inv.paidAt.map { calendar.dateComponents([.day], from: calendar.startOfDay(for: inv.issuedAt), to: calendar.startOfDay(for: $0)).day ?? 0 } }.reduce(0, +)
         ) / Double(paid.count)
 
         return ARSummary(aging: aging, overdueCount: overdueCount, avgDaysToPay: avg)
