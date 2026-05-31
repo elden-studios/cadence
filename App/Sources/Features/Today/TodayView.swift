@@ -21,7 +21,6 @@ struct TodayView: View {
 
     @State private var showingManualEntry = false
     @State private var showingStartTimer = false
-    @State private var editingEntry: TimeEntry?
     @State private var enrichmentSnoozedThisSession = false
 
     var body: some View {
@@ -87,9 +86,6 @@ struct TodayView: View {
             }
             .sheet(isPresented: $showingManualEntry) {
                 ManualEntrySheet()
-            }
-            .sheet(item: $editingEntry) { entry in
-                ManualEntrySheet(editing: entry)
             }
         }
     }

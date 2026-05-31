@@ -39,8 +39,11 @@ struct ManualEntrySheet: View {
     }
 
     private var isEditing: Bool { editing != nil }
+    /// True when the entry being edited is still running (no end time yet).
+    /// Running entries are adjusted via RunningTimerCard/adjustStart, not this sheet.
+    private var isEditingRunningEntry: Bool { editing != nil && editing?.endedAt == nil }
     private var rangeIsValid: Bool { endDate > startDate }
-    private var canSave: Bool { selectedProject != nil && rangeIsValid }
+    private var canSave: Bool { selectedProject != nil && rangeIsValid && !isEditingRunningEntry }
 
     /// True when editing an existing entry whose times have changed AND it has
     /// banked break data that would be silently destroyed by flattening.
@@ -68,6 +71,15 @@ struct ManualEntrySheet: View {
                 Section("Notes") {
                     TextField("What did you work on?", text: $notes, axis: .vertical)
                         .lineLimit(3...8)
+                }
+
+                if isEditingRunningEntry {
+                    Section {
+                        EmptyView()
+                    } footer: {
+                        Text("This timer is still running — stop it first to edit this session's times.")
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .navigationTitle(isEditing ? "Edit entry" : "Add entry")

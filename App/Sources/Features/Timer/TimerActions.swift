@@ -80,10 +80,9 @@ enum TimerActions {
         return entry
     }
 
-    /// Persist edits to an existing manual (or completed) entry and reload
-    /// widgets. When the edited entry is the currently-running one (unusual
-    /// but theoretically possible), the Live Activity is refreshed to match
-    /// the updated start time.
+    /// Persist edits to an existing completed entry and reload widgets.
+    /// Running entries are not editable via this path (ManualEntrySheet blocks
+    /// them), so no Live-Activity reconcile is needed here.
     /// Returns `false` on save failure.
     @discardableResult
     static func saveEdit(
@@ -95,6 +94,9 @@ enum TimerActions {
         flattenBreaks: Bool,
         in context: ModelContext
     ) -> Bool {
+        // Defense-in-depth: mirror logCompletedEntry's future-start guard so a
+        // future start cannot be written even if a caller bypasses the picker bound.
+        guard start <= .now else { return false }
         entry.project = project
         if flattenBreaks {
             entry.accumulatedSeconds = 0
@@ -109,11 +111,6 @@ enum TimerActions {
             try context.save()
         } catch {
             return false
-        }
-        // If this entry happens to be the currently-running one (no endedAt),
-        // refresh the Live Activity so its anchor reflects the new start time.
-        if entry.endedAt == nil {
-            Task { await TimerActivityController.shared.resumeActivity(runningEntry: entry) }
         }
         WidgetCenter.shared.reloadAllTimelines()
         return true
