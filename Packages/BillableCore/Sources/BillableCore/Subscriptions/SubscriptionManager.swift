@@ -45,6 +45,9 @@ public final class SubscriptionManager {
 
     public private(set) var monthly: Product?
     public private(set) var yearly: Product?
+    public private(set) var lifetime: Product?
+    /// True when the non-consumable lifetime entitlement is owned (terminal Pro).
+    public private(set) var ownsLifetime: Bool = false
 
     /// The user's current entitlement. Drives all feature gates.
     public private(set) var entitlement: Entitlement = .free
@@ -143,6 +146,7 @@ public final class SubscriptionManager {
                 try await fetcher([
                     Self.monthlyProductID,
                     Self.yearlyProductID,
+                    Self.lifetimeProductID,
                 ])
             }
             if products.isEmpty {
@@ -151,6 +155,7 @@ public final class SubscriptionManager {
             }
             monthly = products.first { $0.id == Self.monthlyProductID }
             yearly  = products.first { $0.id == Self.yearlyProductID  }
+            lifetime = products.first { $0.id == Self.lifetimeProductID }
             // Cache intro-offer eligibility. `isEligibleForIntroOffer` is async
             // (Apple checks per-Apple-ID, per subscription group), so we query
             // both products and store the result synchronously for the UI.
@@ -291,24 +296,29 @@ public final class SubscriptionManager {
             entitlement = .pro
             return
         }
+        var foundLifetime = false
+        var subscriptionState: Entitlement? = nil
         for await result in Transaction.currentEntitlements {
-            guard case .verified(let transaction) = result else { continue }
-            // Only auto-renewable subscriptions in v1.
-            guard transaction.productType == .autoRenewable,
-                  transaction.revocationDate == nil,
-                  (transaction.expirationDate ?? .distantFuture) > .now else { continue }
-            guard transaction.productID == Self.monthlyProductID ||
-                  transaction.productID == Self.yearlyProductID else { continue }
+            guard case .verified(let transaction) = result,
+                  transaction.revocationDate == nil else { continue }
 
-            if let days = introOfferDaysRemaining(transaction: transaction) {
-                entitlement = .trial(daysRemaining: days)
-            } else {
-                entitlement = .pro
+            if transaction.productID == Self.lifetimeProductID,
+               transaction.productType == .nonConsumable {
+                foundLifetime = true
+                continue
             }
-            return
+            guard transaction.productType == .autoRenewable,
+                  (transaction.expirationDate ?? .distantFuture) > .now,
+                  transaction.productID == Self.monthlyProductID ||
+                  transaction.productID == Self.yearlyProductID else { continue }
+            if let days = introOfferDaysRemaining(transaction: transaction) {
+                subscriptionState = .trial(daysRemaining: days)
+            } else {
+                subscriptionState = .pro
+            }
         }
-        // No active subscription found:
-        entitlement = .free
+        ownsLifetime = foundLifetime
+        entitlement = Self.resolveEntitlement(ownsLifetime: foundLifetime, subscription: subscriptionState)
     }
 
     private func listenForTransactionUpdates() -> Task<Void, Never> {
