@@ -53,6 +53,7 @@ struct ClientsListContent: View {
 
     @State private var showingNew = false
     @State private var deletionCandidate: Client?
+    @State private var blockedDeleteName: String?
 
     private var lastInvoiceByClientID: [PersistentIdentifier: Date] {
         var map: [PersistentIdentifier: Date] = [:]
@@ -123,6 +124,13 @@ struct ClientsListContent: View {
         } message: {
             Text("This permanently deletes the client, their projects, and their time entries. Archive instead if you might come back.")
         }
+        .alert("Can't delete — billing records",
+               isPresented: Binding(get: { blockedDeleteName != nil },
+                                    set: { if !$0 { blockedDeleteName = nil } })) {
+            Button("Cancel", role: .cancel) { blockedDeleteName = nil }
+        } message: {
+            Text("\(blockedDeleteName ?? "This client") has time on sent or paid invoices. Archive it instead to keep your billing records.")
+        }
     }
 
     private func deleteClient(_ client: Client) {
@@ -170,7 +178,11 @@ struct ClientsListContent: View {
                     }
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
-                            deletionCandidate = client
+                            if client.hasInvoicedTime {
+                                blockedDeleteName = client.name
+                            } else {
+                                deletionCandidate = client
+                            }
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }

@@ -9,6 +9,7 @@ struct ClientDetailView: View {
     @State private var showingEditClient = false
     @State private var showingNewProject = false
     @State private var deletionCandidate: Project?
+    @State private var blockedDeleteName: String?
 
     private var activeProjects: [Project] {
         client.projects.filter { !$0.isArchived }.sorted { $0.name < $1.name }
@@ -59,7 +60,11 @@ struct ClientDetailView: View {
                         }
                         .swipeActions(edge: .trailing) {
                             Button(role: .destructive) {
-                                deletionCandidate = project
+                                if project.hasInvoicedTime {
+                                    blockedDeleteName = project.name
+                                } else {
+                                    deletionCandidate = project
+                                }
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
@@ -130,6 +135,13 @@ struct ClientDetailView: View {
             Button("Cancel", role: .cancel) { deletionCandidate = nil }
         } message: {
             Text("This permanently removes the project and all of its time entries.")
+        }
+        .alert("Can't delete — billing records",
+               isPresented: Binding(get: { blockedDeleteName != nil },
+                                    set: { if !$0 { blockedDeleteName = nil } })) {
+            Button("Cancel", role: .cancel) { blockedDeleteName = nil }
+        } message: {
+            Text("\(blockedDeleteName ?? "This project") has time on sent or paid invoices. Archive it instead to keep your billing records.")
         }
     }
 }
