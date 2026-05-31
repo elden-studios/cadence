@@ -259,7 +259,12 @@ struct ProjectDetailView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     ForEach(entries) { entry in
-                        SessionRow(entry: entry, asOf: asOf,
+                        // Only the running row needs the ticking `asOf`; completed
+                        // rows have a constant duration/amount, so pin them to a
+                        // stable date to skip per-second re-evaluation under the
+                        // TimelineView (Gemini PR #13 r3).
+                        SessionRow(entry: entry,
+                                   asOf: entry.isRunning ? asOf : (entry.endedAt ?? entry.startedAt),
                                    currencyCode: currencyCode, isBillable: project.isBillable)
                     }
                 }
