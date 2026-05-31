@@ -7,8 +7,20 @@ struct TodayView: View {
 
     @Query private var allClients: [Client]
     @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
+    /// Bounded probe: does at least one non-archived client-linked project exist?
+    /// Mirrors `GetStartedSection.anyLinkedProjectDescriptor` — same predicate,
+    /// used here so `guidanceElement` can dismiss get-started the moment setup is
+    /// reached in-session (before the maintenance-pass stamps `firstSetupCompletedAt`).
+    @Query(Self.anyLinkedProjectDescriptor) private var linkedProjectProbe: [Project]
+
+    private static var anyLinkedProjectDescriptor: FetchDescriptor<Project> {
+        var d = FetchDescriptor<Project>(predicate: #Predicate { !$0.isArchived && $0.client != nil })
+        d.fetchLimit = 1
+        return d
+    }
 
     @State private var showingManualEntry = false
+    @State private var showingStartTimer = false
     @State private var editingEntry: TimeEntry?
     @State private var enrichmentSnoozedThisSession = false
 
@@ -21,7 +33,10 @@ struct TodayView: View {
                         .padding(.horizontal)
                         .padding(.top, 4)
                     guidanceSection
-                    JumpBackInSection()
+                    JumpBackInSection(
+                        showEmptyCTA: guidanceElement != .getStarted,
+                        onStartTimer: { showingStartTimer = true }
+                    )
                     TodaySummarySection(currencyCode: currencyCode)
                 }
                 .padding()
@@ -41,13 +56,23 @@ struct TodayView: View {
                     .accessibilityLabel("Open timeline")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingManualEntry = true
+                    Menu {
+                        Button {
+                            showingStartTimer = true
+                        } label: {
+                            Label("Start timer", systemImage: "play.fill")
+                        }
+                        Button {
+                            showingManualEntry = true
+                        } label: {
+                            Label("Add past entry", systemImage: "clock.arrow.circlepath")
+                        }
                     } label: {
                         Image(systemName: "plus")
                     }
-                    .accessibilityLabel("Add past entry")
+                    .accessibilityLabel("Add entry")
                 }
+#if DEBUG
                 if allClients.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Seed demo") {
@@ -55,6 +80,10 @@ struct TodayView: View {
                         }
                     }
                 }
+#endif
+            }
+            .sheet(isPresented: $showingStartTimer) {
+                StartTimerSheet(isSwitching: false)
             }
             .sheet(isPresented: $showingManualEntry) {
                 ManualEntrySheet()
@@ -90,7 +119,18 @@ struct TodayView: View {
         // Before onboarding completes, suppress get-started/enrichment entirely
         // (RootView is showing the onboarding screen anyway); only the rare
         // name-missing banner can apply.
-        let hasActiveSetup = onboarded ? (profile?.firstSetupCompletedAt != nil) : true
+        //
+        // hasActiveSetup is true when EITHER:
+        //   (a) the durable latch has been stamped (persists across launches), OR
+        //   (b) the live @Query signals show setup is already reached this session
+        //       (a client exists AND a client-linked non-archived project exists).
+        // Case (b) handles the gap between in-app completion and the next
+        // maintenance-pass that stamps `firstSetupCompletedAt`, so the
+        // get-started card dismisses immediately rather than lingering until the
+        // next foreground/launch. Once stamped, (a) takes over permanently.
+        let stampedSetup = profile?.firstSetupCompletedAt != nil
+        let liveSetup = !allClients.isEmpty && !linkedProjectProbe.isEmpty
+        let hasActiveSetup = onboarded ? (stampedSetup || liveSetup) : true
         return TodayGuidance.resolve(
             hasName: BusinessProfile.canSendInvoice(profile: profile),
             hasActiveSetup: hasActiveSetup,
@@ -184,6 +224,13 @@ private struct JumpBackInSection: View {
     @Query(Self.recentDescriptor) private var recentEntries: [TimeEntry]
     @Query(Self.runningDescriptor) private var runningEntries: [TimeEntry]
 
+    /// When `true` and there are no recent projects, render a "Start a timer"
+    /// CTA instead of rendering nothing. Callers pass `false` when a
+    /// get-started card already occupies the guidance slot.
+    var showEmptyCTA: Bool = false
+    /// Called when the user taps the empty-state CTA.
+    var onStartTimer: () -> Void = {}
+
     private static var runningDescriptor: FetchDescriptor<TimeEntry> {
         var d = FetchDescriptor<TimeEntry>(predicate: #Predicate { $0.endedAt == nil })
         d.fetchLimit = 1
@@ -247,6 +294,15 @@ private struct JumpBackInSection: View {
                     // edge-to-edge, while the inner padding keeps the initial inset.
                     .padding(.horizontal, -16)
                 }
+            } else if showEmptyCTA {
+                Button(action: onStartTimer) {
+                    Label("Start a timer", systemImage: "play.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.bordered)
+                .tint(.timerAccent)
             }
         }
     }
@@ -305,11 +361,39 @@ private struct JumpBackInSection: View {
 // MARK: - Summary numbers
 
 private struct TodaySummarySection: View {
-    @Query(Self.entriesDescriptor) private var allEntries: [TimeEntry]
+    // todayEntries (today's Hours/Earnings): predicate-bounded to startOfDay so future-dated
+    // entries cannot inflate today's figures and today's entries are always present regardless
+    // of how many future-dated rows exist. The live isDate(inSameDayAs:) filter in
+    // content(asOf:) is kept as-is so midnight rollover works correctly.
+    @Query(Self.todayFloorDescriptor) private var todayEntries: [TimeEntry]
+
+    // uninvoicedEntries (Uninvoiced amount): predicate-filtered to invoiceID == nil only.
+    // Running entries have invoiceID == nil so the live-ticking running entry is included.
+    // Uses a static descriptor with \.project prefetch to avoid N+1 faults on every
+    // per-second tick (amount(asOf:) reads entry.project for the hourly rate).
+    @Query(Self.uninvoicedDescriptor) private var uninvoicedEntries: [TimeEntry]
+
     let currencyCode: String
 
-    private static var entriesDescriptor: FetchDescriptor<TimeEntry> {
-        var d = FetchDescriptor<TimeEntry>()
+    @State private var showingGenerator = false
+
+    private static var uninvoicedDescriptor: FetchDescriptor<TimeEntry> {
+        var d = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate { $0.invoiceID == nil },
+            sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
+        )
+        d.relationshipKeyPathsForPrefetching = [\.project]
+        return d
+    }
+
+    private static var todayFloorDescriptor: FetchDescriptor<TimeEntry> {
+        // Predicate-bounded to startOfDay so only today-onward entries are fetched
+        // (typically a handful). No fetchLimit or sort needed — the reduce in
+        // content(asOf:) doesn't require ordering and the set is small.
+        let startOfDay = Calendar.current.startOfDay(for: .now)
+        var d = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate { $0.startedAt >= startOfDay }
+        )
         d.relationshipKeyPathsForPrefetching = [\.project]
         return d
     }
@@ -318,12 +402,15 @@ private struct TodaySummarySection: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             content(asOf: context.date)
         }
+        .sheet(isPresented: $showingGenerator) {
+            InvoiceGeneratorView()
+        }
     }
 
     @ViewBuilder
     private func content(asOf referenceDate: Date) -> some View {
         let cal = Calendar.current
-        let todays = allEntries.filter { entry in
+        let todays = todayEntries.filter { entry in
             cal.isDate(entry.startedAt, inSameDayAs: referenceDate)
         }
         let todaysSeconds = todays.reduce(into: TimeInterval(0)) { acc, e in
@@ -332,8 +419,7 @@ private struct TodaySummarySection: View {
         let todaysAmount = todays.reduce(into: Decimal(0)) { acc, e in
             acc += e.amount(asOf: referenceDate)      // uses duration() internally
         }
-        let uninvoiced = allEntries
-            .filter { $0.invoiceID == nil }
+        let uninvoiced = uninvoicedEntries
             .reduce(into: Decimal(0)) { $0 += $1.amount(asOf: referenceDate) }
 
         VStack(alignment: .leading, spacing: 14) {
@@ -347,7 +433,12 @@ private struct TodaySummarySection: View {
                     color: .green
                 )
             }
-            UninvoicedTile(amount: uninvoiced, currency: currencyCode)
+            // F46: pass onTap only when there is uninvoiced work to invoice.
+            UninvoicedTile(
+                amount: uninvoiced,
+                currency: currencyCode,
+                onTap: uninvoiced > 0 ? { showingGenerator = true } : nil
+            )
         }
     }
 
@@ -382,17 +473,41 @@ private struct SummaryTile: View {
 private struct UninvoicedTile: View {
     let amount: Decimal
     let currency: String
+    /// F46: When non-nil the tile is tappable and presents the invoice generator.
+    /// Pass nil (the default) when `amount == 0` to keep the tile inert.
+    var onTap: (() -> Void)? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("UNINVOICED")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(amount.formatted(.currency(code: currency)))
-                .font(.system(size: 36, weight: .bold, design: .rounded).monospacedDigit())
-            Text("Hours you've tracked but haven't invoiced yet.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        let tileContent = tileBody
+        if let onTap {
+            Button(action: onTap) {
+                tileContent
+            }
+            .buttonStyle(.plain)
+        } else {
+            tileContent
+        }
+    }
+
+    private var tileBody: some View {
+        // F20: label updated to "UNINVOICED · ALL PROJECTS" to clarify scope.
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("UNINVOICED · ALL PROJECTS")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(amount.formatted(.currency(code: currency)))
+                    .font(.system(size: 36, weight: .bold, design: .rounded).monospacedDigit())
+                Text("Hours you've tracked but haven't invoiced yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if onTap != nil {
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()

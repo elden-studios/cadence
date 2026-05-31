@@ -101,13 +101,42 @@ struct GetStartedSection: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(isTimerRunning ? "Timer running" : "Get started")
                 .font(.headline)
-            Text(isTimerRunning
-                 ? "Add a client to invoice this time."
-                 : "Track time now, or set up a client and project to invoice.")
+            Text(headerSubtitle)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Subtitle copy that reflects the user's ACTUAL next step.
+    ///
+    /// When a timer is running:
+    ///   - no client yet → "Add a client to invoice this time."
+    ///   - client exists but no project → "Create a project to invoice this time."
+    ///   - both exist (setup reached in-session) → "You're all set to start invoicing."
+    ///
+    /// When no timer is running:
+    ///   - no client yet → "Track time now, or set up a client and project to invoice."
+    ///   - client exists but no project → "Track time now, or create a project to start invoicing."
+    ///   - both exist → "Start your first timer to track billable time."
+    private var headerSubtitle: String {
+        if isTimerRunning {
+            if !hasClient {
+                return "Add a client to invoice this time."
+            } else if !hasLinkedProject {
+                return "Create a project to invoice this time."
+            } else {
+                return "You're all set to start invoicing."
+            }
+        } else {
+            if !hasClient {
+                return "Track time now, or set up a client and project to invoice."
+            } else if !hasLinkedProject {
+                return "Track time now, or create a project to start invoicing."
+            } else {
+                return "Start your first timer to track billable time."
+            }
+        }
     }
 
     // MARK: Quick-start PRIMARY (filled)
