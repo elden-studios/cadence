@@ -26,7 +26,7 @@ struct PaywallView: View {
         }
         var subhead: String {
             switch self {
-            case .reports:         "An AR-led dashboard: what you've invoiced, collected, and what's still outstanding."
+            case .reports:         "Full Reports dashboard, watermark-free invoices, and CSV export — all in one upgrade."
             case .settings:        "Watermark-free invoices, full Reports, CSV exports."
             case .removeWatermark: "Pro removes 'Sent with Cadence' from your invoice PDFs and unlocks Reports + CSV export."
             }
@@ -356,7 +356,7 @@ struct PaywallView: View {
     /// Pro, not just the contextual feature.
     private var valueBullets: some View {
         VStack(alignment: .leading, spacing: 12) {
-            bullet("doc.text", "Watermark-free PDF invoices",
+            bullet("doc.text", "Clean, professional invoices",
                    "Send polished invoices without 'Sent with Cadence' in the footer.")
             bullet("chart.bar", "Full Reports & insights",
                    "Invoiced, collected, what you're owed — plus hours by client and project.")
