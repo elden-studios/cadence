@@ -33,7 +33,7 @@ struct SessionRow: View {
         HStack {
             Text(entry.startedAt.formatted(.dateTime.weekday().day()))
             Spacer()
-            Text(hoursLabel(entry.duration(asOf: asOf)))
+            Text(DurationFormatting.hoursMinutes(seconds: entry.duration(asOf: asOf)))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
             if isBillable {
@@ -47,10 +47,6 @@ struct SessionRow: View {
         .padding(.vertical, 4)
     }
 
-    private func hoursLabel(_ seconds: TimeInterval) -> String {
-        let m = Int(seconds / 60)
-        return "\(m / 60)h \(String(format: "%02d", m % 60))m"
-    }
 }
 
 /// Pushed full-history list of a project's sessions, month-grouped, newest-first.

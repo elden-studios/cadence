@@ -147,10 +147,7 @@ struct ManualEntrySheet: View {
 
     private var durationLabel: String {
         guard rangeIsValid else { return "—" }
-        let seconds = Int(endDate.timeIntervalSince(startDate))
-        let h = seconds / 3600
-        let m = (seconds % 3600) / 60
-        return "\(h)h \(String(format: "%02d", m))m"
+        return DurationFormatting.hoursMinutes(seconds: endDate.timeIntervalSince(startDate))
     }
 
     private func save() {

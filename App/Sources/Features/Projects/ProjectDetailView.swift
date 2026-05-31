@@ -136,7 +136,7 @@ struct ProjectDetailView: View {
 
     private func hero(stats: ProjectStats) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(hoursString(stats.lifetimeSeconds))
+            Text(DurationFormatting.hoursMinutes(seconds: stats.lifetimeSeconds))
                 .font(.system(size: 40, weight: .bold, design: .rounded))
                 .monospacedDigit()
             HStack(spacing: 8) {
@@ -307,10 +307,6 @@ struct ProjectDetailView: View {
 
     // MARK: Helpers
 
-    private func hoursString(_ seconds: TimeInterval) -> String {
-        let totalMinutes = Int(seconds / 60)
-        return "\(totalMinutes / 60)h \(String(format: "%02d", totalMinutes % 60))m"
-    }
 }
 
 /// Ticks every second only while a timer is running; otherwise emits a single

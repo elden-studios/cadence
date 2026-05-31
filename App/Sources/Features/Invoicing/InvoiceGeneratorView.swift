@@ -450,10 +450,7 @@ struct InvoiceGeneratorView: View {
 
     private func formatHours(_ entries: [TimeEntry]) -> String {
         let seconds = entries.reduce(into: TimeInterval(0)) { $0 += $1.duration() }
-        let total = Int(seconds / 60)
-        let h = total / 60
-        let m = total % 60
-        return "\(h)h \(String(format: "%02d", m))m"
+        return DurationFormatting.hoursMinutes(seconds: seconds)
     }
 
     private func formatSubtotal() -> String {
