@@ -116,7 +116,13 @@ struct ProjectDetailView: View {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(1.5))
                 guard runningEntryForProject == nil else { return }
-                TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
+                // Mirror the Start-button logic so the morph fires cleanly even
+                // when the seed has another project's timer running.
+                if anotherProjectRunning {
+                    TimerActions.switchTo(project: project, currencyCode: currencyCode, in: modelContext)
+                } else {
+                    TimerActions.start(project: project, currencyCode: currencyCode, in: modelContext)
+                }
             }
         }
     }
