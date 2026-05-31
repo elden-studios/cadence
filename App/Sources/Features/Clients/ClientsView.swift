@@ -54,6 +54,7 @@ struct ClientsListContent: View {
     @State private var showingNew = false
     @State private var deletionCandidate: Client?
     @State private var blockedDeleteName: String?
+    @State private var archiveCandidate: Client?
 
     private var lastInvoiceByClientID: [PersistentIdentifier: Date] {
         var map: [PersistentIdentifier: Date] = [:]
@@ -131,6 +132,22 @@ struct ClientsListContent: View {
         } message: {
             Text("\(blockedDeleteName ?? "This client") has time on sent or paid invoices. Archive it instead to keep your billing records.")
         }
+        .confirmationDialog("Archive \(archiveCandidate?.name ?? "client")?",
+                            isPresented: Binding(get: { archiveCandidate != nil },
+                                                 set: { if !$0 { archiveCandidate = nil } }),
+                            titleVisibility: .visible) {
+            Button("Archive") {
+                if let c = archiveCandidate {
+                    c.isArchived = true
+                    c.updatedAt = .now
+                    modelContext.saveOrLog("archive client")
+                }
+                archiveCandidate = nil
+            }
+            Button("Cancel", role: .cancel) { archiveCandidate = nil }
+        } message: {
+            Text("Archived clients move to the Archived section. You can restore them anytime.")
+        }
     }
 
     private func deleteClient(_ client: Client) {
@@ -187,9 +204,7 @@ struct ClientsListContent: View {
                             Label("Delete", systemImage: "trash")
                         }
                         Button {
-                            client.isArchived = true
-                            client.updatedAt = .now
-                            modelContext.saveOrLog("archive client")
+                            archiveCandidate = client
                         } label: {
                             Label("Archive", systemImage: "archivebox")
                         }
