@@ -110,7 +110,7 @@ struct InvoiceGeneratorView: View {
     /// Item 2: message used in both the non-recurring and recurring branches when
     /// `activeProjects` (billable set) is empty.
     private var nonBillableEmptyStateMessage: String {
-        let allActive = selectedClient?.projects.filter { !$0.isArchived } ?? []
+        let allActive = selectedClient?.activeProjects ?? []
         if allActive.isEmpty {
             return "This client has no active projects."
         } else {
@@ -147,8 +147,7 @@ struct InvoiceGeneratorView: View {
                         } else {
                             // Items 1/2: show correct empty-state; otherwise show three-choice picker.
                             // M-1: reuse nonBillableEmptyStateMessage (single source of truth).
-                            let hasAnyActiveProject = !(selectedClient?.projects.filter { !$0.isArchived }.isEmpty ?? true)
-                            if !hasAnyActiveProject || activeProjects.isEmpty {
+                            if activeProjects.isEmpty {
                                 Text(nonBillableEmptyStateMessage).foregroundStyle(.secondary)
                             } else {
                                 // Item 1: three-choice Picker (single project / consolidated / nil)
