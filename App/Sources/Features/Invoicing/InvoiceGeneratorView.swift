@@ -14,8 +14,14 @@ struct InvoiceGeneratorView: View {
     private var clients: [Client]
     @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
+    // MARK: – Project scope (Item 1 — consolidated option)
+    private enum ProjectScope: Hashable {
+        case project(Project)
+        case allConsolidated
+    }
+
     @State private var selectedClient: Client?
-    @State private var selectedProject: Project?
+    @State private var projectScope: ProjectScope?
     @State private var scopeOfWork: String = ""
     @State private var preset: InvoicePeriodPreset = .lastMonth
     @State private var customStart: Date = Calendar.current.date(byAdding: .month, value: -1, to: .now) ?? .now
@@ -31,12 +37,20 @@ struct InvoiceGeneratorView: View {
     @State private var recurrenceWeekday: RecurrenceCadence.Weekday = .monday
     @State private var recurrenceEndDate: Date? = nil
     @State private var savingRecurrence = false
+    @State private var saveErrorAlert = false          // Item 3
     @State private var permissionDeniedAlert = false
     @State private var invoiceAllResult: Int?
 
     init(defaultClient: Client? = nil, defaultProject: Project? = nil) {
         _selectedClient = State(initialValue: defaultClient)
-        _selectedProject = State(initialValue: defaultProject)
+        _projectScope = State(initialValue: defaultProject.map { .project($0) })
+    }
+
+    /// Convenience back-compat accessor — returns the single project for the
+    /// `.project` case, nil for `.allConsolidated` and nil scope. (Item 1)
+    private var selectedProject: Project? {
+        if case .project(let p) = projectScope { return p }
+        return nil
     }
 
     private var profile: BusinessProfile? { profiles.first }
@@ -71,7 +85,8 @@ struct InvoiceGeneratorView: View {
     }
 
     private var canPreview: Bool {
-        selectedClient != nil && selectedProject != nil && profile != nil && !lineItems.isEmpty
+        // Item 1: scope chosen (single or consolidated) counts; nil → can't preview
+        selectedClient != nil && projectScope != nil && profile != nil && !lineItems.isEmpty
             && Self.canSendInvoice(profile: profile)
     }
 
@@ -92,8 +107,21 @@ struct InvoiceGeneratorView: View {
         }
     }
 
+    /// Item 2: message used in both the non-recurring and recurring branches when
+    /// `activeProjects` (billable set) is empty.
+    private var nonBillableEmptyStateMessage: String {
+        let allActive = selectedClient?.projects.filter { !$0.isArchived } ?? []
+        if allActive.isEmpty {
+            return "This client has no active projects."
+        } else {
+            return "This client's active projects are all non-billable — only billable time can be invoiced."
+        }
+    }
+
     private var saveDisabled: Bool {
-        selectedClient == nil || profile == nil || savingRecurrence
+        // Item 9: also require ≥1 billable project so we never schedule an empty-
+        // invoice loop. activeProjects is already the billable-filtered set.
+        selectedClient == nil || profile == nil || savingRecurrence || activeProjects.isEmpty
     }
 
     var body: some View {
@@ -105,16 +133,43 @@ struct InvoiceGeneratorView: View {
 
                 Section("Project") {
                     if selectedClient != nil {
-                        if activeProjects.isEmpty {
-                            Text("This client has no active projects.").foregroundStyle(.secondary)
-                        } else {
-                            Picker("Project", selection: $selectedProject) {
-                                Text("Choose").tag(Project?.none)
-                                ForEach(activeProjects) { p in Text(p.name).tag(Project?.some(p)) }
+                        if makeRecurring {
+                            // Items 4/7: recurring mode is always client-wide; hide per-project
+                            // picker and batch button, show a clarifying caption instead.
+                            // Item 9: if there are no billable projects, explain it too.
+                            if activeProjects.isEmpty {
+                                Text(nonBillableEmptyStateMessage).foregroundStyle(.secondary)
+                            } else {
+                                Text("Recurring invoices cover all billable projects for this client, each period.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
                             }
-                            if !projectsWithEligible.isEmpty {
-                                Button { invoiceAllProjects() } label: {
-                                    Label("Invoice all projects (separate drafts)", systemImage: "doc.on.doc")
+                        } else {
+                            // Items 1/2: show correct empty-state; otherwise show three-choice picker.
+                            let allActive = selectedClient?.projects.filter { !$0.isArchived } ?? []
+                            if allActive.isEmpty {
+                                Text("This client has no active projects.").foregroundStyle(.secondary)
+                            } else if activeProjects.isEmpty {
+                                Text("This client's active projects are all non-billable — only billable time can be invoiced.")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                // Item 1: three-choice Picker (single project / consolidated / nil)
+                                Picker("Project", selection: $projectScope) {
+                                    Text("Choose").tag(ProjectScope?.none)
+                                    ForEach(activeProjects) { p in
+                                        Text(p.name).tag(ProjectScope?.some(.project(p)))
+                                    }
+                                    if projectsWithEligible.count > 1 {
+                                        Text("All projects · one invoice")
+                                            .tag(ProjectScope?.some(.allConsolidated))
+                                    }
+                                }
+                                // Item 6/8: batch button — present but only when there are ≥2
+                                // eligible projects; hidden when makeRecurring (already in else branch).
+                                if projectsWithEligible.count > 1 {
+                                    Button { invoiceAllProjects() } label: {
+                                        Label("Invoice all projects (separate drafts)", systemImage: "doc.on.doc")
+                                    }
                                 }
                             }
                         }
@@ -128,17 +183,21 @@ struct InvoiceGeneratorView: View {
                         .lineLimit(2...6)
                 }
 
-                Section("Period") {
-                    Picker("Range", selection: $preset) {
-                        ForEach(InvoicePeriodPreset.allCases) { p in
-                            Text(p.label).tag(p)
+                // Item 4 (NEW-S6-2): Period is irrelevant when recurring — cadence
+                // derives its own range. Hide entirely in recurring mode.
+                if !makeRecurring {
+                    Section("Period") {
+                        Picker("Range", selection: $preset) {
+                            ForEach(InvoicePeriodPreset.allCases) { p in
+                                Text(p.label).tag(p)
+                            }
                         }
-                    }
-                    if preset == .custom {
-                        DatePicker("From", selection: $customStart, displayedComponents: .date)
-                        DatePicker("To", selection: $customEnd, in: customStart..., displayedComponents: .date)
-                    } else {
-                        LabeledContent("Period", value: periodSummary)
+                        if preset == .custom {
+                            DatePicker("From", selection: $customStart, displayedComponents: .date)
+                            DatePicker("To", selection: $customEnd, in: customStart..., displayedComponents: .date)
+                        } else {
+                            LabeledContent("Period", value: periodSummary)
+                        }
                     }
                 }
 
@@ -150,7 +209,9 @@ struct InvoiceGeneratorView: View {
                     }
                     .pickerStyle(.segmented)
 
-                    if let client = selectedClient {
+                    // Item 4 (NEW-S6-2): eligible-entry count/hours/subtotal are based
+                    // on a specific period — hide them when recurring (period is implied).
+                    if !makeRecurring, let client = selectedClient {
                         if eligibleEntries.isEmpty {
                             Label("No billable, completed time entries for \(client.name) in this range.",
                                   systemImage: "exclamationmark.triangle")
@@ -255,12 +316,12 @@ struct InvoiceGeneratorView: View {
                 refreshEligibleEntries()
                 refreshProjectsAndActive()
             }
-            .onChange(of: selectedProject) { _, _ in refreshEligibleEntries() }
+            .onChange(of: projectScope) { _, _ in refreshEligibleEntries() }
             .onChange(of: selectedClient) { _, _ in
-                // Clear the project selection on any client change so a prior
-                // client's project (and its entries) can't linger. The picker also
-                // clears it, but centralizing here covers programmatic changes too.
-                selectedProject = nil
+                // Clear the project scope/recurring state on any client change so a
+                // prior client's selections can't linger. (Items 1/5)
+                projectScope = nil
+                makeRecurring = false      // Item 5: stale recurring toggle must not carry across clients
                 eligibleEntries = []
                 refreshProjectsAndActive()
             }
@@ -320,7 +381,18 @@ struct InvoiceGeneratorView: View {
             .alert("Drafts created", isPresented: Binding(get: { invoiceAllResult != nil }, set: { if !$0 { invoiceAllResult = nil } })) {
                 Button("OK") { invoiceAllResult = nil; dismiss() }
             } message: {
-                Text("Created \(invoiceAllResult ?? 0) draft invoice(s) — one per project with billable time. Open each from Invoices to add a scope and send.")
+                // Item 6: only prompt the user to add a scope if they didn't type one.
+                if trimmedScope == nil {
+                    Text("Created \(invoiceAllResult ?? 0) draft invoice(s) — one per project with billable time. Open each from Invoices to add a scope and send.")
+                } else {
+                    Text("Created \(invoiceAllResult ?? 0) draft invoice(s) — one per project with billable time.")
+                }
+            }
+            // Item 3: surface recurrence-save failure to the user.
+            .alert("Couldn't save the schedule", isPresented: $saveErrorAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Your data wasn't changed — please try again.")
             }
             .alert("Notifications are off", isPresented: $permissionDeniedAlert) {
                 Button("Open Settings") {
@@ -345,7 +417,7 @@ struct InvoiceGeneratorView: View {
                 ForEach(clients) { client in
                     Button {
                         selectedClient = client
-                        selectedProject = nil
+                        projectScope = nil
                     } label: {
                         HStack {
                             Text(client.name)
@@ -401,13 +473,24 @@ struct InvoiceGeneratorView: View {
 
     // MARK: – Eligible-entry + project cache
 
-    /// Recompute the selected project's eligible entries. Depends on
-    /// `selectedProject` and the resolved range only.
+    /// Recompute eligible entries based on the current `projectScope`.
+    /// - `.project(p)` → that project's entries.
+    /// - `.allConsolidated` → client-wide entries across all billable projects.
+    /// - `nil` → empty (no selection yet). (Item 1)
     @MainActor
     private func refreshEligibleEntries() {
-        eligibleEntries = selectedProject.map {
-            InvoiceBuilder.eligibleEntries(for: $0, in: resolvedRange, context: modelContext)
-        } ?? []
+        guard let client = selectedClient else {
+            eligibleEntries = []
+            return
+        }
+        switch projectScope {
+        case .project(let p):
+            eligibleEntries = InvoiceBuilder.eligibleEntries(for: p, in: resolvedRange, context: modelContext)
+        case .allConsolidated:
+            eligibleEntries = InvoiceBuilder.eligibleEntries(for: client, in: resolvedRange, context: modelContext)
+        case nil:
+            eligibleEntries = []
+        }
     }
 
     /// Recompute the client's pickable projects and the subset with eligible
@@ -427,6 +510,9 @@ struct InvoiceGeneratorView: View {
     /// and both derive from the same client fetch — so fetch once and group in
     /// memory rather than firing two queries. (`activeProjects` is range-independent
     /// and is left untouched.)
+    ///
+    /// Item 1: eligibleEntries is now scope-aware — consolidated scope keeps all
+    /// client entries; single-project scope filters down; nil scope returns [].
     @MainActor
     private func refreshForDateRange() {
         guard let client = selectedClient else {
@@ -440,7 +526,14 @@ struct InvoiceGeneratorView: View {
             .compactMap { $0 }
             .filter { !$0.isArchived }
             .sorted { $0.name < $1.name }
-        eligibleEntries = selectedProject.flatMap { byProject[$0] } ?? []
+        switch projectScope {
+        case .project(let p):
+            eligibleEntries = byProject[p] ?? []
+        case .allConsolidated:
+            eligibleEntries = clientEntries
+        case nil:
+            eligibleEntries = []
+        }
     }
 
     // MARK: – Invoice all projects
@@ -461,9 +554,10 @@ struct InvoiceGeneratorView: View {
         for project in projects {
             let items = InvoiceBuilder.buildLineItems(from: entriesByProject[project] ?? [], grouping: grouping)
             guard !items.isEmpty else { continue }
+            // Item 6: carry the typed scope into every batch draft.
             if (try? InvoiceBuilder.createDraft(
                 for: client, lineItems: items, project: project,
-                scopeOfWork: nil, notes: notes.isEmpty ? nil : notes,
+                scopeOfWork: trimmedScope, notes: notes.isEmpty ? nil : notes,
                 profile: profile, context: modelContext
             )) != nil { created += 1 }
         }
@@ -519,14 +613,12 @@ struct InvoiceGeneratorView: View {
         do {
             try modelContext.save()
         } catch {
-            // Roll back the insertion + surface to the user. We don't have a generic
-            // error-toast system yet, so reuse the existing permission alert mechanism
-            // with a localised message. (v1.1 polish.)
+            // Item 3: roll back the insertion, log, and surface the failure to the user
+            // via saveErrorAlert instead of silently returning.
             modelContext.rollback()
-            permissionDeniedAlert = false
-            // Stash the error; for v1.1 we just log via OSLog and bail without dismissing.
             Logger(subsystem: "com.eldenstudios.billable", category: "InvoiceGenerator")
                 .error("Failed to save recurrence template: \(error.localizedDescription, privacy: .public)")
+            saveErrorAlert = true
             return
         }
 
