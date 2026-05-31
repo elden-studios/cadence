@@ -9,6 +9,7 @@ struct TodayView: View {
     @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
     @State private var showingManualEntry = false
+    @State private var showingStartTimer = false
     @State private var editingEntry: TimeEntry?
     @State private var enrichmentSnoozedThisSession = false
 
@@ -21,7 +22,10 @@ struct TodayView: View {
                         .padding(.horizontal)
                         .padding(.top, 4)
                     guidanceSection
-                    JumpBackInSection()
+                    JumpBackInSection(
+                        showEmptyCTA: guidanceElement != .getStarted,
+                        onStartTimer: { showingStartTimer = true }
+                    )
                     TodaySummarySection(currencyCode: currencyCode)
                 }
                 .padding()
@@ -41,13 +45,23 @@ struct TodayView: View {
                     .accessibilityLabel("Open timeline")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingManualEntry = true
+                    Menu {
+                        Button {
+                            showingStartTimer = true
+                        } label: {
+                            Label("Start timer", systemImage: "play.fill")
+                        }
+                        Button {
+                            showingManualEntry = true
+                        } label: {
+                            Label("Add past entry", systemImage: "clock.arrow.circlepath")
+                        }
                     } label: {
                         Image(systemName: "plus")
                     }
-                    .accessibilityLabel("Add past entry")
+                    .accessibilityLabel("Add entry")
                 }
+#if DEBUG
                 if allClients.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Seed demo") {
@@ -55,6 +69,10 @@ struct TodayView: View {
                         }
                     }
                 }
+#endif
+            }
+            .sheet(isPresented: $showingStartTimer) {
+                StartTimerSheet(isSwitching: false)
             }
             .sheet(isPresented: $showingManualEntry) {
                 ManualEntrySheet()
@@ -184,6 +202,13 @@ private struct JumpBackInSection: View {
     @Query(Self.recentDescriptor) private var recentEntries: [TimeEntry]
     @Query(Self.runningDescriptor) private var runningEntries: [TimeEntry]
 
+    /// When `true` and there are no recent projects, render a "Start a timer"
+    /// CTA instead of rendering nothing. Callers pass `false` when a
+    /// get-started card already occupies the guidance slot.
+    var showEmptyCTA: Bool = false
+    /// Called when the user taps the empty-state CTA.
+    var onStartTimer: () -> Void = {}
+
     private static var runningDescriptor: FetchDescriptor<TimeEntry> {
         var d = FetchDescriptor<TimeEntry>(predicate: #Predicate { $0.endedAt == nil })
         d.fetchLimit = 1
@@ -247,6 +272,15 @@ private struct JumpBackInSection: View {
                     // edge-to-edge, while the inner padding keeps the initial inset.
                     .padding(.horizontal, -16)
                 }
+            } else if showEmptyCTA {
+                Button(action: onStartTimer) {
+                    Label("Start a timer", systemImage: "play.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.bordered)
+                .tint(.timerAccent)
             }
         }
     }
