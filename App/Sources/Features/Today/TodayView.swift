@@ -369,14 +369,22 @@ private struct TodaySummarySection: View {
 
     // uninvoicedEntries (Uninvoiced amount): predicate-filtered to invoiceID == nil only.
     // Running entries have invoiceID == nil so the live-ticking running entry is included.
-    @Query(filter: #Predicate<TimeEntry> { $0.invoiceID == nil },
-           sort: \TimeEntry.startedAt,
-           order: .reverse)
-    private var uninvoicedEntries: [TimeEntry]
+    // Uses a static descriptor with \.project prefetch to avoid N+1 faults on every
+    // per-second tick (amount(asOf:) reads entry.project for the hourly rate).
+    @Query(Self.uninvoicedDescriptor) private var uninvoicedEntries: [TimeEntry]
 
     let currencyCode: String
 
     @State private var showingGenerator = false
+
+    private static var uninvoicedDescriptor: FetchDescriptor<TimeEntry> {
+        var d = FetchDescriptor<TimeEntry>(
+            predicate: #Predicate { $0.invoiceID == nil },
+            sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
+        )
+        d.relationshipKeyPathsForPrefetching = [\.project]
+        return d
+    }
 
     private static var todayFloorDescriptor: FetchDescriptor<TimeEntry> {
         // Predicate-bounded to startOfDay so only today-onward entries are fetched

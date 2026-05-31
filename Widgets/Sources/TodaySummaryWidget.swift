@@ -74,11 +74,11 @@ struct TodaySummaryProvider: TimelineProvider {
             .reduce(into: Decimal(0)) { $0 += $1.amount(asOf: now) }
 
         // --- 30-day fetch for recent project tiles ---
-        let cutoff = now.addingTimeInterval(-30 * 24 * 3600)
+        let cutoff = cal.date(byAdding: .day, value: -30, to: now) ?? now
         var recentsDescriptor = FetchDescriptor<TimeEntry>(
             predicate: #Predicate { $0.startedAt > cutoff }
         )
-        recentsDescriptor.relationshipKeyPathsForPrefetching = [\.project]
+        recentsDescriptor.relationshipKeyPathsForPrefetching = [\.project, \.project?.client]
         let recentEntries = (try? context.fetch(recentsDescriptor)) ?? []
 
         let recents = recentProjects(from: recentEntries)
