@@ -612,28 +612,40 @@ struct PaywallView: View {
     /// nothing here. For subscriptions the trial reassurance is promoted out of
     /// fine print into a prominent `.footnote` immediately under the CTA (the
     /// strongest objection-killer), with the price/auto-renew note beneath. The
-    /// yearly price is taken from the live product, falling back to the list price.
+    /// price + billing cycle track the CURRENTLY-SELECTED plan (so selecting
+    /// Monthly reads "$3.99/month", not the yearly price).
     @ViewBuilder
     private var trialTerms: some View {
         if selection != .lifetime {
-            let yearlyPrice = (mockPaywallPrices ? nil : manager.yearly?.displayPrice) ?? "$39.99"
+            let price = selectedPlanPrice
+            let cycle = selection == .yearly ? "year" : "month"
             let showsTrial = mockPaywallPrices || manager.eligibleForIntroOffer
             VStack(spacing: 6) {
                 if showsTrial {
                     Text(PricingConfig.trialReassurance)
                         .font(.footnote)
                         .foregroundStyle(.primary)
-                    Text("7 days free, then \(yearlyPrice)/year")
+                    Text("7 days free, then \(price)/\(cycle)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("\(yearlyPrice)/year · Cancel anytime")
+                    Text("\(price)/\(cycle) · Cancel anytime")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .multilineTextAlignment(.center)
+        }
+    }
+
+    /// Display price for the currently-selected plan, with the list-price
+    /// fallback used in marketing-screenshot mode (no live products).
+    private var selectedPlanPrice: String {
+        switch selection {
+        case .yearly:   return (mockPaywallPrices ? nil : manager.yearly?.displayPrice) ?? "$39.99"
+        case .monthly:  return (mockPaywallPrices ? nil : manager.monthly?.displayPrice) ?? "$3.99"
+        case .lifetime: return manager.lifetime?.displayPrice ?? "$99.99"
         }
     }
 
