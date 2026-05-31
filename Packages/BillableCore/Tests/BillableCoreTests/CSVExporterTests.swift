@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Testing
 @testable import BillableCore
 
@@ -55,5 +56,64 @@ struct CSVExporterTests {
     func emptyRows() {
         let csv = CSVExporter.csv(for: [])
         #expect(csv == CSVExporter.header + "\n")
+    }
+}
+
+@Suite("ReportsAggregator.entriesInRange")
+@MainActor
+struct EntriesInRangeTests {
+    @Test("Uses the same half-open predicate as the snapshot (upperBound excluded)")
+    func halfOpen() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = Date(timeIntervalSince1970: 1_700_000_000)   // 2023-11-14
+        let container = try BillableModelContainer.inMemory()
+        let context = ModelContext(container)
+        let p = Project(name: "Alpha", hourlyRate: 100, isBillable: true)
+        context.insert(p)
+        let bounds = ReportsAggregator.TimeRange.thisMonth.range(asOf: now, calendar: cal)
+        let inside  = TimeEntry(startedAt: cal.date(byAdding: .day, value: -2, to: now)!,
+                                endedAt: now, isManual: true, project: p, accumulatedSeconds: 3600)
+        let before  = TimeEntry(startedAt: cal.date(byAdding: .day, value: -40, to: now)!,
+                                endedAt: now, isManual: true, project: p, accumulatedSeconds: 3600)
+        let atUpper = TimeEntry(startedAt: bounds.upperBound,
+                                endedAt: bounds.upperBound, isManual: true, project: p, accumulatedSeconds: 3600)
+        context.insert(inside); context.insert(before); context.insert(atUpper)
+        try context.save()
+        let all = try context.fetch(FetchDescriptor<TimeEntry>())
+
+        let scoped = ReportsAggregator.entriesInRange(all, range: .thisMonth, asOf: now, calendar: cal)
+        #expect(scoped.contains { $0 === inside })
+        #expect(!scoped.contains { $0 === before })
+        #expect(!scoped.contains { $0 === atUpper })   // half-open: upperBound EXCLUDED
+    }
+}
+
+@Suite("CSVExporter.rows(from:)")
+@MainActor
+struct CSVExporterRowsTests {
+    @Test("Client-less entries are kept with an empty client column")
+    func clientlessRowsKept() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = ModelContext(container)
+        let client = Client(name: "Acme")
+        let withClient = Project(name: "Alpha", hourlyRate: 100, isBillable: true, client: client)
+        let general    = Project(name: "General", hourlyRate: 100, isBillable: true)  // client-less
+        context.insert(client); context.insert(withClient); context.insert(general)
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let e1 = TimeEntry(startedAt: start, endedAt: start.addingTimeInterval(7200),
+                           isManual: true, project: withClient, accumulatedSeconds: 7200)
+        let e2 = TimeEntry(startedAt: start, endedAt: start.addingTimeInterval(3600),
+                           isManual: true, project: general, accumulatedSeconds: 3600)
+        context.insert(e1); context.insert(e2)
+        try context.save()
+        let entries = try context.fetch(FetchDescriptor<TimeEntry>())
+
+        let rows = CSVExporter.rows(from: entries, invoiceLookup: [:])
+        #expect(rows.count == 2)                                   // client-less row NOT dropped
+        let generalRow = rows.first { $0.projectName == "General" }
+        #expect(generalRow != nil)
+        #expect(generalRow?.clientName == "")                      // empty client column
+        #expect((generalRow?.durationHours ?? 0) > 0)             // non-zero worked_hours
     }
 }

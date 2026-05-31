@@ -28,6 +28,17 @@ struct ReportsView: View {
 
     private var currencyCode: String { profiles.first?.currencyCode ?? "USD" }
 
+    /// Label for the range-scoped block beneath the picker, so the as-of-now AR
+    /// card above the picker reads as a separate temporal scope. (S4-1)
+    private var rangeScopeCaption: String {
+        switch range {
+        case .thisWeek:  "THIS WEEK"
+        case .thisMonth: "THIS MONTH"
+        case .thisYear:  "THIS YEAR"
+        case .allTime:   "ALL TIME"
+        }
+    }
+
     /// Prefetch the relationships the aggregator walks per entry (project +
     /// project.client) to avoid N+1 faulting when the snapshot computes — mirrors
     /// TodayView. The @State snapshot cache is KEPT (it prevents recompute on
@@ -51,10 +62,16 @@ struct ReportsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    if let snapshot {
+                        arCard(snapshot)            // as-of-now — ABOVE the picker (S4-1)
+                    }
                     rangePicker
                     if let snapshot {
+                        Text(rangeScopeCaption)         // labels what the picker governs (S4-1)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         moneyLenses(snapshot)
-                        arCard(snapshot)
                         performanceTiles(snapshot)
                         if !snapshot.hasReportableData {
                             emptyState
@@ -156,8 +173,8 @@ struct ReportsView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Text("as of today")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
             }
 
             if ar.outstanding == 0 && !snapshot.hasAnyBilledInvoice {
@@ -167,18 +184,16 @@ struct ReportsView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else if ar.outstanding == 0 {
-                // Everything paid.
+                // Everything paid — as-of-now success state, no period figure (S4-2).
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("All paid up")
                         .font(.title2.weight(.bold))
                     Image(systemName: "checkmark.seal.fill")
                         .foregroundStyle(.green)
                 }
-                if snapshot.money.collected > 0 {
-                    Text("\(currency(snapshot.money.collected, code: snapshot.currencyCode)) collected")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text("Nothing outstanding")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } else {
                 // Outstanding money — show the lead figure.
                 Text(currency(ar.outstanding, code: snapshot.currencyCode))
@@ -412,11 +427,14 @@ struct ReportsView: View {
     // MARK: - CSV
 
     private func exportCSV() {
+        // Match the on-screen range (S4-3): scope to the SAME entries the dashboard
+        // shows via the shared half-open helper. .allTime is a natural no-op.
+        let scopedEntries = ReportsAggregator.entriesInRange(allEntries, range: range)
         let invoiceLookup = Dictionary(uniqueKeysWithValues: allInvoices.map { ($0.uuid, $0) })
-        let rows = CSVExporter.rows(from: allEntries, invoiceLookup: invoiceLookup)
+        let rows = CSVExporter.rows(from: scopedEntries, invoiceLookup: invoiceLookup)
         let csv = CSVExporter.csv(for: rows)
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("BillableTimeEntries.csv")
+            .appendingPathComponent("BillableTimeEntries-\(range.label).csv")
         do {
             try csv.data(using: .utf8)?.write(to: url, options: .atomic)
             csvURL = url

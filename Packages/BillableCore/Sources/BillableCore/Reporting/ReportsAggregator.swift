@@ -83,7 +83,7 @@ public enum ReportsAggregator {
     public struct ARSummary: Sendable, Equatable {
         public let aging: Aging
         public let overdueCount: Int
-        public let avgDaysToPay: Double?   // mean(paidAt − issuedAt) in days, over paid-in-range; nil if none
+        public let avgDaysToPay: Double?   // mean(paidAt − issuedAt) in days, over ALL paid invoices (as-of-now); nil if none
         public var outstanding: Decimal { aging.outstanding }
         public var overdue: Decimal { aging.overdue }
     }
@@ -122,6 +122,18 @@ public enum ReportsAggregator {
         public var hasReportableData: Bool { totalHours > 0 || money.invoiced > 0 || money.collected > 0 || ar.outstanding > 0 }
     }
 
+    // MARK: - Range scoping (single source of truth, S4-3)
+
+    /// Entries whose `startedAt` falls in `range`, using the SAME half-open
+    /// predicate the snapshot uses (`>= lower && < upper`). Single source of the
+    /// range boundary so CSV export scopes to exactly what the dashboard shows. (S4-3)
+    public static func entriesInRange(_ entries: [TimeEntry], range: TimeRange,
+                                      asOf referenceDate: Date = .now,
+                                      calendar: Calendar = .current) -> [TimeEntry] {
+        let bounds = range.range(asOf: referenceDate, calendar: calendar)
+        return entries.filter { $0.startedAt >= bounds.lowerBound && $0.startedAt < bounds.upperBound }
+    }
+
     // MARK: - Aggregation
 
     /// Compute a complete report snapshot for the given entries + invoices. Time
@@ -145,8 +157,8 @@ public enum ReportsAggregator {
         // Drives the AR card's "No invoices yet" vs "All paid up" state.
         let hasAnyBilledInvoice = curInvoices.contains { $0.status != .draft }
 
-        // ---- entries in range (existing behaviour) ----
-        let inRangeEntries = entries.filter { inRange($0.startedAt) }
+        // ---- entries in range (routed through shared helper, S4-3) ----
+        let inRangeEntries = entriesInRange(entries, range: range, asOf: referenceDate, calendar: calendar)
         var totalSeconds: TimeInterval = 0, billableSeconds: TimeInterval = 0, nonBillableSeconds: TimeInterval = 0
         var tracked = Decimal(0)
         for entry in inRangeEntries {
@@ -166,7 +178,7 @@ public enum ReportsAggregator {
         let money = MoneySummary(tracked: tracked, invoiced: invoiced, collected: collected)
 
         // ---- AR (Task 2), Performance (Task 3), Trend (Task 4) ----
-        let ar = arSummary(curInvoices, range: range, bounds: bounds, asOf: referenceDate, calendar: calendar)
+        let ar = arSummary(curInvoices, asOf: referenceDate, calendar: calendar)
         let performance = performanceSummary(tracked: tracked, totalHours: Decimal(totalSeconds/3600), billableHours: Decimal(billableSeconds/3600))
         let trend = revenueTrend(curInvoices, range: range, bounds: bounds, asOf: referenceDate, calendar: calendar)
 
@@ -233,11 +245,10 @@ public enum ReportsAggregator {
 
     // MARK: - AR / Performance / Trend
     //
-    // Stubs land here so the file compiles after Task 1's reshape. Tasks 2–4 give
-    // them real bodies + tests; Task 5 asserts the integrated result.
+    // AR is as-of-now (computed against `now`, not range-scoped); performance and
+    // trend derive from the range-scoped sets prepared in `snapshot(...)`.
 
-    private static func arSummary(_ invoices: [Invoice], range: TimeRange,
-                                  bounds: ClosedRange<Date>, asOf now: Date,
+    private static func arSummary(_ invoices: [Invoice], asOf now: Date,
                                   calendar: Calendar) -> ARSummary {
         var current = Decimal(0), d1 = Decimal(0), d2 = Decimal(0), d3 = Decimal(0)
         var overdueCount = 0
@@ -253,7 +264,9 @@ public enum ReportsAggregator {
         }
         let aging = Aging(current: current, d1to30: d1, d31to60: d2, d60plus: d3)
 
-        let paid = invoices.filter { $0.status == .paid && ($0.paidAt.map { $0 >= bounds.lowerBound && $0 < bounds.upperBound } ?? false) }
+        // avgDaysToPay is an as-of-now stat (matches the rest of the AR card):
+        // mean days-to-pay over ALL paid invoices, not range-scoped. (Phase 5 / S4-1.)
+        let paid = invoices.filter { $0.status == .paid }
         let paidDays: [Int] = paid.compactMap { inv in
             guard let paidAt = inv.paidAt else { return nil }
             return calendar.dateComponents([.day],
