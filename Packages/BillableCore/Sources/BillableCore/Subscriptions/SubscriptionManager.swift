@@ -18,6 +18,11 @@ public final class SubscriptionManager {
     public static let monthlyProductID = "com.eldenstudios.billable.pro.monthly"
     public static let yearlyProductID  = "com.eldenstudios.billable.pro.yearly"
 
+    /// Non-consumable Lifetime IAP. Owning this grants Pro permanently and is
+    /// terminal — it always wins over any subscription state. Keep in sync with
+    /// `App/Resources/Billable.storekit` and App Store Connect.
+    public static let lifetimeProductID = "com.eldenstudios.billable.pro.lifetime"
+
     // MARK: - Load state
 
     public enum LoadState: Sendable, Equatable {
@@ -163,6 +168,14 @@ public final class SubscriptionManager {
     /// unit-testable independently of StoreKit (Product has no public init).
     static func computeIntroEligibility(monthly: Bool, yearly: Bool) -> Bool {
         monthly || yearly
+    }
+
+    /// Pure entitlement resolution: lifetime ownership is terminal and always
+    /// wins over any subscription state; otherwise the subscription-derived
+    /// state passes through (nil → .free). Unit-testable without StoreKit.
+    static func resolveEntitlement(ownsLifetime: Bool, subscription: Entitlement?) -> Entitlement {
+        if ownsLifetime { return .pro }
+        return subscription ?? .free
     }
 
     /// Race the operation against a sleep task. First to finish wins.
