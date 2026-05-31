@@ -24,6 +24,9 @@ struct InvoicePreviewView: View {
     @State private var pdfData: Data?
     @State private var showingShare = false
     @State private var finalized: Invoice?
+    @State private var draft: Invoice?          // created on first finalize tap; finalized only on delivery success
+    @State private var isFinalizing = false     // synchronous re-entrancy guard
+    @State private var finalizeError = false    // local error surface (Phase 4 unifies)
     @State private var showingRemoveWatermarkPaywall = false
     @State private var showingMailComposer = false
     @State private var mailComposerSubject = ""
@@ -190,8 +193,10 @@ struct InvoicePreviewView: View {
             }) {
                 if let pdfData,
                    let url = writeToTemp(pdfData, suggestedName: templateData.invoiceNumber) {
-                    ShareSheet(items: [url])
-                        .ignoresSafeArea()
+                    ShareSheet(items: [url], onComplete: { completed in
+                        if completed, let theDraft = draft { commitFinalize(theDraft) }
+                    })
+                    .ignoresSafeArea()
                 }
                 // If writeToTemp returned nil, content is empty. The user
                 // sees a blank sheet briefly, swipes down, and the onDismiss
@@ -202,24 +207,21 @@ struct InvoicePreviewView: View {
                 // Only present when we have something real to attach. Replaces
                 // the previous `?? Data()` fallback which would silently send a
                 // 0-byte PDF if the cache read returned nil.
-                if let finalized, let attachment = mailComposerAttachment {
+                if let theDraft = draft, let attachment = mailComposerAttachment {
                     MailComposerView(
                         recipients: mailComposerRecipients,
                         subject: mailComposerSubject,
                         body: mailComposerBody,
                         attachmentData: attachment,
                         attachmentMimeType: "application/pdf",
-                        attachmentFilename: "\(finalized.number).pdf",
-                        onDismiss: { _ in
-                            // MailComposerView is @MainActor with a plain
-                            // (non-@Sendable) onDismiss, so this closure runs on
-                            // the main actor with no assumeIsolated bridge — the
-                            // bridge lives in MailComposerView's Coordinator at
-                            // the UIKit boundary. Clear the PDF attachment buffer
-                            // so it isn't held during the ~300ms dismiss anim.
+                        attachmentFilename: "\(theDraft.number).pdf",
+                        onDismiss: { result in
                             showingMailComposer = false
                             mailComposerAttachment = nil
                             mailComposerRecipients = []
+                            if result == .sent || result == .saved {
+                                if let theDraft = draft { commitFinalize(theDraft) }
+                            }
                             dismiss()
                             onDone()
                         }
@@ -232,6 +234,9 @@ struct InvoicePreviewView: View {
                    message: {
                 Text("This client doesn't have an email on file. Add one in the client's details to send invoices by email.")
             })
+            .alert("Couldn't finalize the invoice", isPresented: $finalizeError, actions: {
+                Button("OK", role: .cancel) {}
+            }, message: { Text("Something went wrong creating or sending this invoice. Your tracked time was not changed — try again.") })
             .sheet(isPresented: $showingRemoveWatermarkPaywall) {
                 PaywallView(trigger: .removeWatermark)
             }
@@ -343,127 +348,71 @@ struct InvoicePreviewView: View {
         pendingDescriptionEdits = [:]
     }
 
-    private func finalizeAndEmail() {
-        // Idempotency: if we've already finalized in this preview session,
-        // refuse to do it a second time — otherwise a re-tap (e.g. after the
-        // mailto fallback dropped the user into an external mail app and they
-        // came back) would call InvoiceBuilder.createDraft again and burn
-        // another invoice number for the same work.
-        guard finalized == nil else { return }
+    /// Create the draft once (preview number, NOT consumed) and render its PDF.
+    /// Returns nil on render failure. Reused across retries so no second draft.
+    private func ensureDraftAndPDF() -> (draft: Invoice, pdf: Data)? {
+        flushPendingDescriptionEdits()
+        let theDraft: Invoice
+        if let existing = draft {
+            theDraft = existing
+        } else {
+            do {
+                theDraft = try InvoiceBuilder.createDraft(
+                    for: client, lineItems: lineItems, project: project,
+                    scopeOfWork: scopeOfWork, notes: notes, profile: profile, context: modelContext
+                )
+                draft = theDraft
+            } catch { return nil }
+        }
+        let data = InvoicePDFRenderer.renderPDFData(
+            for: .from(theDraft, watermarked: !subscriptions.canRemoveWatermark),
+            accent: theDraft.clientColor.swiftUIColor
+        )
+        guard !data.isEmpty else { return nil }
+        theDraft.pdfDataCached = data
+        modelContext.saveOrLog("cache invoice pdf (preview)")
+        return (theDraft, data)
+    }
 
-        // Pre-flight: the entire flow exists to email the client, so finalizing
-        // before we've confirmed there's anywhere to send the email is wrong —
-        // a cancel after that would leave the invoice .sent with no email
-        // actually delivered, and no rollback path. Alert the user instead.
+    /// Finalize the draft (consume number, Draft->Sent, stamp entries) — called
+    /// ONLY after delivery is confirmed.
+    private func commitFinalize(_ theDraft: Invoice) {
+        guard finalized == nil else { return }
+        do {
+            try InvoiceBuilder.finalizeAndSend(theDraft, sourceEntries: sourceEntries, profile: profile, context: modelContext)
+            finalized = theDraft
+        } catch {
+            finalizeError = true
+        }
+    }
+
+    private func finalizeAndEmail() {
+        guard !isFinalizing, finalized == nil else { return }
         guard let recipient = client.email, !recipient.isEmpty else {
             showingNoClientEmailAlert = true
             return
         }
+        isFinalizing = true
+        defer { isFinalizing = false }
+        guard let (theDraft, data) = ensureDraftAndPDF() else { finalizeError = true; return }
+        pdfData = data
 
-        flushPendingDescriptionEdits()
-        do {
-            let draft = try InvoiceBuilder.createDraft(
-                for: client,
-                lineItems: lineItems,
-                project: project,
-                scopeOfWork: scopeOfWork,
-                notes: notes,
-                profile: profile,
-                context: modelContext
-            )
-            try InvoiceBuilder.finalizeAndSend(
-                draft,
-                sourceEntries: sourceEntries,
-                profile: profile,
-                context: modelContext
-            )
-            // Watermark gate: free-tier users get "Sent with Cadence" stamped on the
-            // PDF; Pro removes it. Mirrors the InvoiceDetailView ensurePDFData / ensurePDFOnDisk
-            // logic — without this, a free user could email an un-watermarked PDF.
-            var templateData = InvoiceTemplateData.from(draft)
-            templateData.watermark = subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
-            let data = InvoicePDFRenderer.renderPDFData(
-                for: templateData,
-                accent: draft.clientColor.swiftUIColor
-            )
-            // Mark finalized immediately so the toolbar buttons disable
-            // (idempotency) regardless of what happens below — the invoice IS
-            // sent at this point.
-            finalized = draft
-            // Only cache + present a REAL render. An empty Data means
-            // CGDataConsumer/CGContext init failed (catastrophic-rare); caching
-            // it would poison the cache so future loads return empty without
-            // retrying. On that failure, exit cleanly (dismiss + onDone) rather
-            // than cache 0 bytes or present a 0-byte attachment — the invoice is
-            // sent and can be re-emailed from the detail view, which re-renders.
-            // NB: this guard runs AFTER `finalized = draft`, so a re-tap can't
-            // double-finalize, and dismiss()+onDone() prevents stranding.
-            guard !data.isEmpty else {
-                dismiss()
-                onDone()
-                return
-            }
-            draft.pdfDataCached = data
-            modelContext.saveOrLog("cache invoice pdf (finalize+email)")
-            pdfData = data
+        let senderName = profile.name
+        let subject = ReminderTemplateRenderer.render(template: profile.effectiveInvoiceEmailSubjectTemplate, invoice: theDraft, senderName: senderName)
+        let body = ReminderTemplateRenderer.render(template: profile.effectiveInvoiceEmailBodyTemplate, invoice: theDraft, senderName: senderName)
 
-            // Render templates against the freshly-finalized invoice. Use the
-            // `effective…Template` properties so a user who cleared the templates
-            // in Settings doesn't end up with a blank subject/body.
-            let senderName = profile.name
-            let subject = ReminderTemplateRenderer.render(
-                template: profile.effectiveInvoiceEmailSubjectTemplate,
-                invoice: draft,
-                senderName: senderName
-            )
-            let body = ReminderTemplateRenderer.render(
-                template: profile.effectiveInvoiceEmailBodyTemplate,
-                invoice: draft,
-                senderName: senderName
-            )
-
-            if MFMailComposeViewController.canSendMail() {
-                // Capture everything into @State BEFORE flipping the sheet bool
-                // so the sheet content closure isn't responsible for any side
-                // effects.
-                mailComposerRecipients = [recipient]
-                mailComposerSubject = subject
-                mailComposerBody = body
-                mailComposerAttachment = data
-                showingMailComposer = true
-            } else {
-                // Fallback when Mail isn't configured: open the default mail
-                // handler via mailto:. PDF attachment is lost on this path
-                // (mailto: doesn't carry attachments). If URL construction
-                // somehow fails (e.g. an unusual recipient that defeats
-                // URLComponents), fall further back to the iOS share sheet so
-                // the user still has a path to deliver the just-finalized PDF.
-                // Without this last fallback the user could be auto-dismissed
-                // with a sent invoice and no delivery surface — the regression
-                // the second code-review pass flagged.
-                if let url = mailtoURLFromComponents(to: recipient, subject: subject, body: body) {
-                    UIApplication.shared.open(url)
-                    // Critical: dismiss the preview ourselves. The canSendMail==true
-                    // path dismisses via MailComposerView.onDismiss; the share
-                    // path dismisses via ShareSheet.onDisappear; this branch
-                    // did neither, leaving the user on a preview screen whose
-                    // invoice was already finalized — a re-tap would have
-                    // burned another invoice number.
-                    dismiss()
-                    onDone()
-                } else {
-                    // mailto build failed (URLComponents rejected an exotic
-                    // recipient or rendered subject/body) — surface the share
-                    // sheet so the user still has a delivery path for the
-                    // already-finalized PDF. The .sheet(isPresented:onDismiss:)
-                    // above guarantees dismiss()+onDone() will fire regardless
-                    // of whether the user actually shares, cancels, or
-                    // writeToTemp inside the share content returns nil.
-                    showingShare = true
-                }
-            }
-        } catch {
-            // Silent failure for now; Phase 1 noted error toasts as future work.
+        if MFMailComposeViewController.canSendMail() {
+            mailComposerRecipients = [recipient]
+            mailComposerSubject = subject
+            mailComposerBody = body
+            mailComposerAttachment = data
+            showingMailComposer = true   // finalize happens in onDismiss when result == .sent
+        } else if let url = mailtoURLFromComponents(to: recipient, subject: subject, body: body) {
+            UIApplication.shared.open(url)
+            commitFinalize(theDraft)
+            dismiss(); onDone()
+        } else {
+            showingShare = true          // last-resort: finalize on share completion
         }
     }
 
@@ -509,58 +458,12 @@ struct InvoicePreviewView: View {
     // MARK: - Actions
 
     private func finalizeAndShare() {
-        // Idempotency: same guard as finalizeAndEmail. The share-sheet's
-        // onDisappear dismisses the preview, so the re-tap window is narrow,
-        // but a second tap before SwiftUI fires onDisappear would still call
-        // createDraft a second time. Belt-and-suspenders.
-        guard finalized == nil else { return }
-        // Drain any pending in-flight edits before snapshotting. Closes a race
-        // where a user taps Finalize within the 200ms debounce window — without
-        // this drain, the pre-edit description would be persisted instead of
-        // the user's last keystrokes.
-        flushPendingDescriptionEdits()
-        do {
-            let draft = try InvoiceBuilder.createDraft(
-                for: client,
-                lineItems: lineItems,
-                project: project,
-                scopeOfWork: scopeOfWork,
-                notes: notes,
-                profile: profile,
-                context: modelContext
-            )
-            try InvoiceBuilder.finalizeAndSend(
-                draft,
-                sourceEntries: sourceEntries,
-                profile: profile,
-                context: modelContext
-            )
-            // Watermark gate: free-tier users get "Sent with Cadence" stamped on the
-            // PDF; Pro removes it. Without this, a free user could share an
-            // un-watermarked PDF via the iOS share sheet — same gate as the
-            // InvoiceDetailView paths and the new finalizeAndEmail() above.
-            var templateData = InvoiceTemplateData.from(draft)
-            templateData.watermark = subscriptions.canRemoveWatermark ? nil : "Sent with Cadence"
-            let data = InvoicePDFRenderer.renderPDFData(
-                for: templateData,
-                accent: draft.clientColor.swiftUIColor
-            )
-            // Mark finalized first (idempotency) — see finalizeAndEmail for the
-            // full rationale. Don't cache or share an empty render; exit cleanly
-            // on the catastrophic-rare CG failure.
-            finalized = draft
-            guard !data.isEmpty else {
-                dismiss()
-                onDone()
-                return
-            }
-            draft.pdfDataCached = data
-            modelContext.saveOrLog("cache invoice pdf")
-            pdfData = data
-            showingShare = true
-        } catch {
-            // Step 5 will add error toasts; for now just dismiss silently on failure.
-        }
+        guard !isFinalizing, finalized == nil else { return }
+        isFinalizing = true
+        defer { isFinalizing = false }
+        guard let (_, data) = ensureDraftAndPDF() else { finalizeError = true; return }
+        pdfData = data
+        showingShare = true              // finalize happens in ShareSheet completion
     }
 
     private func writeToTemp(_ data: Data, suggestedName: String) -> URL? {
@@ -578,10 +481,11 @@ struct InvoicePreviewView: View {
 /// UIKit share sheet bridge.
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
-
+    var onComplete: ((Bool) -> Void)? = nil
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+        let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        vc.completionWithItemsHandler = { _, completed, _, _ in onComplete?(completed) }
+        return vc
     }
-
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
