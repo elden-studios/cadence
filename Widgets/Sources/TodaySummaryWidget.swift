@@ -47,8 +47,9 @@ struct TodaySummaryProvider: TimelineProvider {
 
         // --- Today-scoped fetch (HOURS + EARNED) ---
         let startOfDay = cal.startOfDay(for: now)
+        let startOfTomorrow = cal.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
         var todayDescriptor = FetchDescriptor<TimeEntry>(
-            predicate: #Predicate { $0.startedAt >= startOfDay }
+            predicate: #Predicate { $0.startedAt >= startOfDay && $0.startedAt < startOfTomorrow }
         )
         todayDescriptor.relationshipKeyPathsForPrefetching = [\.project]
         let todays = (try? context.fetch(todayDescriptor)) ?? []

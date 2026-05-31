@@ -361,13 +361,11 @@ private struct JumpBackInSection: View {
 // MARK: - Summary numbers
 
 private struct TodaySummarySection: View {
-    // F15: Split into two bounded queries instead of one full-store fetch.
-    //
-    // recentEntries (today's Hours/Earnings): mirrors JumpBackInSection.recentDescriptor —
-    // most-recent 200 entries, reverse-sorted by startedAt, project prefetched.
-    // Today's entries always fall within the 200-entry window, so the per-second
-    // filter produces the same result as scanning all entries.
-    @Query(Self.recentDescriptor) private var recentEntries: [TimeEntry]
+    // todayEntries (today's Hours/Earnings): predicate-bounded to startOfDay so future-dated
+    // entries cannot inflate today's figures and today's entries are always present regardless
+    // of how many future-dated rows exist. The live isDate(inSameDayAs:) filter in
+    // content(asOf:) is kept as-is so midnight rollover works correctly.
+    @Query(Self.todayFloorDescriptor) private var todayEntries: [TimeEntry]
 
     // uninvoicedEntries (Uninvoiced amount): predicate-filtered to invoiceID == nil only.
     // Running entries have invoiceID == nil so the live-ticking running entry is included.
@@ -380,14 +378,14 @@ private struct TodaySummarySection: View {
 
     @State private var showingGenerator = false
 
-    private static var recentDescriptor: FetchDescriptor<TimeEntry> {
-        // No Date.now predicate: @Query captures the descriptor at view-init so a date
-        // predicate would freeze the cutoff. Fetch the 200 most-recent entries and filter
-        // to today in content(asOf:) with a fresh Date reference each second.
+    private static var todayFloorDescriptor: FetchDescriptor<TimeEntry> {
+        // Predicate-bounded to startOfDay so only today-onward entries are fetched
+        // (typically a handful). No fetchLimit or sort needed — the reduce in
+        // content(asOf:) doesn't require ordering and the set is small.
+        let startOfDay = Calendar.current.startOfDay(for: .now)
         var d = FetchDescriptor<TimeEntry>(
-            sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
+            predicate: #Predicate { $0.startedAt >= startOfDay }
         )
-        d.fetchLimit = 200
         d.relationshipKeyPathsForPrefetching = [\.project]
         return d
     }
@@ -404,7 +402,7 @@ private struct TodaySummarySection: View {
     @ViewBuilder
     private func content(asOf referenceDate: Date) -> some View {
         let cal = Calendar.current
-        let todays = recentEntries.filter { entry in
+        let todays = todayEntries.filter { entry in
             cal.isDate(entry.startedAt, inSameDayAs: referenceDate)
         }
         let todaysSeconds = todays.reduce(into: TimeInterval(0)) { acc, e in
