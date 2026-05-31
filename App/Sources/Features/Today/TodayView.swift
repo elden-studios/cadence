@@ -7,6 +7,17 @@ struct TodayView: View {
 
     @Query private var allClients: [Client]
     @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
+    /// Bounded probe: does at least one non-archived client-linked project exist?
+    /// Mirrors `GetStartedSection.anyLinkedProjectDescriptor` — same predicate,
+    /// used here so `guidanceElement` can dismiss get-started the moment setup is
+    /// reached in-session (before the maintenance-pass stamps `firstSetupCompletedAt`).
+    @Query(Self.anyLinkedProjectDescriptor) private var linkedProjectProbe: [Project]
+
+    private static var anyLinkedProjectDescriptor: FetchDescriptor<Project> {
+        var d = FetchDescriptor<Project>(predicate: #Predicate { !$0.isArchived && $0.client != nil })
+        d.fetchLimit = 1
+        return d
+    }
 
     @State private var showingManualEntry = false
     @State private var showingStartTimer = false
@@ -108,7 +119,18 @@ struct TodayView: View {
         // Before onboarding completes, suppress get-started/enrichment entirely
         // (RootView is showing the onboarding screen anyway); only the rare
         // name-missing banner can apply.
-        let hasActiveSetup = onboarded ? (profile?.firstSetupCompletedAt != nil) : true
+        //
+        // hasActiveSetup is true when EITHER:
+        //   (a) the durable latch has been stamped (persists across launches), OR
+        //   (b) the live @Query signals show setup is already reached this session
+        //       (a client exists AND a client-linked non-archived project exists).
+        // Case (b) handles the gap between in-app completion and the next
+        // maintenance-pass that stamps `firstSetupCompletedAt`, so the
+        // get-started card dismisses immediately rather than lingering until the
+        // next foreground/launch. Once stamped, (a) takes over permanently.
+        let stampedSetup = profile?.firstSetupCompletedAt != nil
+        let liveSetup = !allClients.isEmpty && !linkedProjectProbe.isEmpty
+        let hasActiveSetup = onboarded ? (stampedSetup || liveSetup) : true
         return TodayGuidance.resolve(
             hasName: BusinessProfile.canSendInvoice(profile: profile),
             hasActiveSetup: hasActiveSetup,
