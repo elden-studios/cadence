@@ -105,7 +105,7 @@ struct ProjectDetailView: View {
             Button("Complete project", role: .destructive) { completeProject() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Marks the project complete and moves it to Archived. Logged time stays on past invoices and reports.")
+            Text("Marks the project complete and moves it to Archived. Logged time stays on past invoices and reports, and any uninvoiced time stays billable here.")
         }
     }
 
@@ -118,7 +118,7 @@ struct ProjectDetailView: View {
             // Timer moved up — the most time-sensitive control is reachable
             // without scrolling past the uninvoiced tile or session history.
             timerArea(asOf: asOf)
-            if project.isBillable && !project.isArchived {
+            if project.isBillable && (!project.isArchived || stats.uninvoicedAmount > 0) {
                 uninvoicedTile(stats: stats)
                 Button {
                     showingInvoiceGenerator = true
@@ -126,7 +126,7 @@ struct ProjectDetailView: View {
                     Label("Create invoice", systemImage: "doc.text")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
             }
             recentSessions(asOf: asOf, groupedEntries: groupedEntries, totalCount: totalCount)
         }
@@ -295,7 +295,11 @@ struct ProjectDetailView: View {
         project.completedAt = .now
         project.updatedAt = .now
         modelContext.saveOrLog("complete project")
-        dismiss()
+        // Stay on the (now-archived) detail when there's still uninvoiced billable
+        // time to bill — the uninvoiced tile + Create-invoice remain visible (WS1).
+        if ProjectStats.compute(for: project).uninvoicedAmount == 0 {
+            dismiss()
+        }
     }
 
     private func restoreProject() {
