@@ -15,7 +15,9 @@ public enum ActivationMetrics {
     /// "did the hybrid bet pay off" signal (spec §14).
     public enum FirstTimerKind: String, Sendable {
         case none        // no TimeEntry yet
-        case quickStart  // earliest entry's project has no client ("General")
+        case quickStart  // earliest entry's project has no client ("General"); legacy-only —
+                         // the quick-start creation path is removed, so new installs will never
+                         // reach this arm; it reflects installed-base / upgraded users only.
         case checklist   // earliest entry's project is client-linked
     }
 

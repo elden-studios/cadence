@@ -23,6 +23,20 @@ final class GetStartedChecklistUITests: XCTestCase {
         return app
     }
 
+    // MARK: B — first-run Today leads with "Add your first client"; no timer quick-start CTA
+
+    func test_firstRun_leadsWithAddClient_andNoTimerCTA() {
+        let app = launchedApp()
+
+        // The setup-first checklist row must be the lead CTA.
+        XCTAssertTrue(app.buttons["Add your first client"].waitForExistence(timeout: 5),
+                      "'Add your first client' must be the lead row on first run. Tree:\n\(app.debugDescription)")
+
+        // The old "Start a timer now" quick-start button must not exist.
+        XCTAssertFalse(app.buttons["getStarted.quickStart"].exists,
+                       "Timer quick-start button must not appear — that path has been removed")
+    }
+
     // MARK: A — adding a client advances Row 1 + enables Row 2
 
     func test_addingClient_advancesChecklist_andEnablesProjectRow() throws {

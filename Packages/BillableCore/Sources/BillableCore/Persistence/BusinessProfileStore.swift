@@ -46,8 +46,9 @@ public enum BusinessProfileStore {
 
     /// The SINGLE writer of `firstSetupCompletedAt`. Idempotent + one-way: stamps the canonical
     /// profile the first time a Client AND a client-linked, non-archived Project coexist. A
-    /// clientless quick-start "General" project does NOT count. Call from the same launch +
-    /// scenePhase seam as `reconcile`.
+    /// clientless "General" project does NOT count — the quick-start path that created one has
+    /// been removed, but the exclusion is retained for any legacy/upgraded installs that already
+    /// have a clientless project. Call from the same launch + scenePhase seam as `reconcile`.
     public static func stampFirstSetupIfReached(in context: ModelContext) {
         guard let profile = canonical(in: context), profile.firstSetupCompletedAt == nil else { return }
         guard ((try? context.fetchCount(FetchDescriptor<Client>())) ?? 0) > 0 else { return }
