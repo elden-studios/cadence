@@ -45,7 +45,9 @@ struct PaymentRemindersView: View {
                     Text(saveError).foregroundStyle(.red)
                 }
             }
-            previewSection
+            if masterEnabled {
+                previewSection
+            }
         }
         .navigationTitle("Payment reminders")
         .onAppear { syncFromConfig() }
@@ -87,7 +89,15 @@ struct PaymentRemindersView: View {
                 ))
                 .disabled(!masterEnabled)
             }
-        } header: { Text("When to send") }
+        } header: {
+            Text("When to send")
+        } footer: {
+            if masterEnabled && enabledSet.isEmpty {
+                Text("Pick at least one timing or no reminders will send.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var templatesSection: some View {
@@ -146,13 +156,13 @@ struct PaymentRemindersView: View {
         let renderedSubject = ReminderTemplateRenderer.render(
             template: subject,
             invoice: invoice,
-            senderName: "Studio Lina",
+            senderName: profiles.first?.name ?? "Your business",
             now: Date()
         )
         let renderedBody = ReminderTemplateRenderer.render(
             template: bodyText,
             invoice: invoice,
-            senderName: "Studio Lina",
+            senderName: profiles.first?.name ?? "Your business",
             now: Date()
         )
         return Section {
