@@ -94,7 +94,9 @@ struct ProjectEditorView: View {
     private func loadIfNeeded() {
         guard !hasLoaded else { return }
         hasLoaded = true
-        selectedClient = project?.client ?? client
+        // Fall back to the passed `client` only for new projects; an existing
+        // project keeps its own client (incl. nil — never silently re-assign it).
+        selectedClient = project != nil ? project?.client : client
         guard let project else { return }
         name = project.name
         hourlyRateInput = (project.hourlyRate as NSDecimalNumber).doubleValue
