@@ -19,6 +19,7 @@ struct ProjectDetailView: View {
     @State private var showingInvoiceGenerator = false
     @State private var showingCompleteConfirm = false
     @State private var showingSwitchSheet = false
+    @State private var editingEntry: TimeEntry?
 
     private static var runningDescriptor: FetchDescriptor<TimeEntry> {
         var d = FetchDescriptor<TimeEntry>(predicate: #Predicate { $0.endedAt == nil })
@@ -50,6 +51,11 @@ struct ProjectDetailView: View {
         let sortedEntries = project.entries.sorted { $0.startedAt > $1.startedAt }
         let groupedEntries = Array(sortedEntries.prefix(5)).groupedByMonth()
         let totalCount = sortedEntries.count
+        // Compute asOf-independent stats once per real model change (outside the
+        // per-second TimelineView). Only the running entry's live time/value ticks;
+        // everything else (session count, active days, first day, completed entries'
+        // duration/value) is stable. The `ticking` call inside `content` is O(1).
+        let statsBase = ProjectStats.base(for: project)
         return ScrollView {
             // ONE stable TimelineView — ticks every second only while a timer is
             // running (TimerTickSchedule), otherwise emits a single frame. Keeping
@@ -58,7 +64,7 @@ struct ProjectDetailView: View {
             // being destroyed/recreated on start/stop (which previously killed the
             // transition).
             TimelineView(TimerTickSchedule(running: runningEntryForProject != nil)) { context in
-                content(asOf: context.date, groupedEntries: groupedEntries, totalCount: totalCount)
+                content(asOf: context.date, groupedEntries: groupedEntries, totalCount: totalCount, statsBase: statsBase)
             }
             .padding()
         }
@@ -88,7 +94,7 @@ struct ProjectDetailView: View {
         }
         .sheet(isPresented: $showingEdit) {
             NavigationStack {
-                ProjectEditorView(client: project.client ?? Client(name: ""), project: project)
+                ProjectEditorView(client: project.client, project: project)
             }
         }
         .sheet(isPresented: $showingInvoiceGenerator) {
@@ -96,6 +102,9 @@ struct ProjectDetailView: View {
         }
         .sheet(isPresented: $showingSwitchSheet) {
             StartTimerSheet(isSwitching: true)
+        }
+        .sheet(item: $editingEntry) { entry in
+            ManualEntrySheet(editing: entry)
         }
         .confirmationDialog(
             "Are you sure you're done with this project?",
@@ -105,20 +114,20 @@ struct ProjectDetailView: View {
             Button("Complete project", role: .destructive) { completeProject() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Marks the project complete and moves it to Archived. Logged time stays on past invoices and reports.")
+            Text("Marks the project complete and moves it to Archived. Logged time stays on past invoices and reports, and any uninvoiced time stays billable here.")
         }
     }
 
     @ViewBuilder
-    private func content(asOf: Date, groupedEntries: [(String, [TimeEntry])], totalCount: Int) -> some View {
-        let stats = ProjectStats.compute(for: project, asOf: asOf)
+    private func content(asOf: Date, groupedEntries: [(String, [TimeEntry])], totalCount: Int, statsBase: ProjectStats) -> some View {
+        let stats = statsBase.ticking(running: runningEntryForProject, asOf: asOf)
         VStack(alignment: .leading, spacing: 20) {
             hero(stats: stats)
             engagementLine(stats: stats)
             // Timer moved up — the most time-sensitive control is reachable
             // without scrolling past the uninvoiced tile or session history.
             timerArea(asOf: asOf)
-            if project.isBillable && !project.isArchived {
+            if project.isBillable && (!project.isArchived || stats.uninvoicedAmount > 0) {
                 uninvoicedTile(stats: stats)
                 Button {
                     showingInvoiceGenerator = true
@@ -126,7 +135,7 @@ struct ProjectDetailView: View {
                     Label("Create invoice", systemImage: "doc.text")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
             }
             recentSessions(asOf: asOf, groupedEntries: groupedEntries, totalCount: totalCount)
         }
@@ -147,12 +156,13 @@ struct ProjectDetailView: View {
                 }
             }
             .font(.subheadline)
-            .foregroundStyle(.white.opacity(0.9))
+            .foregroundStyle(.white)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
         .background(
-            LinearGradient(colors: [.timerAccent, .timerAccent.opacity(0.85)],
+            LinearGradient(colors: [Color(red: 0.69, green: 0.34, blue: 0.09),
+                                    Color(red: 0.62, green: 0.27, blue: 0.03)],
                            startPoint: .topLeading, endPoint: .bottomTrailing),
             in: .rect(cornerRadius: 18)
         )
@@ -259,13 +269,29 @@ struct ProjectDetailView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     ForEach(entries) { entry in
-                        // Only the running row needs the ticking `asOf`; completed
-                        // rows have a constant duration/amount, so pin them to a
-                        // stable date to skip per-second re-evaluation under the
-                        // TimelineView (Gemini PR #13 r3).
-                        SessionRow(entry: entry,
-                                   asOf: entry.isRunning ? asOf : (entry.endedAt ?? entry.startedAt),
-                                   currencyCode: currencyCode, isBillable: project.isBillable)
+                        if entry.isRunning {
+                            // Running row: live-ticking `asOf`, no edit/delete
+                            // affordance. (`.swipeActions` is a no-op outside a List,
+                            // and a `.contextMenu` would open EMPTY on a running row,
+                            // so we render neither here.)
+                            SessionRow(entry: entry, asOf: asOf,
+                                       currencyCode: currencyCode, isBillable: project.isBillable)
+                        } else {
+                            // Completed rows have a constant duration/amount, so pin
+                            // them to a stable date to skip per-second re-evaluation
+                            // under the TimelineView (Gemini PR #13 r3). Delete via
+                            // contextMenu — `.swipeActions` is inert in a ScrollView.
+                            SessionRow(entry: entry,
+                                       asOf: entry.endedAt ?? entry.startedAt,
+                                       currencyCode: currencyCode, isBillable: project.isBillable)
+                                .contentShape(Rectangle())
+                                .onTapGesture { editingEntry = entry }
+                                .contextMenu {
+                                    Button(role: .destructive) { deleteSession(entry) } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                        }
                     }
                 }
                 if totalCount > shownCount {
@@ -290,12 +316,21 @@ struct ProjectDetailView: View {
 
     // MARK: Actions
 
+    private func deleteSession(_ entry: TimeEntry) {
+        modelContext.delete(entry)
+        modelContext.saveOrLog("delete session")
+    }
+
     private func completeProject() {
         project.isArchived = true
         project.completedAt = .now
         project.updatedAt = .now
         modelContext.saveOrLog("complete project")
-        dismiss()
+        // Stay on the (now-archived) detail when there's still uninvoiced billable
+        // time to bill — the uninvoiced tile + Create-invoice remain visible (WS1).
+        if ProjectStats.compute(for: project).uninvoicedAmount == 0 {
+            dismiss()
+        }
     }
 
     private func restoreProject() {
@@ -312,7 +347,7 @@ struct ProjectDetailView: View {
 /// Ticks every second only while a timer is running; otherwise emits a single
 /// frame. Lets the project-detail timer area live in ONE stable `TimelineView`
 /// across start/stop (see `body`) so the Start ↔ Running swap can animate.
-private struct TimerTickSchedule: TimelineSchedule, Equatable {
+struct TimerTickSchedule: TimelineSchedule, Equatable {
     let running: Bool
     func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnySequence<Date> {
         running

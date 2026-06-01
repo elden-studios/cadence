@@ -31,7 +31,7 @@ struct SessionRow: View {
 
     var body: some View {
         HStack {
-            Text(entry.startedAt.formatted(.dateTime.weekday().day()))
+            Text(entry.startedAt.formatted(.dateTime.weekday().day().hour().minute()))
             Spacer()
             Text(DurationFormatting.hoursMinutes(seconds: entry.duration(asOf: asOf)))
                 .monospacedDigit()
@@ -60,6 +60,9 @@ struct ProjectSessionsView: View {
     /// (Gemini PR #13 finding 4).
     let currencyCode: String
 
+    @Environment(\.modelContext) private var modelContext
+    @State private var editingEntry: TimeEntry?
+
     var body: some View {
         let grouped = project.entries.sorted { $0.startedAt > $1.startedAt }.groupedByMonth()
         ScrollView {
@@ -74,8 +77,7 @@ struct ProjectSessionsView: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                         ForEach(entries) { entry in
-                            SessionRow(entry: entry, asOf: .now,
-                                       currencyCode: currencyCode, isBillable: project.isBillable)
+                            sessionRow(entry)
                         }
                     }
                 }
@@ -86,5 +88,33 @@ struct ProjectSessionsView: View {
         .scrollIndicators(.hidden)
         .navigationTitle("Sessions")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $editingEntry) { entry in
+            ManualEntrySheet(editing: entry)
+        }
+    }
+
+    @ViewBuilder
+    private func sessionRow(_ entry: TimeEntry) -> some View {
+        if entry.isRunning {
+            TimelineView(TimerTickSchedule(running: true)) { ctx in
+                SessionRow(entry: entry, asOf: ctx.date,
+                           currencyCode: currencyCode, isBillable: project.isBillable)
+            }
+        } else {
+            SessionRow(entry: entry, asOf: entry.endedAt ?? entry.startedAt,
+                       currencyCode: currencyCode, isBillable: project.isBillable)
+                .contentShape(Rectangle())
+                .onTapGesture { editingEntry = entry }
+                .contextMenu {
+                    Button(role: .destructive) { delete(entry) } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
+        }
+    }
+
+    private func delete(_ entry: TimeEntry) {
+        modelContext.delete(entry)
+        modelContext.saveOrLog("delete session")
     }
 }

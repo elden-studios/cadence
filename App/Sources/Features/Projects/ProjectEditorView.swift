@@ -3,18 +3,21 @@ import SwiftData
 import BillableCore
 
 /// Add or edit a Project. `project` is nil for new projects; `client` is the
-/// owning client (required for new projects).
+/// owning client (used as default selection for new projects; optional for edits).
 struct ProjectEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    let client: Client
+    let client: Client?
     let project: Project?
     /// Called after a successful save, before this editor dismisses. Lets a host
     /// that *pushed* the editor (e.g. the New Project picker sheet) dismiss the
     /// whole flow rather than just popping back to itself. Defaults to nil so
     /// existing sheet-presented callers are unaffected.
     var onSaved: (() -> Void)? = nil
+
+    @Query(filter: #Predicate<Client> { !$0.isArchived }, sort: \Client.name) private var clients: [Client]
+    @State private var selectedClient: Client?
 
     @State private var name: String = ""
     @State private var hourlyRateInput: Double = 0
@@ -28,6 +31,22 @@ struct ProjectEditorView: View {
             Section("Project") {
                 TextField("Project name", text: $name)
                     .textInputAutocapitalization(.words)
+                Menu {
+                    ForEach(clients) { c in
+                        Button { selectedClient = c } label: {
+                            if selectedClient?.persistentModelID == c.persistentModelID {
+                                Label(c.name, systemImage: "checkmark")
+                            } else {
+                                Text(c.name)
+                            }
+                        }
+                    }
+                } label: {
+                    LabeledContent("Client") {
+                        Text(selectedClient?.name ?? "Select client")
+                            .foregroundStyle(selectedClient == nil ? .secondary : .primary)
+                    }
+                }
             }
 
             Section("Rate") {
@@ -75,6 +94,9 @@ struct ProjectEditorView: View {
     private func loadIfNeeded() {
         guard !hasLoaded else { return }
         hasLoaded = true
+        // Fall back to the passed `client` only for new projects; an existing
+        // project keeps its own client (incl. nil — never silently re-assign it).
+        selectedClient = project != nil ? project?.client : client
         guard let project else { return }
         name = project.name
         hourlyRateInput = (project.hourlyRate as NSDecimalNumber).doubleValue
@@ -95,6 +117,7 @@ struct ProjectEditorView: View {
             existing.hourlyRate = rate
             existing.isBillable = isBillable
             existing.notes = storedNotes
+            existing.client = selectedClient
             existing.updatedAt = .now
         } else {
             let new = Project(
@@ -102,7 +125,7 @@ struct ProjectEditorView: View {
                 hourlyRate: rate,
                 isBillable: isBillable,
                 notes: storedNotes,
-                client: client
+                client: selectedClient
             )
             modelContext.insert(new)
         }
