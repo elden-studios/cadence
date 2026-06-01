@@ -17,6 +17,8 @@ struct StartTimerSheet: View {
     }
 
     @State private var search: String = ""
+    @State private var showingAddClient = false
+    @State private var showingNewProject = false
 
     /// When true, the caller already has a running timer and tapping a project
     /// should perform a `switchTo` instead of a `start`.
@@ -25,28 +27,51 @@ struct StartTimerSheet: View {
     /// dismiss any other sheets or react.
     var onStarted: (TimeEntry) -> Void = { _ in }
 
+    private var hasAnyProject: Bool {
+        !recentProjects.isEmpty || clients.contains { !activeProjects(of: $0).isEmpty }
+    }
+
     var body: some View {
         NavigationStack {
-            List {
-                if !recentProjects.isEmpty && search.isEmpty {
-                    Section("Recent") {
-                        ForEach(recentProjects) { project in
-                            projectRow(project)
+            Group {
+                if hasAnyProject {
+                    List {
+                        if !recentProjects.isEmpty && search.isEmpty {
+                            Section("Recent") {
+                                ForEach(recentProjects) { project in
+                                    projectRow(project)
+                                }
+                            }
+                        }
+                        ForEach(filteredClients) { client in
+                            Section(client.name) {
+                                ForEach(activeProjects(of: client)) { project in
+                                    projectRow(project)
+                                }
+                            }
                         }
                     }
-                }
-                ForEach(filteredClients) { client in
-                    Section(client.name) {
-                        ForEach(activeProjects(of: client)) { project in
-                            projectRow(project)
+                    .listStyle(.insetGrouped)
+                    .searchable(text: $search, prompt: "Search projects")
+                } else {
+                    ContentUnavailableView {
+                        Label("No projects yet", systemImage: "folder.badge.plus")
+                    } description: {
+                        Text(clients.isEmpty
+                             ? "Add a client, then create a project to track time against."
+                             : "Create a project to track time against.")
+                    } actions: {
+                        Button(clients.isEmpty ? "Add a client" : "Create a project") {
+                            if clients.isEmpty { showingAddClient = true } else { showingNewProject = true }
                         }
+                        .buttonStyle(.borderedProminent)
                     }
+                    .sheet(isPresented: $showingAddClient) { NavigationStack { ClientEditorView(client: nil) } }
+                    .sheet(isPresented: $showingNewProject) { GetStartedNewProjectSheet() }
                 }
             }
-            .listStyle(.insetGrouped)
             .navigationTitle(isSwitching ? "Switch to" : "Start timer")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $search, prompt: "Search projects")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }

@@ -109,7 +109,7 @@ struct GetStartedSection: View {
 /// `private` type there, so this is the Today-local sibling per spec §7a "the
 /// existing add-project sheet via the New-Project flow"). Only non-archived
 /// clients are offered, matching the rest of the app.
-private struct GetStartedNewProjectSheet: View {
+struct GetStartedNewProjectSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Query(filter: #Predicate<Client> { !$0.isArchived }, sort: \Client.name)
     private var clients: [Client]
