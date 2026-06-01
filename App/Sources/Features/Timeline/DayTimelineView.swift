@@ -323,9 +323,21 @@ struct DayTimelineView: View {
     private func delete(_ entry: TimeEntry) {
         // Defense-in-depth (the context menu already hides Delete for a running
         // entry): never raw-delete a live session here — it bypasses
-        // TimerActions.stop and orphans the Live Activity. Mirrors the
-        // `endedAt != nil` guards in splitInHalf / duplicate / commitActiveDrag.
-        guard entry.endedAt != nil else { return }
+        // TimerActions.stop and orphans the Live Activity. `!isRunning` mirrors
+        // the context-menu gate for this same Delete action (delete never
+        // consumes endedAt as a value, unlike splitInHalf / duplicate /
+        // commitActiveDrag, so the intent is purely "reject a live session").
+        guard !entry.isRunning else { return }
+        // Clear selection BEFORE deleting: long-press to open the context menu
+        // also sets `selectedEntry` (TimeBlockView.onLongPress / onTap), so
+        // without this the @State binding would point at a deleted model —
+        // isSelected reads its persistentModelID and .sheet(item:) could
+        // re-present an invalidated entry (stale UI / SwiftData crash). Niling
+        // also dismisses the edit sheet if open, which is desired since the
+        // entry is gone.
+        if selectedEntry?.persistentModelID == entry.persistentModelID {
+            selectedEntry = nil
+        }
         modelContext.delete(entry)
         modelContext.saveOrLog("delete entry")
     }
