@@ -105,7 +105,7 @@ struct ProjectSessionsView: View {
                        currencyCode: currencyCode, isBillable: project.isBillable)
                 .contentShape(Rectangle())
                 .onTapGesture { editingEntry = entry }
-                .swipeActions(edge: .trailing) {
+                .contextMenu {
                     Button(role: .destructive) { delete(entry) } label: {
                         Label("Delete", systemImage: "trash")
                     }

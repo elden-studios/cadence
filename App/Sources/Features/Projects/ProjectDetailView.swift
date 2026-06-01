@@ -269,22 +269,29 @@ struct ProjectDetailView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     ForEach(entries) { entry in
-                        // Only the running row needs the ticking `asOf`; completed
-                        // rows have a constant duration/amount, so pin them to a
-                        // stable date to skip per-second re-evaluation under the
-                        // TimelineView (Gemini PR #13 r3).
-                        SessionRow(entry: entry,
-                                   asOf: entry.isRunning ? asOf : (entry.endedAt ?? entry.startedAt),
-                                   currencyCode: currencyCode, isBillable: project.isBillable)
-                            .contentShape(Rectangle())
-                            .onTapGesture { if !entry.isRunning { editingEntry = entry } }
-                            .swipeActions(edge: .trailing) {
-                                if !entry.isRunning {
+                        if entry.isRunning {
+                            // Running row: live-ticking `asOf`, no edit/delete
+                            // affordance. (`.swipeActions` is a no-op outside a List,
+                            // and a `.contextMenu` would open EMPTY on a running row,
+                            // so we render neither here.)
+                            SessionRow(entry: entry, asOf: asOf,
+                                       currencyCode: currencyCode, isBillable: project.isBillable)
+                        } else {
+                            // Completed rows have a constant duration/amount, so pin
+                            // them to a stable date to skip per-second re-evaluation
+                            // under the TimelineView (Gemini PR #13 r3). Delete via
+                            // contextMenu — `.swipeActions` is inert in a ScrollView.
+                            SessionRow(entry: entry,
+                                       asOf: entry.endedAt ?? entry.startedAt,
+                                       currencyCode: currencyCode, isBillable: project.isBillable)
+                                .contentShape(Rectangle())
+                                .onTapGesture { editingEntry = entry }
+                                .contextMenu {
                                     Button(role: .destructive) { deleteSession(entry) } label: {
                                         Label("Delete", systemImage: "trash")
                                     }
                                 }
-                            }
+                        }
                     }
                 }
                 if totalCount > shownCount {
