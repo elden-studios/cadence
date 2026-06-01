@@ -15,7 +15,6 @@ struct OnboardingView: View {
     @State private var entityType: EntityType = .freelancer   // pre-select Freelancer (spec §5)
     @State private var name: String = ""
     @State private var showingSaveError = false
-    @FocusState private var nameFocused: Bool
 
     enum Step { case welcome, identity }
 
@@ -116,7 +115,6 @@ struct OnboardingView: View {
                     text: $name,
                     prompt: Text(entityType.issuerNamePrompt).foregroundStyle(.white.opacity(0.55))
                 )
-                .focused($nameFocused)
                 .textContentType(entityType.nameContentType)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.done)

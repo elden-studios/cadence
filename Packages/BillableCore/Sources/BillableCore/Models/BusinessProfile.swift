@@ -60,11 +60,15 @@ public final class BusinessProfile {
 
     // MARK: - Entity type + first-run latches (onboarding redesign)
 
-    /// Raw `EntityType`. Default `.organization` is a back-compat fallback that preserves
-    /// the legacy "Business name" label + visible tax section; onboarding always sets it.
-    public var entityTypeRaw: String = EntityType.organization.rawValue
+    /// Raw `EntityType`. Default `.freelancer` matches the freelancer-first product
+    /// and both UIs (onboarding + editor). The getter's fallback stays `.organization`
+    /// as a conservative decode guard for corrupt/unknown raw values (see below).
+    public var entityTypeRaw: String = EntityType.freelancer.rawValue
 
     public var entityType: EntityType {
+        // Fallback fires ONLY for a corrupt/unknown stored raw string (e.g. CloudKit
+        // sync of a future case); `.organization` is the safe "show more UI" default
+        // there. New profiles default to `.freelancer` via `entityTypeRaw` above.
         get { EntityType(rawValue: entityTypeRaw) ?? .organization }
         set { entityTypeRaw = newValue.rawValue }
     }
@@ -73,10 +77,13 @@ public final class BusinessProfile {
     public var onboardingCompletedAt: Date? = nil
     public var firstSetupCompletedAt: Date? = nil
 
-    /// "Enriched" = the invoice-completing fields beyond name are present (postal address + a
-    /// payment route). Gates the dismissible enrichment nudge only — never blocks anything.
+    /// "Enriched" = the invoice-completing fields are present: a non-blank issuer
+    /// name AND a postal address for the invoice header. Bank details are
+    /// intentionally optional ("Leave blank to hide"), so they do NOT gate this.
+    /// Drives the dismissible enrichment nudge only — never blocks anything.
     public var isProfileEnriched: Bool {
-        !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasBankDetails
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // MARK: - Invoice email templates (v1.6 / Phase 2)
@@ -107,7 +114,7 @@ public final class BusinessProfile {
         bankSWIFT: String = "",
         taxIDLabel: String = "",
         taxIDNumber: String = "",
-        entityTypeRaw: String = EntityType.organization.rawValue,
+        entityTypeRaw: String = EntityType.freelancer.rawValue,
         onboardingCompletedAt: Date? = nil,
         firstSetupCompletedAt: Date? = nil,
         invoiceEmailSubjectTemplate: String = BusinessProfile.defaultInvoiceEmailSubject,

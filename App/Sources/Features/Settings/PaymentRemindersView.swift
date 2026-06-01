@@ -45,7 +45,9 @@ struct PaymentRemindersView: View {
                     Text(saveError).foregroundStyle(.red)
                 }
             }
-            previewSection
+            if masterEnabled {
+                previewSection
+            }
         }
         .navigationTitle("Payment reminders")
         .onAppear { syncFromConfig() }
@@ -87,7 +89,15 @@ struct PaymentRemindersView: View {
                 ))
                 .disabled(!masterEnabled)
             }
-        } header: { Text("When to send") }
+        } header: {
+            Text("When to send")
+        } footer: {
+            if masterEnabled && enabledSet.isEmpty {
+                Text("Pick at least one timing or no reminders will send.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var templatesSection: some View {
@@ -143,16 +153,22 @@ struct PaymentRemindersView: View {
 
     private var previewSection: some View {
         let invoice = Self.makePreviewInvoice(currencyCode: currencyCode)
+        // Faithful preview sender, computed once for subject + body. Fall back to a
+        // placeholder when the profile name is missing OR blank — a currency-first
+        // profile (CurrencyPickerView seeds one with no name) persists an empty
+        // string, which would otherwise make the preview sign with "".
+        let trimmedName = (profiles.first?.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let senderName = trimmedName.isEmpty ? "Your business" : trimmedName
         let renderedSubject = ReminderTemplateRenderer.render(
             template: subject,
             invoice: invoice,
-            senderName: "Studio Lina",
+            senderName: senderName,
             now: Date()
         )
         let renderedBody = ReminderTemplateRenderer.render(
             template: bodyText,
             invoice: invoice,
-            senderName: "Studio Lina",
+            senderName: senderName,
             now: Date()
         )
         return Section {

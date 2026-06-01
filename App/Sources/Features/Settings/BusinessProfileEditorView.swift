@@ -70,7 +70,7 @@ struct BusinessProfileEditorView: View {
             } header: {
                 Text("Issuer")
             } footer: {
-                Text("Freelancer bills under your own name; Organization bills under a company name. This only changes invoice labels.")
+                Text("Freelancer — just you, billing for your own time. Organization — a team billing under one company name. This only changes the labels on your invoices.")
             }
 
             Section("Payment") {
@@ -90,7 +90,7 @@ struct BusinessProfileEditorView: View {
             }
 
             Section {
-                if entityType == .organization {
+                if entityType.showsTaxByDefault {
                     taxFields
                 } else {
                     DisclosureGroup("Add tax (if you charge it)", isExpanded: $taxExpanded) {
@@ -180,23 +180,6 @@ struct BusinessProfileEditorView: View {
             } footer: {
                 Text("Shown on invoices so clients know where to pay. Leave blank to hide.")
             }
-
-            if let profile = profiles.first, !profile.isProfileEnriched {
-                Section {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.circle")
-                            .foregroundStyle(.orange)
-                        Text("Incomplete")
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("Add your address and a payment method")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
-            }
-
         }
         .navigationTitle("Business profile")
         .navigationBarTitleDisplayMode(.inline)
@@ -207,6 +190,12 @@ struct BusinessProfileEditorView: View {
             }
         }
         .onAppear { loadIfNeeded() }
+        .onChange(of: entityType) { _, _ in
+            // Don't hide a freshly-entered rate behind the collapsed Freelancer
+            // DisclosureGroup when toggling Org→Freelancer live. Mirrors the
+            // taxExpanded derivation in loadIfNeeded() (both reflect the same rate).
+            taxExpanded = taxRatePercent != 0
+        }
         .alert("Add a name", isPresented: $showingBlankNameError) {
             Button("OK", role: .cancel) {}
         } message: {

@@ -32,7 +32,7 @@ struct BusinessProfileMigrationTests {
         let ctx2 = ModelContext(c2)
         let p = try #require(try ctx2.fetch(FetchDescriptor<BusinessProfile>()).first)
         #expect(p.name == "Persisted")
-        #expect(p.entityType == .organization)
+        #expect(p.entityType == .freelancer)
         #expect(p.onboardingCompletedAt == nil)
         #expect(p.isProfileEnriched == false)
     }
