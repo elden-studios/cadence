@@ -243,9 +243,14 @@ private struct JumpBackInSection: View {
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
         d.fetchLimit = 200
-        // RecentProjects.rank traverses project.client?.isArchived; prefetch
-        // both hops to avoid N+1 faulting across the 200-entry window.
-        d.relationshipKeyPathsForPrefetching = [\.project, \.project?.client]
+        // Prefetch ONLY the project hop. A nested keypath (\.project?.client)
+        // TRAPS on the CloudKit-backed store: SwiftData's
+        // Schema.KeyPathCache.validateAndCache hits assertionFailure while
+        // converting the fetch request's keypaths to strings (crash in build
+        // 2026060101, Today → "Jump back in"). The local store tolerates it,
+        // which is why it only crashed on real installs. RecentProjects.rank
+        // faults project.client lazily — fine for the bounded 200-entry window.
+        d.relationshipKeyPathsForPrefetching = [\.project]
         return d
     }
 

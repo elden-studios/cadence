@@ -39,13 +39,15 @@ struct ReportsView: View {
         }
     }
 
-    /// Prefetch the relationships the aggregator walks per entry (project +
-    /// project.client) to avoid N+1 faulting when the snapshot computes — mirrors
-    /// TodayView. The @State snapshot cache is KEPT (it prevents recompute on
-    /// unrelated state flips; prefetching only reduces faulting when it does run).
+    /// Prefetch ONLY the project hop the aggregator walks per entry, to reduce
+    /// N+1 faulting when the snapshot computes. Do NOT add the nested
+    /// \.project?.client hop — it TRAPS on the CloudKit-backed store
+    /// (Schema.KeyPathCache assertion; see TodayView.recentDescriptor). The
+    /// @State snapshot cache is KEPT (it prevents recompute on unrelated state
+    /// flips; prefetching only reduces faulting when it does run).
     private static var entriesDescriptor: FetchDescriptor<TimeEntry> {
         var d = FetchDescriptor<TimeEntry>()
-        d.relationshipKeyPathsForPrefetching = [\.project, \.project?.client]
+        d.relationshipKeyPathsForPrefetching = [\.project]
         return d
     }
 
