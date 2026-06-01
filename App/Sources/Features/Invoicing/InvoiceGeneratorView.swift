@@ -90,21 +90,11 @@ struct InvoiceGeneratorView: View {
             && Self.canSendInvoice(profile: profile)
     }
 
-    /// §7b conditional copy: name which half is missing, or both. `isProfileEnriched`
-    /// requires a non-blank address AND `hasBankDetails`; mirror those two checks.
-    private func enrichmentPromptMessage(for profile: BusinessProfile) -> String {
-        let hasAddress = !profile.address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let hasBank = profile.hasBankDetails
-        switch (hasAddress, hasBank) {
-        case (false, false):
-            return "Add your address and payment details so this invoice looks complete."
-        case (false, true):
-            return "Add your address so this invoice looks complete."
-        case (true, false):
-            return "Add your payment details so this invoice looks complete."
-        case (true, true):
-            return ""   // unreachable: !isProfileEnriched implies at least one is missing
-        }
+    /// §7b: when this nudge fires the only missing invoice-completing field is the
+    /// address — `canSendInvoice` already guarantees a name, and `isProfileEnriched`
+    /// is now name + address (bank details are optional and intentionally don't gate).
+    private var enrichmentPromptMessage: String {
+        "Add your address so this invoice looks complete."
     }
 
     /// Item 2: message used in both the non-recurring and recurring branches when
@@ -281,7 +271,7 @@ struct InvoiceGeneratorView: View {
                                     Text("Complete your invoice details")
                                         .font(.subheadline.weight(.medium))
                                         .foregroundStyle(.primary)
-                                    Text(enrichmentPromptMessage(for: profile))
+                                    Text(enrichmentPromptMessage)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }

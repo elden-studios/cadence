@@ -180,7 +180,6 @@ struct BusinessProfileEditorView: View {
             } footer: {
                 Text("Shown on invoices so clients know where to pay. Leave blank to hide.")
             }
-
         }
         .navigationTitle("Business profile")
         .navigationBarTitleDisplayMode(.inline)
@@ -193,7 +192,8 @@ struct BusinessProfileEditorView: View {
         .onAppear { loadIfNeeded() }
         .onChange(of: entityType) { _, _ in
             // Don't hide a freshly-entered rate behind the collapsed Freelancer
-            // DisclosureGroup when toggling Org→Freelancer live.
+            // DisclosureGroup when toggling Org→Freelancer live. Mirrors the
+            // taxExpanded derivation in loadIfNeeded() (both reflect the same rate).
             taxExpanded = taxRatePercent != 0
         }
         .alert("Add a name", isPresented: $showingBlankNameError) {

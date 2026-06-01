@@ -183,7 +183,7 @@ struct TodayView: View {
                         Text("Finish your invoice details")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(.primary)
-                        Text("Add your address and payment details so invoices look complete.")
+                        Text("Add your address so invoices look complete.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

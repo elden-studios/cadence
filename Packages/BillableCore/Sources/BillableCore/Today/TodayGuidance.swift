@@ -26,7 +26,7 @@ public enum TodayGuidance: Sendable {
     /// - Parameters:
     ///   - hasName: `BusinessProfile.canSendInvoice(profile:)` — a non-blank issuer name exists.
     ///   - hasActiveSetup: `firstSetupCompletedAt != nil` — a client + a client-linked active project have coexisted.
-    ///   - isEnriched: `BusinessProfile.isProfileEnriched` — address + payment details present.
+    ///   - isEnriched: `BusinessProfile.isProfileEnriched` — issuer name + address present (bank details optional).
     ///   - enrichmentSnoozed: session-only "Not now" was tapped (no persisted flag; spec §7b).
     public static func resolve(
         hasName: Bool,
