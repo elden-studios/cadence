@@ -19,6 +19,7 @@ struct ProjectDetailView: View {
     @State private var showingInvoiceGenerator = false
     @State private var showingCompleteConfirm = false
     @State private var showingSwitchSheet = false
+    @State private var editingEntry: TimeEntry?
 
     private static var runningDescriptor: FetchDescriptor<TimeEntry> {
         var d = FetchDescriptor<TimeEntry>(predicate: #Predicate { $0.endedAt == nil })
@@ -96,6 +97,9 @@ struct ProjectDetailView: View {
         }
         .sheet(isPresented: $showingSwitchSheet) {
             StartTimerSheet(isSwitching: true)
+        }
+        .sheet(item: $editingEntry) { entry in
+            ManualEntrySheet(editing: entry)
         }
         .confirmationDialog(
             "Are you sure you're done with this project?",
@@ -267,6 +271,15 @@ struct ProjectDetailView: View {
                         SessionRow(entry: entry,
                                    asOf: entry.isRunning ? asOf : (entry.endedAt ?? entry.startedAt),
                                    currencyCode: currencyCode, isBillable: project.isBillable)
+                            .contentShape(Rectangle())
+                            .onTapGesture { if !entry.isRunning { editingEntry = entry } }
+                            .swipeActions(edge: .trailing) {
+                                if !entry.isRunning {
+                                    Button(role: .destructive) { deleteSession(entry) } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                            }
                     }
                 }
                 if totalCount > shownCount {
@@ -290,6 +303,11 @@ struct ProjectDetailView: View {
     }
 
     // MARK: Actions
+
+    private func deleteSession(_ entry: TimeEntry) {
+        modelContext.delete(entry)
+        modelContext.saveOrLog("delete session")
+    }
 
     private func completeProject() {
         project.isArchived = true
@@ -317,7 +335,7 @@ struct ProjectDetailView: View {
 /// Ticks every second only while a timer is running; otherwise emits a single
 /// frame. Lets the project-detail timer area live in ONE stable `TimelineView`
 /// across start/stop (see `body`) so the Start ↔ Running swap can animate.
-private struct TimerTickSchedule: TimelineSchedule, Equatable {
+struct TimerTickSchedule: TimelineSchedule, Equatable {
     let running: Bool
     func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnySequence<Date> {
         running
