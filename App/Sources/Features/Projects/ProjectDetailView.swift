@@ -94,7 +94,7 @@ struct ProjectDetailView: View {
         }
         .sheet(isPresented: $showingEdit) {
             NavigationStack {
-                ProjectEditorView(client: project.client ?? Client(name: ""), project: project)
+                ProjectEditorView(client: project.client, project: project)
             }
         }
         .sheet(isPresented: $showingInvoiceGenerator) {
