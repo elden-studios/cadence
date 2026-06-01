@@ -40,12 +40,19 @@ struct SettingsView: View {
                                 Text("\(profile.currencyCode) · Next \(profile.previewNextInvoiceNumber)")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                if !profile.isProfileEnriched {
-                                    // Its own Text (not a "· "-glued fragment) so VoiceOver
-                                    // reads a discrete status, not a run-on line (spec §6).
-                                    Text("Incomplete")
+                                let missing = profile.missingProfileFields
+                                if missing.isEmpty {
+                                    Label("Complete", systemImage: "checkmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                } else {
+                                    // Its own view (not a "· "-glued fragment) so VoiceOver
+                                    // reads a discrete status, not a run-on line.
+                                    Text("Add \(missing.map(\.label).formatted(.list(type: .and, width: .short)))")
                                         .font(.caption)
                                         .foregroundStyle(.orange)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
                                 }
                             }
                         } else {
