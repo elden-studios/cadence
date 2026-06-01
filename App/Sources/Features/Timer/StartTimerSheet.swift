@@ -107,9 +107,10 @@ struct StartTimerSheet: View {
             predicate: #Predicate { entry in entry.startedAt > cutoff },
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
-        // RecentProjects.rank traverses project.client?.isArchived; prefetch
-        // both hops to avoid N+1 faulting.
-        descriptor.relationshipKeyPathsForPrefetching = [\.project, \.project?.client]
+        // Prefetch ONLY the project hop. A nested keypath (\.project?.client)
+        // TRAPS on the CloudKit-backed store (see TodayView.recentDescriptor);
+        // client faults lazily in RecentProjects.rank.
+        descriptor.relationshipKeyPathsForPrefetching = [\.project]
         let entries = (try? modelContext.fetch(descriptor)) ?? []
         return RecentProjects.rank(from: entries, limit: 3)
     }
