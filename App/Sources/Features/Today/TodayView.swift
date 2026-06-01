@@ -465,20 +465,13 @@ private struct SummaryTile: View {
 private struct UninvoicedTile: View {
     let amount: Decimal
     let currency: String
-    /// F46: When non-nil the tile is tappable and presents the invoice generator.
-    /// Pass nil (the default) when `amount == 0` to keep the tile inert.
-    var onTap: (() -> Void)? = nil
+    let onTap: () -> Void
 
     var body: some View {
-        let tileContent = tileBody
-        if let onTap {
-            Button(action: onTap) {
-                tileContent
-            }
-            .buttonStyle(.plain)
-        } else {
-            tileContent
+        Button(action: onTap) {
+            tileBody
         }
+        .buttonStyle(.plain)
     }
 
     private var tileBody: some View {
@@ -490,12 +483,10 @@ private struct UninvoicedTile: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if onTap != nil {
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
