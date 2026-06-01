@@ -172,8 +172,13 @@ struct DayTimelineView: View {
                     onDragEnd: { _ in
                         commitActiveDrag(for: entry)
                     },
-                    onTap: { selectedEntry = entry },
-                    onLongPress: { selectedEntry = entry }
+                    onTap: { selectedEntry = entry }
+                    // No onLongPress→selectedEntry: long-press is owned by the
+                    // `.contextMenu` below. Wiring it to also present the edit
+                    // sheet meant a long-press could open the sheet AND the menu
+                    // on the same entry — then tapping Delete would nil the
+                    // selection (dismissing the sheet) and delete the model in the
+                    // same tick, faulting it mid-dismissal (SwiftData crash).
                 )
                 .frame(width: blockWidth, height: layout.height)
                 .offset(x: blockX, y: layout.y)
@@ -328,13 +333,11 @@ struct DayTimelineView: View {
         // consumes endedAt as a value, unlike splitInHalf / duplicate /
         // commitActiveDrag, so the intent is purely "reject a live session").
         guard !entry.isRunning else { return }
-        // Clear selection BEFORE deleting: long-press to open the context menu
-        // also sets `selectedEntry` (TimeBlockView.onLongPress / onTap), so
-        // without this the @State binding would point at a deleted model —
-        // isSelected reads its persistentModelID and .sheet(item:) could
-        // re-present an invalidated entry (stale UI / SwiftData crash). Niling
-        // also dismisses the edit sheet if open, which is desired since the
-        // entry is gone.
+        // Clear selection BEFORE deleting: tap (and the context-menu Edit) set
+        // `selectedEntry`, so without this the @State binding could point at the
+        // deleted model — isSelected reads its persistentModelID and .sheet(item:)
+        // could re-present an invalidated entry (stale UI / SwiftData crash).
+        // Niling also dismisses the edit sheet if it's open, which is desired here.
         if selectedEntry?.persistentModelID == entry.persistentModelID {
             selectedEntry = nil
         }
