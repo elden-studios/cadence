@@ -143,9 +143,9 @@ struct WorkView: View {
             } description: {
                 Text("Add a client and a project to start tracking.")
             } actions: {
-                Button { showingNewProject = true } label: { Text("New Project") }
+                Button { showingNewProject = true } label: { Text("New project") }
                     .buttonStyle(.borderedProminent)
-                Button { showingNewClient = true } label: { Text("Add Client") }
+                Button { showingNewClient = true } label: { Text("Add client") }
             }
         } else if groups.isEmpty {
             ContentUnavailableView("No results", systemImage: "magnifyingglass",
@@ -203,7 +203,7 @@ private struct NewProjectSheet: View {
                     } description: {
                         Text("Add a client first, then create a project for them.")
                     } actions: {
-                        Button { showingAddClient = true } label: { Text("Add Client") }
+                        Button { showingAddClient = true } label: { Text("Add client") }
                             .buttonStyle(.borderedProminent)
                     }
                 } else {

@@ -20,7 +20,7 @@ struct RecurringRulesView: View {
                 ContentUnavailableView(
                     "No recurring schedules",
                     systemImage: "arrow.triangle.2.circlepath",
-                    description: Text("To set up recurring billing, open the Invoices tab, tap +, then turn on 'Make this recurring'.")
+                    description: Text("To set up recurring billing, open the Invoices tab, tap the + button, then turn on 'Make this recurring'.")
                 )
             } else {
                 List {
