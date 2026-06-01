@@ -104,7 +104,7 @@ A spatial 24-hour vertical canvas — the editing experience competitors have be
 ## 5. Client & project management
 
 ### Clients
-- Add via `+` toolbar on the Clients tab (subject to the free-tier client cap — see Subscription)
+- Add via `+` toolbar on the Clients tab
 - Form: name (required), color (10-color picker), optional contact name/email/address/notes
 - **Archive** (swipe → gray "Archive"): client is hidden from active lists and pickers but data is preserved. Restorable.
 - **Delete** (swipe → red "Delete"): cascades to all the client's projects and time entries, with a confirmation dialog
@@ -128,10 +128,12 @@ A spatial 24-hour vertical canvas — the editing experience competitors have be
 
 ## 6. Invoice generation (the wedge)
 
+### Free vs. Pro on invoices
+Invoice creation, preview, and sending are available to **all users** — no paywall gate on invoicing. Free users' sent PDFs carry a small "Sent with Cadence" footer watermark. **Pro removes the watermark** and also unlocks the Reports tab and CSV export. Clients are unlimited on both tiers.
+
 ### Generator flow
 1. **Tap** `+` on the Invoices tab
-2. **Paywall** fires if the user is not Pro and hasn't subscribed yet
-3. **Form**:
+2. **Form**:
    - Client picker (Menu)
    - Range picker (segmented: This Week / Last Week / This Month / Last Month / Custom)
    - When Custom: two DatePickers for From / To
@@ -139,8 +141,8 @@ A spatial 24-hour vertical canvas — the editing experience competitors have be
    - Live preview of eligible entry count, total hours, subtotal — updates as the user changes the range
    - Helpful warning if no eligible entries exist
    - Notes field (optional)
-4. **Preview button** → opens InvoicePreviewView with the rendered SwiftUI template
-5. **Finalize & share** → status transitions Draft → Sent atomically (`InvoiceBuilder.finalizeAndSend`), profile's next invoice number advances, source TimeEntries are stamped with `invoiceID`, PDF rendered and cached, iOS share sheet opens
+3. **Preview button** → opens InvoicePreviewView with the rendered SwiftUI template
+4. **Finalize & share** → status transitions Draft → Sent atomically (`InvoiceBuilder.finalizeAndSend`), profile's next invoice number advances, source TimeEntries are stamped with `invoiceID`, PDF rendered and cached, iOS share sheet opens
 
 ### Eligibility rules
 A `TimeEntry` lands on an invoice when **all** of the following:
@@ -294,28 +296,29 @@ Dark navy gradient background throughout for a premium feel that contrasts with 
 | Time tracking (any volume) | ✅ | ✅ |
 | Today summary + Uninvoiced $ | ✅ | ✅ |
 | Live Activity, widgets, Siri | ✅ | ✅ |
-| Up to **2 active clients** | ✅ | — |
-| Unlimited clients | — | ✅ |
-| Create + send invoices | — | ✅ |
+| Unlimited clients & projects | ✅ | ✅ |
+| Create + send invoices | ✅ | ✅ |
+| Watermark-free invoices | — | ✅ |
 | Reports + charts | — | ✅ |
 | CSV export | — | ✅ |
 
 ### Pricing
-- **Monthly**: $5.99 (`com.eldenstudios.billable.pro.monthly`)
-- **Yearly**: $34.99 with **7-day free trial** (`com.eldenstudios.billable.pro.yearly`)
+- **Monthly**: $3.99 (`com.eldenstudios.billable.pro.monthly`)
+- **Yearly**: $39.99 with **7-day free trial** (`com.eldenstudios.billable.pro.yearly`)
+- **Lifetime**: $99.99 one-time (`com.eldenstudios.billable.pro.lifetime`)
 
 ### Paywall
-Contextual — the same sheet, different headline based on what the user was trying to do:
-- **createInvoice**: "Send your first invoice." / "Pro turns the time you tracked into a branded PDF invoice — in under 60 seconds."
-- **extraClient**: "Track unlimited clients." / "Free is great for one or two clients. Pro fits the rest of your roster."
-- **reports**: "See your full picture." / "Hours by client, billable vs. non-billable, earnings trends — all in one screen."
-- **settings**: "Go Pro." / "Unlimited invoicing, clients, reports, and exports."
+Contextual — the same sheet, different headline based on what the user was trying to do. The three active triggers are:
+- **removeWatermark** (`Trigger.removeWatermark`): "Remove the watermark." / "Pro removes 'Sent with Cadence' from your invoice PDFs and unlocks Reports + CSV export."
+- **reports** (`Trigger.reports`): "Know what you've earned — and what you're owed." / "Full Reports dashboard, watermark-free invoices, and CSV export — all in one upgrade."
+- **settings** (`Trigger.settings`): "Go Pro." / "Watermark-free invoices, full Reports, CSV exports."
 
 Sheet contents:
-- Three value bullets: Branded PDF invoices · Unlimited clients & projects · Reports & CSV export
-- Plan picker with **Yearly** selected by default, "BEST VALUE" + "7-day free trial" badges
-- Per-month equivalent shown on yearly ("Just $2.92/mo, billed yearly")
-- Subscribe button label adapts: "Start free trial" (yearly first time) or "Subscribe"
+- Three value bullets: Clean, professional invoices · Full Reports & insights · CSV export
+- Plan picker with **Yearly** selected by default (hero card, accent fill), Monthly receded below; **Lifetime** demoted affordance below the CTA
+- Savings badge on Yearly showing real dollar saving vs. 12× Monthly + "about N months free"
+- Per-month equivalent shown on yearly ("Just $X.XX per month, billed yearly")
+- Subscribe button label adapts: "Start 7-day free trial" (yearly, first time) or "Subscribe"; Lifetime shows "Buy Lifetime — $99.99"
 - Restore purchases, Terms, Privacy links
 - Fine print about auto-renew + cancellation
 

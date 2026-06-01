@@ -26,7 +26,7 @@ struct PaywallView: View {
         }
         var subhead: String {
             switch self {
-            case .reports:         "An AR-led dashboard: what you've invoiced, collected, and what's still outstanding."
+            case .reports:         "Full Reports dashboard, watermark-free invoices, and CSV export — all in one upgrade."
             case .settings:        "Watermark-free invoices, full Reports, CSV exports."
             case .removeWatermark: "Pro removes 'Sent with Cadence' from your invoice PDFs and unlocks Reports + CSV export."
             }
@@ -55,6 +55,10 @@ struct PaywallView: View {
     /// Records the Reports paywall impression only once per presentation/mount —
     /// the embedded tab stays mounted, so .onAppear re-fires on revisits. (S4-5)
     @State private var didRecordImpression = false
+    /// One-shot guard so the owned-Lifetime funnel event records exactly once per
+    /// presentation even though `ownsLifetime` resolves async after onAppear. (NEW-S1-2)
+    @State private var didRecordLifetimeOwned = false
+    @State private var restoreNotice: String?
 
     // Backing data for the `.reports` crisp-taste header. We compute a live
     // snapshot from the user's own entries/invoices so the teaser shows *their*
@@ -83,8 +87,12 @@ struct PaywallView: View {
                         }
                     }
                     lifetimeAffordance
-                    secondaryActions
-                    finePrint
+                    if manager.ownsLifetime {
+                        termsPrivacyLinks
+                    } else {
+                        secondaryActions
+                        finePrint
+                    }
                 }
                 .padding(20)
             }
@@ -95,6 +103,7 @@ struct PaywallView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { dismiss() } label: { Image(systemName: "xmark") }
                             .accessibilityLabel("Close paywall")
+                            .disabled(isProcessing)
                     }
                 }
             }
@@ -114,17 +123,31 @@ struct PaywallView: View {
                 if manager.ownsLifetime {
                     PaywallMetrics.record(.lifetimeOwnedView, variant: PricingConfig.variant,
                                           trigger: trigger.metricKey, tier: "lifetime")
+                    didRecordLifetimeOwned = true
                 }
                 recomputeTeaser()
             }
             .onChange(of: reportEntries) { recomputeTeaser() }
             .onChange(of: reportInvoices) { recomputeTeaser() }
+            .onChange(of: manager.ownsLifetime) { _, owned in
+                guard owned, !didRecordLifetimeOwned else { return }
+                didRecordLifetimeOwned = true
+                PaywallMetrics.record(.lifetimeOwnedView, variant: PricingConfig.variant,
+                                      trigger: trigger.metricKey, tier: "lifetime")
+            }
             .alert("Couldn't complete purchase", isPresented: Binding(
                 get: { error != nil }, set: { if !$0 { error = nil } }
             )) {
                 Button("OK", role: .cancel) { error = nil }
             } message: {
                 Text(error ?? "")
+            }
+            .alert("Restore purchases", isPresented: Binding(
+                get: { restoreNotice != nil }, set: { if !$0 { restoreNotice = nil } }
+            )) {
+                Button("OK", role: .cancel) { restoreNotice = nil }
+            } message: {
+                Text(restoreNotice ?? "")
             }
         }
         .interactiveDismissDisabled(isProcessing)
@@ -333,7 +356,7 @@ struct PaywallView: View {
     /// Pro, not just the contextual feature.
     private var valueBullets: some View {
         VStack(alignment: .leading, spacing: 12) {
-            bullet("doc.text", "Watermark-free PDF invoices",
+            bullet("doc.text", "Clean, professional invoices",
                    "Send polished invoices without 'Sent with Cadence' in the footer.")
             bullet("chart.bar", "Full Reports & insights",
                    "Invoiced, collected, what you're owed — plus hours by client and project.")
@@ -363,7 +386,7 @@ struct PaywallView: View {
             // the `--mock-paywall-prices` launch arg; never active in prod.
             VStack(spacing: 10) {
                 mockPlanRow(.yearly,  price: "$39.99", perCycle: "Just $3.33 per month, billed yearly")
-                mockPlanRow(.monthly, price: "$3.99",  perCycle: "Billed every month")
+                mockPlanRow(.monthly, price: "$3.99",  perCycle: "Billed monthly · Cancel anytime")
             }
         } else {
         switch manager.loadState {
@@ -545,9 +568,12 @@ struct PaywallView: View {
     /// Hidden until both products load so it can't flash an incorrect figure.
     @ViewBuilder
     private var savingsPill: some View {
-        if let m = manager.monthly?.price, let y = manager.yearly?.price,
+        let monthlyCurrency = manager.monthly?.priceFormatStyle.locale.currency?.identifier
+        let yearlyCurrency  = manager.yearly?.priceFormatStyle.locale.currency?.identifier
+        if let monthlyCurrency, let yearlyCurrency, monthlyCurrency == yearlyCurrency,
+           let m = manager.monthly?.price, let y = manager.yearly?.price,
            let s = PricingDisplay.annualSavings(monthlyPrice: m, yearlyPrice: y) {
-            Text(PricingDisplay.savingsBadge(s, currencyCode: yearlyCurrencyCode))
+            Text(PricingDisplay.savingsBadge(s, currencyCode: yearlyCurrency))
                 .font(.caption2.weight(.bold))
                 .padding(.horizontal, 6).padding(.vertical, 2)
                 .background(Color.green.opacity(0.18), in: .capsule)
@@ -575,7 +601,7 @@ struct PaywallView: View {
             let perMonth = formatter.string(from: monthly as NSDecimalNumber) ?? ""
             return "Just \(perMonth) per month, billed yearly"
         case .monthly:
-            return "Billed every month"
+            return "Billed monthly · Cancel anytime"
         case .lifetime:
             // Lifetime isn't shown in the tier picker (it lives in the demoted
             // affordance), so this is defensive — keep the switch exhaustive.
@@ -702,6 +728,20 @@ struct PaywallView: View {
         }
     }
 
+    /// Terms of Use + Privacy Policy links shown to Lifetime owners in place of
+    /// the full `secondaryActions` row (they don't need a Restore button or the
+    /// auto-renew fine print). (NEW-S1-4)
+    private var termsPrivacyLinks: some View {
+        HStack {
+            Spacer()
+            Link("Terms", destination: URL(string: "https://elden-studios.github.io/cadence/legal/terms")!)
+                .font(.subheadline)
+            Link("Privacy", destination: URL(string: "https://elden-studios.github.io/cadence/legal/privacy")!)
+                .font(.subheadline)
+        }
+        .foregroundStyle(.secondary)
+    }
+
     private var secondaryActions: some View {
         HStack {
             Button("Restore purchases") {
@@ -773,6 +813,10 @@ struct PaywallView: View {
         isProcessing = true
         defer { isProcessing = false }
         let restored = await manager.restore()
-        if restored { dismiss() }
+        if restored {
+            dismiss()
+        } else {
+            restoreNotice = "No active purchases were found for your Apple ID."
+        }
     }
 }

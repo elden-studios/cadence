@@ -7,6 +7,8 @@ struct SettingsView: View {
     @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
     @State private var showingPaywall = false
     @State private var showingManageSubscriptions = false
+    @State private var restoreNotice: String?
+    @State private var isRestoring = false
     private var subscriptions = SubscriptionManager.shared
     #if DEBUG
     @AppStorage(TimerMotionStyle.storageKey) private var timerMotionRaw = TimerMotionStyle.spring.rawValue
@@ -78,20 +80,23 @@ struct SettingsView: View {
                         Button {
                             showingPaywall = true
                         } label: {
-                            HStack {
-                                Label("Upgrade to Pro", systemImage: "sparkles")
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                            }
+                            Label("Upgrade to Pro", systemImage: "sparkles")
                         }
-                    }
-                    Button {
-                        Task { _ = await subscriptions.restore() }
-                    } label: {
-                        Label("Restore purchases", systemImage: "arrow.clockwise")
-                            .foregroundStyle(.tint)
+                        Button {
+                            isRestoring = true
+                            Task {
+                                defer { isRestoring = false }
+                                let restored = await subscriptions.restore()
+                                if !restored { restoreNotice = "No active purchases were found for your Apple ID." }
+                            }
+                        } label: {
+                            Label("Restore purchases", systemImage: "arrow.clockwise")
+                                .foregroundStyle(.tint)
+                        }
+                        .disabled(isRestoring)
+                        .overlay(alignment: .trailing) {
+                            if isRestoring { ProgressView().padding(.trailing, 4) }
+                        }
                     }
                 }
 
@@ -170,6 +175,13 @@ struct SettingsView: View {
                 PaywallView(trigger: .settings)
             }
             .manageSubscriptionsSheet(isPresented: $showingManageSubscriptions)
+            .alert("Restore purchases", isPresented: Binding(
+                get: { restoreNotice != nil }, set: { if !$0 { restoreNotice = nil } }
+            )) {
+                Button("OK", role: .cancel) { restoreNotice = nil }
+            } message: {
+                Text(restoreNotice ?? "")
+            }
         }
     }
 
