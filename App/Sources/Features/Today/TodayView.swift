@@ -423,23 +423,20 @@ private struct TodaySummarySection: View {
         let uninvoiced = uninvoicedEntries
             .reduce(into: Decimal(0)) { $0 += $1.amount(asOf: referenceDate) }
 
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Today")
-                .font(.title3.weight(.semibold))
-            HStack(spacing: 12) {
-                SummaryTile(label: "Hours", value: DurationFormatting.hoursMinutes(seconds: todaysSeconds), color: .blue)
-                SummaryTile(
-                    label: "Earnings",
-                    value: todaysAmount.formatted(.currency(code: currencyCode)),
-                    color: .green
-                )
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Today").font(.title3.weight(.semibold))
+                HStack(spacing: 12) {
+                    SummaryTile(label: "Hours", value: DurationFormatting.hoursMinutes(seconds: todaysSeconds), color: .blue)
+                    SummaryTile(label: "Earnings", value: todaysAmount.formatted(.currency(code: currencyCode)), color: .green)
+                }
             }
-            // F46: pass onTap only when there is uninvoiced work to invoice.
-            UninvoicedTile(
-                amount: uninvoiced,
-                currency: currencyCode,
-                onTap: uninvoiced > 0 ? { showingGenerator = true } : nil
-            )
+            if uninvoiced > 0 {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Ready to invoice").font(.title3.weight(.semibold))
+                    UninvoicedTile(amount: uninvoiced, currency: currencyCode, onTap: { showingGenerator = true })
+                }
+            }
         }
     }
 
@@ -485,12 +482,8 @@ private struct UninvoicedTile: View {
     }
 
     private var tileBody: some View {
-        // F20: label updated to "UNINVOICED · ALL PROJECTS" to clarify scope.
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("UNINVOICED · ALL PROJECTS")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
                 Text(amount.formatted(.currency(code: currency)))
                     .font(.system(size: 36, weight: .bold, design: .rounded).monospacedDigit())
                 Text("Hours you've tracked but haven't invoiced yet.")
