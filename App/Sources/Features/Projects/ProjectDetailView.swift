@@ -147,12 +147,13 @@ struct ProjectDetailView: View {
                 }
             }
             .font(.subheadline)
-            .foregroundStyle(.white.opacity(0.9))
+            .foregroundStyle(.white)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
         .background(
-            LinearGradient(colors: [.timerAccent, .timerAccent.opacity(0.85)],
+            LinearGradient(colors: [Color(red: 0.69, green: 0.34, blue: 0.09),
+                                    Color(red: 0.62, green: 0.27, blue: 0.03)],
                            startPoint: .topLeading, endPoint: .bottomTrailing),
             in: .rect(cornerRadius: 18)
         )
