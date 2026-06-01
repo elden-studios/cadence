@@ -20,7 +20,7 @@ struct RecurringRulesView: View {
                 ContentUnavailableView(
                     "No recurring schedules",
                     systemImage: "arrow.triangle.2.circlepath",
-                    description: Text("Set up monthly billing for a retainer client from the New Invoice screen.")
+                    description: Text("To set up recurring billing, open the Invoices tab, tap +, then turn on 'Make this recurring'.")
                 )
             } else {
                 List {
@@ -32,11 +32,13 @@ struct RecurringRulesView: View {
                             Button(role: .destructive) { delete(template) } label: {
                                 Label("Delete", systemImage: "trash")
                             }
-                            Button { togglePause(template) } label: {
-                                Label(template.isActive ? "Pause" : "Resume",
-                                      systemImage: template.isActive ? "pause" : "play")
+                            if !template.isEnded() {
+                                Button { togglePause(template) } label: {
+                                    Label(template.isActive ? "Pause" : "Resume",
+                                          systemImage: template.isActive ? "pause" : "play")
+                                }
+                                .tint(.orange)
                             }
-                            .tint(.orange)
                         }
                     }
                 }

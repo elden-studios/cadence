@@ -103,6 +103,8 @@ struct WorkView: View {
         // Group by client identity (not name) so two clients sharing a name
         // don't collide into one section. Projects within a group keep the
         // @Query's name order (Dictionary(grouping:) preserves insertion order).
+        // "No client" bucket: load-bearing for the quickStart "General"
+        // project (client-less by design). Do not remove.
         let byClient = Dictionary(grouping: filteredProjects) { $0.client?.persistentModelID }
         return byClient.map { id, projects in
             let client = projects.first?.client
@@ -140,6 +142,10 @@ struct WorkView: View {
                 Label("No projects yet", systemImage: "folder")
             } description: {
                 Text("Add a client and a project to start tracking.")
+            } actions: {
+                Button { showingNewProject = true } label: { Text("New Project") }
+                    .buttonStyle(.borderedProminent)
+                Button { showingNewClient = true } label: { Text("Add Client") }
             }
         } else if groups.isEmpty {
             ContentUnavailableView("No results", systemImage: "magnifyingglass",
@@ -186,16 +192,20 @@ private struct NewProjectSheet: View {
     // Store the ID, not the model, in @State (more robust than holding a
     // SwiftData object across view updates); resolve from `clients` on push.
     @State private var selectedClientID: PersistentIdentifier?
+    @State private var showingAddClient = false
 
     var body: some View {
         NavigationStack {
             Group {
                 if clients.isEmpty {
-                    ContentUnavailableView(
-                        "No clients yet",
-                        systemImage: "person.2",
-                        description: Text("Add a client first, then create a project for them.")
-                    )
+                    ContentUnavailableView {
+                        Label("No clients yet", systemImage: "person.2")
+                    } description: {
+                        Text("Add a client first, then create a project for them.")
+                    } actions: {
+                        Button { showingAddClient = true } label: { Text("Add Client") }
+                            .buttonStyle(.borderedProminent)
+                    }
                 } else {
                     List(clients) { client in
                         Button {
@@ -222,6 +232,9 @@ private struct NewProjectSheet: View {
                 if let client = clients.first(where: { $0.persistentModelID == id }) {
                     ProjectEditorView(client: client, project: nil, onSaved: { dismiss() })
                 }
+            }
+            .sheet(isPresented: $showingAddClient) {
+                NavigationStack { ClientEditorView(client: nil) }
             }
         }
     }
