@@ -190,10 +190,21 @@ struct DayTimelineView: View {
 
     private func blockContextMenu(for entry: TimeEntry) -> some View {
         Group {
+            // A running session is managed from the Today / running-timer card, not
+            // mutated here. Split/Duplicate only apply to a finished span (they no-op
+            // on a live entry), and a raw Delete of the running entry would bypass
+            // TimerActions.stop and ORPHAN the Live Activity (it would tick forever and
+            // re-adopt on next launch with no backing entry). So gate the mutating
+            // actions on a finished entry — consistent with ManualEntrySheet's
+            // running-entry guard and the `endedAt != nil` guards in splitInHalf /
+            // duplicate / commitActiveDrag above. Edit stays available: it opens
+            // ManualEntrySheet, which blocks Save with a "stop the timer first" hint.
             Button("Edit") { selectedEntry = entry }
-            Button("Split here") { splitInHalf(entry) }
-            Button("Duplicate") { duplicate(entry) }
-            Button("Delete", role: .destructive) { delete(entry) }
+            if !entry.isRunning {
+                Button("Split here") { splitInHalf(entry) }
+                Button("Duplicate") { duplicate(entry) }
+                Button("Delete", role: .destructive) { delete(entry) }
+            }
         }
     }
 
@@ -310,6 +321,11 @@ struct DayTimelineView: View {
     }
 
     private func delete(_ entry: TimeEntry) {
+        // Defense-in-depth (the context menu already hides Delete for a running
+        // entry): never raw-delete a live session here — it bypasses
+        // TimerActions.stop and orphans the Live Activity. Mirrors the
+        // `endedAt != nil` guards in splitInHalf / duplicate / commitActiveDrag.
+        guard entry.endedAt != nil else { return }
         modelContext.delete(entry)
         modelContext.saveOrLog("delete entry")
     }
