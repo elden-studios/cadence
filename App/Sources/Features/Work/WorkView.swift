@@ -245,15 +245,19 @@ private struct ProjectBrowserRow: View {
     let onPlay: () -> Void
 
     var body: some View {
+        // Compute asOf-independent stats once per row render (outside the TimelineView)
+        // so the per-second tick only does the O(1) ticking call. (Phase 7 / WS3)
+        let runningEntry: TimeEntry? = isRunning ? project.entries.first(where: { $0.isRunning }) : nil
+        let statsBase = ProjectStats.base(for: project)
         // Only the running row ticks: wrap just it in a TimelineView so its
         // hours/earnings update live without churning the whole list per second.
         Group {
             if isRunning {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    rowContent(asOf: context.date)
+                    rowContent(asOf: context.date, statsBase: statsBase, runningEntry: runningEntry)
                 }
             } else {
-                rowContent(asOf: .now)
+                rowContent(asOf: .now, statsBase: statsBase, runningEntry: runningEntry)
             }
         }
         // NavigationLink lives in the background (hidden) so the whole row
@@ -268,7 +272,7 @@ private struct ProjectBrowserRow: View {
     }
 
     @ViewBuilder
-    private func rowContent(asOf: Date) -> some View {
+    private func rowContent(asOf: Date, statsBase: ProjectStats, runningEntry: TimeEntry?) -> some View {
         HStack(spacing: 12) {
             HStack(spacing: 12) {
                 Circle()
@@ -276,7 +280,7 @@ private struct ProjectBrowserRow: View {
                     .frame(width: 10, height: 10)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(project.name)
-                    Text(statsLine(asOf: asOf))
+                    Text(statsLine(asOf: asOf, statsBase: statsBase, runningEntry: runningEntry))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -298,8 +302,8 @@ private struct ProjectBrowserRow: View {
         }
     }
 
-    private func statsLine(asOf: Date) -> String {
-        let stats = ProjectStats.compute(for: project, asOf: asOf)
+    private func statsLine(asOf: Date, statsBase: ProjectStats, runningEntry: TimeEntry?) -> String {
+        let stats = statsBase.ticking(running: runningEntry, asOf: asOf)
         let time = DurationFormatting.hoursMinutes(seconds: stats.lifetimeSeconds)
         guard project.isBillable else { return time }
         return "\(time) · \(stats.lifetimeValue.formatted(.currency(code: currencyCode)))"

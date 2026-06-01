@@ -51,6 +51,11 @@ struct ProjectDetailView: View {
         let sortedEntries = project.entries.sorted { $0.startedAt > $1.startedAt }
         let groupedEntries = Array(sortedEntries.prefix(5)).groupedByMonth()
         let totalCount = sortedEntries.count
+        // Compute asOf-independent stats once per real model change (outside the
+        // per-second TimelineView). Only the running entry's live time/value ticks;
+        // everything else (session count, active days, first day, completed entries'
+        // duration/value) is stable. The `ticking` call inside `content` is O(1).
+        let statsBase = ProjectStats.base(for: project)
         return ScrollView {
             // ONE stable TimelineView — ticks every second only while a timer is
             // running (TimerTickSchedule), otherwise emits a single frame. Keeping
@@ -59,7 +64,7 @@ struct ProjectDetailView: View {
             // being destroyed/recreated on start/stop (which previously killed the
             // transition).
             TimelineView(TimerTickSchedule(running: runningEntryForProject != nil)) { context in
-                content(asOf: context.date, groupedEntries: groupedEntries, totalCount: totalCount)
+                content(asOf: context.date, groupedEntries: groupedEntries, totalCount: totalCount, statsBase: statsBase)
             }
             .padding()
         }
@@ -114,8 +119,8 @@ struct ProjectDetailView: View {
     }
 
     @ViewBuilder
-    private func content(asOf: Date, groupedEntries: [(String, [TimeEntry])], totalCount: Int) -> some View {
-        let stats = ProjectStats.compute(for: project, asOf: asOf)
+    private func content(asOf: Date, groupedEntries: [(String, [TimeEntry])], totalCount: Int, statsBase: ProjectStats) -> some View {
+        let stats = statsBase.ticking(running: runningEntryForProject, asOf: asOf)
         VStack(alignment: .leading, spacing: 20) {
             hero(stats: stats)
             engagementLine(stats: stats)

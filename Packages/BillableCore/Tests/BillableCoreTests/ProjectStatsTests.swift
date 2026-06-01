@@ -112,3 +112,48 @@ struct ProjectStatsTests {
         #expect(stats.sessionCount == 1)
     }
 }
+
+@Suite("ProjectStats base + ticking equivalence")
+@MainActor
+struct ProjectStatsBaseTickingTests {
+    @Test("base().ticking(running:asOf:) equals compute(asOf:) for a project with a running entry")
+    func baseTickingEqualsCompute() throws {
+        let container = try BillableModelContainer.inMemory()
+        let context = ModelContext(container)
+        let client = Client(name: "Acme")
+        let project = Project(name: "Alpha", hourlyRate: 100, isBillable: true, client: client)
+        context.insert(client); context.insert(project)
+
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let c1 = TimeEntry(startedAt: now.addingTimeInterval(-7200), endedAt: now.addingTimeInterval(-3600),
+                           isManual: true, project: project, accumulatedSeconds: 3600)
+        c1.invoiceID = UUID()
+        let c2 = TimeEntry(startedAt: now.addingTimeInterval(-3600), endedAt: now.addingTimeInterval(-1800),
+                           isManual: true, project: project, accumulatedSeconds: 1800)
+        let running = TimeEntry(startedAt: now.addingTimeInterval(-600), endedAt: nil,
+                                project: project, accumulatedSeconds: 0, activeSegmentStartedAt: now.addingTimeInterval(-600))
+        context.insert(c1); context.insert(c2); context.insert(running)
+        try context.save()
+
+        let base = ProjectStats.base(for: project)
+        for offset in [0.0, 1.0, 60.0, 3600.0] {
+            let asOf = now.addingTimeInterval(offset)
+            #expect(base.ticking(running: running, asOf: asOf) == ProjectStats.compute(for: project, asOf: asOf))
+        }
+
+        // ticking(running: nil) is a no-op (self). Verify it equals compute on a project
+        // that has no running entry (only completed entries), so both sides agree.
+        let client2 = Client(name: "Acme2")
+        let project2 = Project(name: "AlphaNoRunning", hourlyRate: 100, isBillable: true, client: client2)
+        context.insert(client2); context.insert(project2)
+        let d1 = TimeEntry(startedAt: now.addingTimeInterval(-7200), endedAt: now.addingTimeInterval(-3600),
+                           isManual: true, project: project2, accumulatedSeconds: 3600)
+        d1.invoiceID = UUID()
+        let d2 = TimeEntry(startedAt: now.addingTimeInterval(-3600), endedAt: now.addingTimeInterval(-1800),
+                           isManual: true, project: project2, accumulatedSeconds: 1800)
+        context.insert(d1); context.insert(d2)
+        try context.save()
+        #expect(ProjectStats.base(for: project2).ticking(running: nil, asOf: now)
+                == ProjectStats.compute(for: project2, asOf: now))
+    }
+}
