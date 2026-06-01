@@ -146,6 +146,7 @@ struct WorkView: View {
                 Button { showingNewProject = true } label: { Text("New project") }
                     .buttonStyle(.borderedProminent)
                 Button { showingNewClient = true } label: { Text("Add client") }
+                    .buttonStyle(.bordered)
             }
         } else if groups.isEmpty {
             ContentUnavailableView("No results", systemImage: "magnifyingglass",
