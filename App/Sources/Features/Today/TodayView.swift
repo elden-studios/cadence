@@ -141,7 +141,7 @@ struct TodayView: View {
         case .nameBanner:
             nameBanner
         case .getStarted:
-            GetStartedSection(clients: allClients, currencyCode: currencyCode)
+            GetStartedSection(clients: allClients)
                 .padding(.horizontal)
         case .enrichment:
             enrichmentNudge
