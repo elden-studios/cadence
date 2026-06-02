@@ -1,6 +1,20 @@
 import Foundation
 import StoreKit
 
+/// Tri-state availability of the Lifetime (non-consumable) tier, derived purely from
+/// load state + which products resolved. Lets the paywall distinguish "still loading"
+/// from "the store genuinely has no transactable lifetime product" without ever
+/// surfacing a price the store can't transact.
+public enum LifetimeAvailability: Equatable, Sendable {
+    /// Products are still being fetched (or the whole fetch came back empty / failed).
+    case loading
+    /// The lifetime product resolved and is transactable.
+    case available
+    /// Other products resolved but lifetime did NOT — a real gap (e.g. ASC product
+    /// not yet approved). The paywall must hide the buy affordance for this tier.
+    case unavailable
+}
+
 /// Observable hub for Billable Pro subscriptions (StoreKit 2).
 ///
 /// Holds the loaded products, tracks the user's current entitlement, and
@@ -181,6 +195,25 @@ public final class SubscriptionManager {
     static func resolveEntitlement(ownsLifetime: Bool, subscription: Entitlement?) -> Entitlement {
         if ownsLifetime { return .pro }
         return subscription ?? .free
+    }
+
+    /// Pure guard: decide whether the Lifetime tier should render as available,
+    /// still-loading, or genuinely unavailable. We only declare `.unavailable` when
+    /// the catalog is `.ready` AND at least one OTHER product resolved AND lifetime is
+    /// absent — that isolates "lifetime product missing" from "the whole fetch is empty
+    /// / still in flight / failed" (those stay `.loading`, owned by the existing
+    /// idle/loading/failed UI). Never returns `.available` without a real product, so
+    /// the caller can guarantee it never shows an untransactable price.
+    ///
+    /// `nonisolated` — pure computation over value types; no actor hop needed.
+    nonisolated static func lifetimeAvailability(
+        loadState: LoadState,
+        hasLifetimeProduct: Bool,
+        hasAnySubscriptionProduct: Bool
+    ) -> LifetimeAvailability {
+        guard loadState == .ready else { return .loading }
+        if hasLifetimeProduct { return .available }
+        return hasAnySubscriptionProduct ? .unavailable : .loading
     }
 
     /// Race the operation against a sleep task. First to finish wins.
