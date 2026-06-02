@@ -62,4 +62,146 @@ struct ReportsCollectedTrendTests {
         // Empty input → all zero buckets (gap-filled, not an empty array).
         #expect(points.allSatisfy { $0.amount == 0 })
     }
+
+    // MARK: - Task 17: paidAt-bucketing (behavior lock)
+
+    @Test("a paid invoice sums into the bucket of its paidAt month at invoice.total")
+    func paidInvoiceLandsInPaidMonth() {
+        // Paid 2 months ago.
+        let paidDate = gregorian.date(byAdding: .day, value: 3, to: monthStart(2))!
+        let inv = makeInvoice(total: 500, status: .paid, issued: paidDate, paid: paidDate)
+
+        let points = ReportsAggregator.collectedMonthlyTrend(
+            invoices: [inv], activeCurrency: "USD", monthsBack: 6, asOf: asOf, calendar: gregorian
+        )
+
+        // Index 3 == "2 months ago" in a 6-bucket oldest→newest window (0:−5 … 5:−0).
+        #expect(points[3].bucketStart == monthStart(2))
+        #expect(points[3].amount == 500)
+        // Every other bucket stays zero.
+        #expect(points.enumerated().filter { $0.offset != 3 }.allSatisfy { $0.element.amount == 0 })
+    }
+
+    @Test("an invoice issued in an earlier month but paid in a later in-window month lands in the PAID month")
+    func bucketsByPaidAtNotIssuedAt() {
+        let issued = gregorian.date(byAdding: .day, value: 2, to: monthStart(4))!   // issued 4 months ago
+        let paid = gregorian.date(byAdding: .day, value: 5, to: monthStart(1))!     // paid 1 month ago
+        let inv = makeInvoice(total: 750, status: .paid, issued: issued, paid: paid)
+
+        let points = ReportsAggregator.collectedMonthlyTrend(
+            invoices: [inv], activeCurrency: "USD", monthsBack: 6, asOf: asOf, calendar: gregorian
+        )
+
+        // Lands in the PAID month (index 4 == 1 month ago), NOT the issued month (index 1 == 4 months ago).
+        #expect(points[4].amount == 750)
+        #expect(points[1].amount == 0)
+    }
+
+    // MARK: - Task 18: Exclusions + same-month aggregation (behavior lock)
+
+    @Test("draft and sent invoices contribute 0 (only .paid counts)")
+    func nonPaidStatusesExcluded() {
+        let when = gregorian.date(byAdding: .day, value: 3, to: monthStart(2))!
+        let draft = makeInvoice(total: 999, status: .draft, issued: when, paid: nil)
+        let sent  = makeInvoice(total: 888, status: .sent,  issued: when, paid: nil)
+
+        let points = ReportsAggregator.collectedMonthlyTrend(
+            invoices: [draft, sent], activeCurrency: "USD", monthsBack: 6, asOf: asOf, calendar: gregorian
+        )
+        #expect(points.allSatisfy { $0.amount == 0 })
+    }
+
+    @Test("a .paid invoice with paidAt == nil is excluded")
+    func paidWithNilPaidAtExcluded() {
+        let when = gregorian.date(byAdding: .day, value: 3, to: monthStart(2))!
+        let inv = makeInvoice(total: 600, status: .paid, issued: when, paid: nil)
+
+        let points = ReportsAggregator.collectedMonthlyTrend(
+            invoices: [inv], activeCurrency: "USD", monthsBack: 6, asOf: asOf, calendar: gregorian
+        )
+        #expect(points.allSatisfy { $0.amount == 0 })
+    }
+
+    @Test("paid OLDER than the window, and paid in a FUTURE month, are both excluded")
+    func outOfWindowExcluded() {
+        let tooOld = gregorian.date(byAdding: .day, value: 3, to: monthStart(7))!   // 7 months ago (window is 6)
+        let future = gregorian.date(byAdding: .month, value: 2, to: asOf)!          // 2 months ahead
+        let oldInv = makeInvoice(total: 400, status: .paid, issued: tooOld, paid: tooOld)
+        let futInv = makeInvoice(total: 300, status: .paid, issued: future, paid: future)
+
+        let points = ReportsAggregator.collectedMonthlyTrend(
+            invoices: [oldInv, futInv], activeCurrency: "USD", monthsBack: 6, asOf: asOf, calendar: gregorian
+        )
+        #expect(points.allSatisfy { $0.amount == 0 })
+    }
+
+    @Test("an invoice in a non-matching currency contributes 0 (currency guard)")
+    func currencyGuardExcludes() {
+        let when = gregorian.date(byAdding: .day, value: 3, to: monthStart(2))!
+        let foreign = makeInvoice(total: 5000, status: .paid, issued: when, paid: when, currency: "EUR")
+
+        let points = ReportsAggregator.collectedMonthlyTrend(
+            invoices: [foreign], activeCurrency: "USD", monthsBack: 6, asOf: asOf, calendar: gregorian
+        )
+        #expect(points.allSatisfy { $0.amount == 0 })
+    }
+
+    @Test("two paid invoices in the same month aggregate into one bucket")
+    func sameMonthAggregates() {
+        let d1 = gregorian.date(byAdding: .day, value: 2,  to: monthStart(3))!
+        let d2 = gregorian.date(byAdding: .day, value: 20, to: monthStart(3))!
+        let a = makeInvoice(total: 200, status: .paid, issued: d1, paid: d1)
+        let b = makeInvoice(total: 350, status: .paid, issued: d2, paid: d2)
+
+        let points = ReportsAggregator.collectedMonthlyTrend(
+            invoices: [a, b], activeCurrency: "USD", monthsBack: 6, asOf: asOf, calendar: gregorian
+        )
+        // Index 2 == 3 months ago.
+        #expect(points[2].amount == 550)
+    }
+
+    // MARK: - Task 19: Month-boundary instant + tax-inclusive total (behavior lock)
+
+    @Test("paidAt exactly at a month's first instant lands in that month, not the prior one")
+    func monthBoundaryInstant() {
+        let boundary = monthStart(2)   // 00:00:00 on the first of the month, 2 months ago
+        let inv = makeInvoice(total: 100, status: .paid, issued: boundary, paid: boundary)
+
+        let points = ReportsAggregator.collectedMonthlyTrend(
+            invoices: [inv], activeCurrency: "USD", monthsBack: 6, asOf: asOf, calendar: gregorian
+        )
+        // Index 3 == 2 months ago; index 4 == 1 month ago (the would-be "prior month" error bucket).
+        #expect(points[3].amount == 100)
+        #expect(points[4].amount == 0)
+    }
+
+    @Test("amount equals tax-inclusive total (subtotal + tax), not subtotal")
+    func amountIsTaxInclusive() {
+        let when = gregorian.date(byAdding: .day, value: 3, to: monthStart(2))!
+        // subtotal 1000, taxRate 0.15 → total 1150.
+        let inv = makeInvoice(total: 1000, status: .paid, issued: when, paid: when, taxRate: 0.15)
+
+        let points = ReportsAggregator.collectedMonthlyTrend(
+            invoices: [inv], activeCurrency: "USD", monthsBack: 6, asOf: asOf, calendar: gregorian
+        )
+        #expect(points[3].amount == Decimal(1150))
+    }
+
+    // MARK: - Task 20: hasEnoughCollectedHistory gate (red → Task 21)
+
+    @Test("hasEnoughCollectedHistory requires ≥2 distinct months with positive collected amount")
+    func enoughHistoryPredicate() {
+        let zero = (0..<6).reversed().map { ReportsAggregator.TrendPoint(id: monthStart($0), bucketStart: monthStart($0), amount: 0) }
+        #expect(ReportsAggregator.hasEnoughCollectedHistory(zero) == false)
+
+        // Exactly one positive month → still not enough.
+        var one = zero
+        one[3] = ReportsAggregator.TrendPoint(id: one[3].id, bucketStart: one[3].bucketStart, amount: 500)
+        #expect(ReportsAggregator.hasEnoughCollectedHistory(one) == false)
+
+        // Two positive months → enough.
+        var two = one
+        two[5] = ReportsAggregator.TrendPoint(id: two[5].id, bucketStart: two[5].bucketStart, amount: 200)
+        #expect(ReportsAggregator.hasEnoughCollectedHistory(two) == true)
+    }
 }

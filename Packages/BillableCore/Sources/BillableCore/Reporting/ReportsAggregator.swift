@@ -245,6 +245,14 @@ public enum ReportsAggregator {
         return points
     }
 
+    /// Presentation gate for the paywall teaser: returns `true` only when at least two distinct
+    /// months in the trend carry a positive collected amount. Below that threshold the caller
+    /// shows a clearly-labeled SAMPLE chart instead of a sparse/declining real trend, so a thin
+    /// history never reads as "your numbers". Pure predicate — unit-tested in BillableCore.
+    public static func hasEnoughCollectedHistory(_ trend: [TrendPoint]) -> Bool {
+        trend.filter { $0.amount > 0 }.count >= 2
+    }
+
     // MARK: - Per-client / per-project grouping (existing behaviour, lifted)
 
     private static func groupings(
