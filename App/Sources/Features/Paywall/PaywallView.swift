@@ -8,6 +8,10 @@ import BillableCore
 /// Upgrade). Designed for one job: communicate value, accept the purchase, and
 /// get out of the way fast.
 struct PaywallView: View {
+    /// Shared gold accent for the Lifetime "pay once" tier. Extracted so both
+    /// `mockPlanRow` and `planRow` reference the same literal.
+    private static let lifetimeGold = Color(red: 0.72, green: 0.53, blue: 0.04)
+
     @Environment(\.dismiss) private var dismiss
 
     /// What action the user was trying to take when the paywall fired —
@@ -432,12 +436,9 @@ struct PaywallView: View {
         let isSelected = selection == plan
         let isHero = (plan == .yearly)
         let isLifetime = (plan == .lifetime)
-        let lifetimeGold = Color(red: 0.72, green: 0.53, blue: 0.04)
-        let selectionAccent: Color = isLifetime ? lifetimeGold : Color.accentColor
+        let selectionAccent: Color = isLifetime ? Self.lifetimeGold : Color.accentColor
         Button {
             selection = plan
-            PaywallMetrics.record(.tierSelected, variant: PricingConfig.variant,
-                                  trigger: trigger.metricKey, tier: plan.rawValue)
         } label: {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -454,8 +455,8 @@ struct PaywallView: View {
                             Text(PricingConfig.payOnceBadge)
                                 .font(.caption2.weight(.bold))
                                 .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(lifetimeGold.opacity(0.16), in: .capsule)
-                                .foregroundStyle(lifetimeGold)
+                                .background(Self.lifetimeGold.opacity(0.16), in: .capsule)
+                                .foregroundStyle(Self.lifetimeGold)
                         }
                     }
                     Text(perCycle)
@@ -518,8 +519,7 @@ struct PaywallView: View {
         }()
         // Gold accent for the Lifetime "pay once" peer; blue accent hero for Yearly;
         // recessed card for Monthly. Lifetime's selected border/badge read gold.
-        let lifetimeGold = Color(red: 0.72, green: 0.53, blue: 0.04)
-        let selectionAccent: Color = isLifetime ? lifetimeGold : Color.accentColor
+        let selectionAccent: Color = isLifetime ? Self.lifetimeGold : Color.accentColor
 
         Button {
             selection = plan
@@ -541,8 +541,8 @@ struct PaywallView: View {
                             Text(PricingConfig.payOnceBadge)
                                 .font(.caption2.weight(.bold))
                                 .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(lifetimeGold.opacity(0.16), in: .capsule)
-                                .foregroundStyle(lifetimeGold)
+                                .background(Self.lifetimeGold.opacity(0.16), in: .capsule)
+                                .foregroundStyle(Self.lifetimeGold)
                         }
                     }
                     if let sub = planSubLine(plan, product: product) {
@@ -644,15 +644,6 @@ struct PaywallView: View {
         }
     }
 
-    /// ISO currency code for badge/copy money. `Decimal.FormatStyle.Currency`
-    /// doesn't expose its code on this SDK, so derive it from the product's own
-    /// locale, falling back to the device currency then USD.
-    private var yearlyCurrencyCode: String {
-        manager.yearly?.priceFormatStyle.locale.currency?.identifier
-            ?? Locale.current.currency?.identifier
-            ?? "USD"
-    }
-
     private var purchaseButton: some View {
         Button {
             Task { await runPurchase() }
@@ -728,14 +719,12 @@ struct PaywallView: View {
         }
     }
 
-    /// Demoted "or pay once" lifetime option — rendered BELOW the trial-led CTA,
-    /// not as a co-equal third tier. When the user already owns Lifetime it
-    /// collapses to the owned-state label (the rest of the purchase UI is hidden
-    /// by the body's `!ownsLifetime` guard), which doubles as the double-buy guard.
-    /// Display price for the Lifetime tier, or nil when it shouldn't be offered.
-    /// Real path: the loaded StoreKit product's localized price. Mock path
-    /// (`--mock-paywall-prices`, no live products): a static list price so the
-    /// affordance + CTA render in marketing screenshots / demos. nil ⇒ hide it.
+    /// Resolved localized display price for the Lifetime tier, feeding both the
+    /// CTA button title (`"Buy Lifetime — <price>"`) and the CTA's disable guard
+    /// (a nil value disables the button so it never shows a bare trailing "— ").
+    /// Real path: the loaded StoreKit product's localized price string. Mock path
+    /// (`--mock-paywall-prices`, no live products): falls back to `"$99.99"` so
+    /// the CTA renders correctly in marketing screenshots / demos. nil ⇒ disable.
     private var lifetimeDisplayPrice: String? {
         if let lifetime = manager.lifetime { return lifetime.displayPrice }
         return mockPaywallPrices ? "$99.99" : nil

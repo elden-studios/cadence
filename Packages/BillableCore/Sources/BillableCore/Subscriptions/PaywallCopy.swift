@@ -11,7 +11,7 @@ public enum PaywallCopy {
     /// - Returns nil when `yearlyPrice` is absent (products not loaded yet) so the
     ///   caller can hide the line rather than flash an incorrect figure.
     /// - Omits the "· N months free" clause when `monthlyPrice` is absent or the
-    ///   yearly isn't actually cheaper than 12× monthly (mirrors `savingsPill`'s guard).
+    ///   yearly isn't actually cheaper than 12× monthly, per `PricingDisplay.annualSavings`.
     public static func monthlyEquivalentLine(
         yearlyPrice: Decimal?,
         monthlyPrice: Decimal?,
