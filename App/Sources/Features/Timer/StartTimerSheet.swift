@@ -28,7 +28,7 @@ struct StartTimerSheet: View {
     var onStarted: (TimeEntry) -> Void = { _ in }
 
     private var hasAnyProject: Bool {
-        !recentProjects.isEmpty || clients.contains { !activeProjects(of: $0).isEmpty }
+        !recentProjects.isEmpty || clients.contains { $0.projects.contains { !$0.isArchived } }
     }
 
     var body: some View {

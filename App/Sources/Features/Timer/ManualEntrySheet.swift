@@ -41,7 +41,7 @@ struct ManualEntrySheet: View {
     }
 
     private var hasAnyProject: Bool {
-        clients.contains { !$0.projects.filter { !$0.isArchived }.isEmpty }
+        clients.contains { $0.projects.contains { !$0.isArchived } }
     }
 
     private var isEditing: Bool { editing != nil }
