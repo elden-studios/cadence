@@ -1369,7 +1369,7 @@ Read the exact current `crispTasteHeader`, `teaserARCard`, `teaserTileRow`, `tea
     }
 ```
 
-> NOTE: Bar color is `Color.green.gradient` (semantic match to the green COLLECTED tile) per the locked design; the established chart color in `revenueTrendChart` is `Color.blue.gradient` — FLAG to owner in the PR description that green is the deliberate choice, blue is the swap. `BarMark` is fed a `Double` via `(point.amount as NSDecimalNumber).doubleValue`, matching `ReportsView.revenueTrendChart` (Task 13) — NOT a raw `Decimal`. The tint-derived eyebrow/border carry the "locked Pro preview" treatment that does not exist today.
+> NOTE: Bar color is `Color.green.gradient` — **OWNER CONFIRMED green (2026-06-02)**: the semantic match to the green COLLECTED tile. The considered alternative (`revenueTrendChart`'s `Color.blue.gradient`) was declined — do NOT use blue. `BarMark` is fed a `Double` via `(point.amount as NSDecimalNumber).doubleValue`, matching `ReportsView.revenueTrendChart` (Task 13) — NOT a raw `Decimal`. The tint-derived eyebrow/border carry the "locked Pro preview" treatment that does not exist today.
 
 **(d) Replace the showcase block in `crispTasteHeader`.** Swap the old `teaserARCard(model)` + `teaserTileRow(model)` (the tiles) for `teaserChartHero(model)` as the LEADING element, preserving the existing `.redacted(reason: isPlaceholder ? .placeholder : [])` + `.accessibilityHidden(true)` wrapper and the existing `.caption2`/`.tertiary` "Sample preview" tag shown when `model.isSample && !isPlaceholder`. Concretely, inside `crispTasteHeader`, replace the two showcase calls with:
 
