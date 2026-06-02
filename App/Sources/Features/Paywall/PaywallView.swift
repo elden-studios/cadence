@@ -223,7 +223,8 @@ struct PaywallView: View {
         let overdueCount: Int
         let avgDaysToPay: Int?
         let invoiced: Decimal
-        let collected: Decimal
+        /// Year-to-date collected (Σ paid invoice totals in the current calendar year).
+        let collectedThisYear: Decimal
         let effectiveRate: Decimal?
         let isSample: Bool
         /// Six monthly "collected" buckets (oldest→newest) driving the teaser bar chart.
@@ -255,14 +256,17 @@ struct PaywallView: View {
     /// real snapshot. Pure static sample — never touches @Query data, so it costs
     /// nothing in `body`; real numbers replace it on `.onAppear`.
     private func sampleTeaserModel() -> ReportsTeaserModel {
-        ReportsTeaserModel(
+        // Use the sum of collectedLast6Months as the "This year" sample so the stat
+        // cell is non-zero and coherent with the sample chart bars.
+        let sampleCollectedYTD = ReportsSampleData.collectedLast6Months.reduce(Decimal(0), +)
+        return ReportsTeaserModel(
             currencyCode: profiles.first?.currencyCode ?? "USD",
             outstanding: ReportsSampleData.outstanding,
             overdue: ReportsSampleData.overdue,
             overdueCount: ReportsSampleData.overdueCount,
             avgDaysToPay: ReportsSampleData.avgDaysToPay,
             invoiced: ReportsSampleData.invoiced,
-            collected: ReportsSampleData.collected,
+            collectedThisYear: sampleCollectedYTD,
             effectiveRate: ReportsSampleData.effectiveRate,
             isSample: true,
             collectedSeries: sampleCollectedSeries()
@@ -288,6 +292,12 @@ struct PaywallView: View {
         )
         let collectedHistoryOK = ReportsAggregator.hasEnoughCollectedHistory(realSeries)
         if snap.hasReportableData && collectedHistoryOK {
+            // YTD collected: pure Invoice-scalar helper, no relationship traversal,
+            // reuses the existing reportInvoices @Query — no new fetch.
+            let ytd = ReportsAggregator.collectedThisYear(
+                invoices: reportInvoices,
+                activeCurrency: code
+            )
             return ReportsTeaserModel(
                 currencyCode: code,
                 outstanding: snap.ar.outstanding,
@@ -295,12 +305,13 @@ struct PaywallView: View {
                 overdueCount: snap.ar.overdueCount,
                 avgDaysToPay: snap.ar.avgDaysToPay.map { Int($0.rounded()) },
                 invoiced: snap.money.invoiced,
-                collected: snap.money.collected,
+                collectedThisYear: ytd,
                 effectiveRate: snap.performance.effectiveRate,
                 isSample: false,
                 collectedSeries: realSeries
             )
         } else {
+            let sampleCollectedYTD = ReportsSampleData.collectedLast6Months.reduce(Decimal(0), +)
             return ReportsTeaserModel(
                 currencyCode: code,
                 outstanding: ReportsSampleData.outstanding,
@@ -308,7 +319,7 @@ struct PaywallView: View {
                 overdueCount: ReportsSampleData.overdueCount,
                 avgDaysToPay: ReportsSampleData.avgDaysToPay,
                 invoiced: ReportsSampleData.invoiced,
-                collected: ReportsSampleData.collected,
+                collectedThisYear: sampleCollectedYTD,
                 effectiveRate: ReportsSampleData.effectiveRate,
                 isSample: true,
                 collectedSeries: sampleCollectedSeries()
@@ -371,7 +382,7 @@ struct PaywallView: View {
         HStack(spacing: 16) {
             statCell("Owed", currency(model.outstanding, code: model.currencyCode))
             Divider().frame(height: 28)
-            statCell("This month", currency(model.collected, code: model.currencyCode))
+            statCell("This year", currency(model.collectedThisYear, code: model.currencyCode))
             Divider().frame(height: 28)
             statCell("Effective rate", model.effectiveRate.map { "\(currency($0, code: model.currencyCode))/h" } ?? "—")
         }

@@ -238,17 +238,39 @@ public enum ReportsAggregator {
             inv.paidAt.flatMap { calendar.dateInterval(of: .month, for: $0)?.start }
         }
 
-        var points: [TrendPoint] = []
-        var cursor = oldestStart
-        var guardCount = 0
-        while guardCount < monthsBack {
-            let amount = (paidByMonth[cursor] ?? []).reduce(Decimal(0)) { $0 + $1.total }
-            points.append(TrendPoint(id: cursor, bucketStart: cursor, amount: amount))
-            guard let next = calendar.date(byAdding: .month, value: 1, to: cursor) else { break }
-            cursor = next
-            guardCount += 1
+        // Compute each month start directly from `oldestStart` using a fixed offset so
+        // the loop always emits exactly `monthsBack` points — no early break possible.
+        return (0..<monthsBack).map { offset in
+            let start = calendar.date(byAdding: .month, value: offset, to: oldestStart) ?? oldestStart
+            let amount = (paidByMonth[start] ?? []).reduce(Decimal(0)) { $0 + $1.total }
+            return TrendPoint(id: start, bucketStart: start, amount: amount)
         }
-        return points
+    }
+
+    /// Σ `invoice.total` of PAID invoices whose `paidAt` falls in the same calendar year as
+    /// `referenceDate`, currency-filtered to `activeCurrency`.
+    ///
+    /// Pure: Invoice scalars only — no `.project` / `.project?.client` traversal, no fetch, no
+    /// SwiftData dependency. CloudKit-safe by construction (mirrors `collectedMonthlyTrend`).
+    /// A `.paid` invoice with `paidAt == nil` is excluded (consistent with `MoneySummary.collected`).
+    /// Returns a tax-inclusive total (`invoice.total`).
+    public static func collectedThisYear(
+        invoices: [Invoice],
+        activeCurrency: String,
+        asOf referenceDate: Date = .now,
+        calendar: Calendar = .current
+    ) -> Decimal {
+        guard let yearInterval = calendar.dateInterval(of: .year, for: referenceDate) else { return 0 }
+        return invoices
+            .filter { $0.currencyCodeSnapshot == activeCurrency }
+            .filter { $0.status == .paid }
+            .compactMap { inv -> Decimal? in
+                guard let paidAt = inv.paidAt,
+                      paidAt >= yearInterval.start && paidAt < yearInterval.end
+                else { return nil }
+                return inv.total
+            }
+            .reduce(Decimal(0), +)
     }
 
     /// Presentation gate for the paywall teaser: returns `true` only when at least two distinct

@@ -187,6 +187,96 @@ struct ReportsCollectedTrendTests {
         #expect(points[3].amount == Decimal(1150))
     }
 
+    // MARK: - collectedMonthlyTrend: monthsBack:0 guard path
+
+    @Test("collectedMonthlyTrend with monthsBack:0 returns empty array")
+    func monthsBackZeroReturnsEmpty() {
+        let result = ReportsAggregator.collectedMonthlyTrend(
+            invoices: [],
+            activeCurrency: "USD",
+            monthsBack: 0,
+            asOf: asOf,
+            calendar: gregorian
+        )
+        #expect(result == [])
+    }
+
+    // MARK: - collectedThisYear
+
+    @Test("collectedThisYear sums paid invoices whose paidAt is in the reference year")
+    func collectedThisYearSumsPaidInYear() {
+        // asOf == 2023-11-14; year interval is 2023-01-01 …< 2024-01-01.
+        let inYear  = gregorian.date(byAdding: .day, value: 3, to: monthStart(2))!  // Nov 2023, within the year
+        let inv1 = makeInvoice(total: 500, status: .paid, issued: inYear, paid: inYear)
+        let inv2 = makeInvoice(total: 300, status: .paid, issued: inYear, paid: inYear)
+
+        let result = ReportsAggregator.collectedThisYear(
+            invoices: [inv1, inv2],
+            activeCurrency: "USD",
+            asOf: asOf,
+            calendar: gregorian
+        )
+        #expect(result == 800)
+    }
+
+    @Test("collectedThisYear excludes paid invoices whose paidAt is in a different year")
+    func collectedThisYearExcludesPriorYear() {
+        // Build a date in 2022 (prior year relative to asOf 2023).
+        let priorYear = gregorian.date(from: DateComponents(year: 2022, month: 6, day: 1))!
+        let inv = makeInvoice(total: 999, status: .paid, issued: priorYear, paid: priorYear)
+
+        let result = ReportsAggregator.collectedThisYear(
+            invoices: [inv],
+            activeCurrency: "USD",
+            asOf: asOf,
+            calendar: gregorian
+        )
+        #expect(result == 0)
+    }
+
+    @Test("collectedThisYear excludes draft and sent invoices")
+    func collectedThisYearExcludesNonPaid() {
+        let when = gregorian.date(byAdding: .day, value: 3, to: monthStart(2))!
+        let draft = makeInvoice(total: 999, status: .draft, issued: when, paid: nil)
+        let sent  = makeInvoice(total: 888, status: .sent,  issued: when, paid: nil)
+
+        let result = ReportsAggregator.collectedThisYear(
+            invoices: [draft, sent],
+            activeCurrency: "USD",
+            asOf: asOf,
+            calendar: gregorian
+        )
+        #expect(result == 0)
+    }
+
+    @Test("collectedThisYear excludes a paid invoice with nil paidAt")
+    func collectedThisYearExcludesNilPaidAt() {
+        let when = gregorian.date(byAdding: .day, value: 3, to: monthStart(2))!
+        let inv = makeInvoice(total: 600, status: .paid, issued: when, paid: nil)
+
+        let result = ReportsAggregator.collectedThisYear(
+            invoices: [inv],
+            activeCurrency: "USD",
+            asOf: asOf,
+            calendar: gregorian
+        )
+        #expect(result == 0)
+    }
+
+    @Test("collectedThisYear excludes invoices in a non-matching currency")
+    func collectedThisYearExcludesWrongCurrency() {
+        let when = gregorian.date(byAdding: .day, value: 3, to: monthStart(2))!
+        let foreign = makeInvoice(total: 5000, status: .paid, issued: when, paid: when, currency: "EUR")
+
+        let result = ReportsAggregator.collectedThisYear(
+            invoices: [foreign],
+            activeCurrency: "USD",
+            asOf: asOf,
+            calendar: gregorian
+        )
+        #expect(result == 0)
+    }
+
     // MARK: - Task 20: hasEnoughCollectedHistory gate (red → Task 21)
 
     @Test("hasEnoughCollectedHistory requires ≥2 distinct months with positive collected amount")
