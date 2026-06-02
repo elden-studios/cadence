@@ -97,6 +97,12 @@ public enum ReportsAggregator {
         public let id: Date
         public let bucketStart: Date
         public let amount: Decimal       // invoiced total in this bucket
+
+        public init(id: Date, bucketStart: Date, amount: Decimal) {
+            self.id = id
+            self.bucketStart = bucketStart
+            self.amount = amount
+        }
     }
 
     public enum TrendBucket: Sendable { case day, week, month }  // x-axis granularity for the chart

@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import StoreKit
+import Charts
 import BillableCore
 
 /// The contextual paywall sheet. Shown when a free user tries to use a Pro
@@ -23,7 +24,7 @@ struct PaywallView: View {
 
         var headline: String {
             switch self {
-            case .reports:         "Know what you've earned — and what you're owed."
+            case .reports:         "Know what you're owed."
             case .settings:        "Go Pro."
             case .removeWatermark: "Remove the watermark."
             }
@@ -196,20 +197,17 @@ struct PaywallView: View {
         return VStack(alignment: .leading, spacing: 14) {
             Text(trigger.headline)
                 .font(.largeTitle.weight(.bold))
-                .lineLimit(2)
-                .minimumScaleFactor(0.7)
+                .lineLimit(1)
 
-            VStack(alignment: .leading, spacing: 10) {
-                teaserARCard(model)
-                teaserTileRow(model)
-                if model.isSample && !isPlaceholder {
-                    Text("Sample preview")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
+            teaserChartHero(model)
+                .redacted(reason: isPlaceholder ? .placeholder : [])
+                .accessibilityHidden(true)
+
+            if model.isSample && !isPlaceholder {
+                Text("Sample preview")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
-            .redacted(reason: isPlaceholder ? .placeholder : [])
-            .accessibilityHidden(true)
 
             Text(trigger.subhead)
                 .font(.body)
@@ -228,6 +226,8 @@ struct PaywallView: View {
         let collected: Decimal
         let effectiveRate: Decimal?
         let isSample: Bool
+        /// Six monthly "collected" buckets (oldest→newest) driving the teaser bar chart.
+        let collectedSeries: [ReportsAggregator.TrendPoint]
     }
 
     /// Memoize the teaser so the O(N) `ReportsAggregator.snapshot` isn't recomputed
@@ -236,6 +236,19 @@ struct PaywallView: View {
     private func recomputeTeaser() {
         guard trigger == .reports else { return }
         teaserModel = makeTeaserModel()
+    }
+
+    /// Builds a sample collected series mapped onto the real trailing-6 month starts ending now,
+    /// so month labels are calendar-derived (never hardcoded) while amounts are the sample values.
+    private func sampleCollectedSeries(asOf now: Date = .now, calendar: Calendar = .current) -> [ReportsAggregator.TrendPoint] {
+        let values = ReportsSampleData.collectedLast6Months
+        guard let thisMonthStart = calendar.dateInterval(of: .month, for: now)?.start else { return [] }
+        let count = values.count
+        return values.enumerated().compactMap { idx, amount in
+            // idx 0 == oldest (count-1 months ago) … idx count-1 == current month.
+            guard let start = calendar.date(byAdding: .month, value: -(count - 1 - idx), to: thisMonthStart) else { return nil }
+            return ReportsAggregator.TrendPoint(id: start, bucketStart: start, amount: amount)
+        }
     }
 
     /// O(1) placeholder for the first frame, before `recomputeTeaser()` memoizes the
@@ -251,7 +264,8 @@ struct PaywallView: View {
             invoiced: ReportsSampleData.invoiced,
             collected: ReportsSampleData.collected,
             effectiveRate: ReportsSampleData.effectiveRate,
-            isSample: true
+            isSample: true,
+            collectedSeries: sampleCollectedSeries()
         )
     }
 
@@ -265,7 +279,15 @@ struct PaywallView: View {
             in: .thisMonth,
             activeCurrency: code
         )
-        if snap.hasReportableData {
+        // Build the real monthly-collected trend — reads only Invoice scalars
+        // (status/paidAt/total/currencyCodeSnapshot), never traverses \.project
+        // or \.project?.client, so the CloudKit nested-keypath trap cannot occur.
+        let realSeries = ReportsAggregator.collectedMonthlyTrend(
+            invoices: reportInvoices,
+            activeCurrency: code
+        )
+        let collectedHistoryOK = ReportsAggregator.hasEnoughCollectedHistory(realSeries)
+        if snap.hasReportableData && collectedHistoryOK {
             return ReportsTeaserModel(
                 currencyCode: code,
                 outstanding: snap.ar.outstanding,
@@ -275,7 +297,8 @@ struct PaywallView: View {
                 invoiced: snap.money.invoiced,
                 collected: snap.money.collected,
                 effectiveRate: snap.performance.effectiveRate,
-                isSample: false
+                isSample: false,
+                collectedSeries: realSeries
             )
         } else {
             return ReportsTeaserModel(
@@ -287,72 +310,81 @@ struct PaywallView: View {
                 invoiced: ReportsSampleData.invoiced,
                 collected: ReportsSampleData.collected,
                 effectiveRate: ReportsSampleData.effectiveRate,
-                isSample: true
+                isSample: true,
+                collectedSeries: sampleCollectedSeries()
             )
         }
     }
 
-    private func teaserARCard(_ model: ReportsTeaserModel) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("GET PAID")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("as of today")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-            Text(currency(model.outstanding, code: model.currencyCode))
-                .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
-            if model.overdue > 0 {
-                Text("\(currency(model.overdue, code: model.currencyCode)) overdue · \(model.overdueCount)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.red, in: Capsule())
-            }
-            if let days = model.avgDaysToPay {
-                Label("~\(days) days to pay", systemImage: "clock")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(.thinMaterial, in: .rect(cornerRadius: 14))
-    }
-
-    private func teaserTileRow(_ model: ReportsTeaserModel) -> some View {
-        HStack(spacing: 12) {
-            teaserTile("INVOICED", currency(model.invoiced, code: model.currencyCode), .blue)
-            teaserTile("COLLECTED", currency(model.collected, code: model.currencyCode), .green)
-            teaserTile("RATE",
-                       model.effectiveRate.map { "\(currency($0, code: model.currencyCode))/h" } ?? "—",
-                       .primary)
-        }
-    }
-
-    private func teaserTile(_ label: String, _ value: String, _ color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(color)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
-        .background(.thinMaterial, in: .rect(cornerRadius: 12))
-    }
-
     private func currency(_ value: Decimal, code: String) -> String {
         value.formatted(.currency(code: code))
+    }
+
+    // MARK: - Chart-led locked teaser (B2)
+
+    /// Locked bar-chart hero shown in the Reports paywall teaser. Always wrapped in
+    /// `.redacted` + `.accessibilityHidden(true)` by the caller (`crispTasteHeader`).
+    @ViewBuilder
+    private func teaserChartHero(_ model: ReportsTeaserModel) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Always-on locked-preview eyebrow (both real and sample states).
+            HStack(spacing: 6) {
+                Image(systemName: "lock.fill")
+                    .font(.caption2.weight(.semibold))
+                Text("Your Reports preview")
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(.tint)
+
+            Text("Collected · last 6 months")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Chart(model.collectedSeries) { point in
+                BarMark(
+                    x: .value("Month", point.bucketStart, unit: .month),
+                    y: .value("Collected", (point.amount as NSDecimalNumber).doubleValue)
+                )
+                .foregroundStyle(Color.green.gradient)
+            }
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .month)) { _ in
+                    AxisGridLine()
+                    AxisValueLabel(format: .dateTime.month(.abbreviated))
+                }
+            }
+            .chartYAxis(.hidden)
+            .frame(height: 140)
+
+            teaserStatLine(model)
+        }
+        .padding(16)
+        .background(Color.accentColor.opacity(0.06), in: .rect(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private func teaserStatLine(_ model: ReportsTeaserModel) -> some View {
+        HStack(spacing: 16) {
+            statCell("Owed", currency(model.outstanding, code: model.currencyCode))
+            Divider().frame(height: 28)
+            statCell("This year", currency(model.collected, code: model.currencyCode))
+            Divider().frame(height: 28)
+            statCell("Effective rate", model.effectiveRate.map { "\(currency($0, code: model.currencyCode))/h" } ?? "—")
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func statCell(_ label: String, _ value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     /// The shared "Everything in Pro" core — identical for every trigger,
