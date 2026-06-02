@@ -225,16 +225,16 @@ public enum ReportsAggregator {
     ) -> [TrendPoint] {
         guard monthsBack > 0 else { return [] }
 
-        // Currency guard first — mirrors snapshot(...)'s mixed-currency exclusion.
-        let scoped = invoices.filter { $0.currencyCodeSnapshot == activeCurrency }
-
         guard let thisMonthStart = calendar.dateInterval(of: .month, for: referenceDate)?.start,
               let oldestStart = calendar.date(byAdding: .month, value: -(monthsBack - 1), to: thisMonthStart)
         else { return [] }
 
-        // Pre-group paid invoices by their paidAt month-start (O(N)). The nil key bucket
-        // (paid but no paidAt) is simply never walked below, so it is excluded.
-        let paidByMonth = Dictionary(grouping: scoped.filter { $0.status == .paid }) { inv in
+        // Pre-group paid, in-currency invoices by their paidAt month-start in a SINGLE lazy
+        // pass (no intermediate arrays). The nil-key bucket (paid but no paidAt) is never
+        // walked below, so it is excluded.
+        let paidByMonth = Dictionary(
+            grouping: invoices.lazy.filter { $0.currencyCodeSnapshot == activeCurrency && $0.status == .paid }
+        ) { inv in
             inv.paidAt.flatMap { calendar.dateInterval(of: .month, for: $0)?.start }
         }
 
@@ -261,16 +261,15 @@ public enum ReportsAggregator {
         calendar: Calendar = .current
     ) -> Decimal {
         guard let yearInterval = calendar.dateInterval(of: .year, for: referenceDate) else { return 0 }
-        return invoices
-            .filter { $0.currencyCodeSnapshot == activeCurrency }
-            .filter { $0.status == .paid }
-            .compactMap { inv -> Decimal? in
-                guard let paidAt = inv.paidAt,
-                      paidAt >= yearInterval.start && paidAt < yearInterval.end
-                else { return nil }
-                return inv.total
-            }
-            .reduce(Decimal(0), +)
+        // Single pass — no intermediate filtered/compactMapped arrays.
+        return invoices.reduce(Decimal(0)) { sum, inv in
+            guard inv.currencyCodeSnapshot == activeCurrency,
+                  inv.status == .paid,
+                  let paidAt = inv.paidAt,
+                  paidAt >= yearInterval.start && paidAt < yearInterval.end
+            else { return sum }
+            return sum + inv.total
+        }
     }
 
     /// Presentation gate for the paywall teaser: returns `true` only when at least two distinct
