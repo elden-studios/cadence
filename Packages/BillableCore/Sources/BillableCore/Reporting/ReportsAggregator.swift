@@ -196,6 +196,55 @@ public enum ReportsAggregator {
             currencyCode: activeCurrency)
     }
 
+    // MARK: - Collected monthly trend (paywall teaser)
+
+    /// Σ `invoice.total` of PAID invoices, grouped by the calendar month of `paidAt`, over a
+    /// fixed trailing window of `monthsBack` months ending the `referenceDate` month.
+    ///
+    /// Pure: takes plain `[Invoice]`, returns `[TrendPoint]` (oldest→newest), no SwiftData /
+    /// `ModelContext` / fetch. Months with no collected invoices are gap-filled with `amount == 0`,
+    /// so the result always has exactly `monthsBack` elements (a continuous bar axis).
+    ///
+    /// "Collected" is binary at the invoice level (no `Payment` model / partial-payment field):
+    /// an invoice counts iff `status == .paid`; its bucket is `month(paidAt)` (a `.paid` invoice
+    /// with `paidAt == nil` is excluded); its contribution is `invoice.total` (tax-inclusive).
+    /// This is the series generalization of the scalar `MoneySummary.collected`, so the chart
+    /// agrees with the COLLECTED tile. Currency-filtered FIRST (never sums across currencies).
+    public static func collectedMonthlyTrend(
+        invoices: [Invoice],
+        activeCurrency: String,
+        monthsBack: Int = 6,
+        asOf referenceDate: Date = .now,
+        calendar: Calendar = .current
+    ) -> [TrendPoint] {
+        guard monthsBack > 0 else { return [] }
+
+        // Currency guard first — mirrors snapshot(...)'s mixed-currency exclusion.
+        let scoped = invoices.filter { $0.currencyCodeSnapshot == activeCurrency }
+
+        guard let thisMonthStart = calendar.dateInterval(of: .month, for: referenceDate)?.start,
+              let oldestStart = calendar.date(byAdding: .month, value: -(monthsBack - 1), to: thisMonthStart)
+        else { return [] }
+
+        // Pre-group paid invoices by their paidAt month-start (O(N)). The nil key bucket
+        // (paid but no paidAt) is simply never walked below, so it is excluded.
+        let paidByMonth = Dictionary(grouping: scoped.filter { $0.status == .paid }) { inv in
+            inv.paidAt.flatMap { calendar.dateInterval(of: .month, for: $0)?.start }
+        }
+
+        var points: [TrendPoint] = []
+        var cursor = oldestStart
+        var guardCount = 0
+        while guardCount < monthsBack {
+            let amount = (paidByMonth[cursor] ?? []).reduce(Decimal(0)) { $0 + $1.total }
+            points.append(TrendPoint(id: cursor, bucketStart: cursor, amount: amount))
+            guard let next = calendar.date(byAdding: .month, value: 1, to: cursor) else { break }
+            cursor = next
+            guardCount += 1
+        }
+        return points
+    }
+
     // MARK: - Per-client / per-project grouping (existing behaviour, lifted)
 
     private static func groupings(
