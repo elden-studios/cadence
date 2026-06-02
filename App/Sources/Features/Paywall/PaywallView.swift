@@ -371,7 +371,7 @@ struct PaywallView: View {
         HStack(spacing: 16) {
             statCell("Owed", currency(model.outstanding, code: model.currencyCode))
             Divider().frame(height: 28)
-            statCell("This year", currency(model.collected, code: model.currencyCode))
+            statCell("This month", currency(model.collected, code: model.currencyCode))
             Divider().frame(height: 28)
             statCell("Effective rate", model.effectiveRate.map { "\(currency($0, code: model.currencyCode))/h" } ?? "—")
         }
