@@ -28,7 +28,9 @@ public enum PaywallCopy {
         var line = "Just \(perMonthString)/mo"
         if let monthlyPrice,
            let savings = PricingDisplay.annualSavings(monthlyPrice: monthlyPrice, yearlyPrice: yearlyPrice) {
-            line += " · \(savings.monthsFree) months free"
+            // "about N months free" matches the wording in PricingDisplay.savingsBadge so both
+            // the sub-line and the savings pill read consistently on the same paywall screen.
+            line += " · about \(savings.monthsFree) months free"
         }
         return line
     }
@@ -41,9 +43,11 @@ public enum PaywallCopy {
 
     /// The purchase-button title for the current selection.
     ///
-    /// - Lifetime is a one-time buy: it always reads "Buy Lifetime — <price>" and
-    ///   never offers a trial. `lifetimePrice` is the already-resolved, localized
-    ///   display price the caller derives from the StoreKit product (no literal here).
+    /// - Lifetime is a one-time buy: it reads "Buy Lifetime — <price>" when
+    ///   `lifetimePrice` is non-nil, or "Buy Lifetime" when the product hasn't
+    ///   loaded yet — never a bare trailing "— " that leaks into the UI.
+    ///   `lifetimePrice` is the already-resolved, localized display price the
+    ///   caller derives from the StoreKit product (no currency literal here).
     /// - Subscriptions read "Start 7-day free trial" when intro-eligible, else "Subscribe".
     public static func ctaTitle(
         for tier: Tier,
@@ -52,7 +56,11 @@ public enum PaywallCopy {
     ) -> String {
         switch tier {
         case .lifetime:
-            return "Buy Lifetime — \(lifetimePrice ?? "")"
+            if let price = lifetimePrice {
+                return "Buy Lifetime — \(price)"
+            }
+            // Product not yet loaded: omit the price rather than show a bare "— ".
+            return "Buy Lifetime"
         case .yearly, .monthly:
             return eligibleForIntroOffer ? "Start 7-day free trial" : "Subscribe"
         }

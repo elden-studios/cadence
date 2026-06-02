@@ -593,13 +593,19 @@ struct PaywallView: View {
     private func perCycleLabel(for plan: Plan, product: Product?) -> String {
         switch plan {
         case .yearly:
+            // Delegate to the unit-tested pure helper so the copy is consistent with
+            // the savings pill ("about N months free" in both). Falls back to plain
+            // "Billed yearly" only when the yearly product hasn't loaded yet.
             guard let yearly = product else { return "Billed yearly" }
-            let monthly = yearly.price / 12
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .currency
-            formatter.locale = yearly.priceFormatStyle.locale
-            let perMonth = formatter.string(from: monthly as NSDecimalNumber) ?? ""
-            return "Just \(perMonth) per month, billed yearly"
+            let monthlyCurrency = manager.monthly?.priceFormatStyle.locale.currency?.identifier
+            let yearlyCurrency  = yearly.priceFormatStyle.locale.currency?.identifier
+            let comparableMonthly: Decimal? =
+                (monthlyCurrency != nil && monthlyCurrency == yearlyCurrency) ? manager.monthly?.price : nil
+            return PaywallCopy.monthlyEquivalentLine(
+                yearlyPrice: yearly.price,
+                monthlyPrice: comparableMonthly,
+                locale: yearly.priceFormatStyle.locale)
+                ?? "Billed yearly"
         case .monthly:
             return "Billed monthly · Cancel anytime"
         case .lifetime:
@@ -629,15 +635,16 @@ struct PaywallView: View {
     }
 
     private var purchaseButtonTitle: String {
-        // Lifetime is a one-time buy — never a trial; name the price on the CTA.
-        if selection == .lifetime {
-            return "Buy Lifetime — \(manager.lifetime?.displayPrice ?? "$99.99")"
-        }
-        // In marketing-screenshot mode, surface the strongest CTA — the free
-        // trial — since the SubscriptionManager has no real products to derive
-        // eligibility from.
-        if mockPaywallPrices { return "Start 7-day free trial" }
-        return manager.eligibleForIntroOffer ? "Start 7-day free trial" : "Subscribe"
+        // Route through the unit-tested pure helper so the CTA is consistent with
+        // the logic covered by PaywallCopyTests. In marketing-screenshot mode there
+        // are no real products, so force intro-eligible (the strongest CTA) the same
+        // way the old inline code did. lifetimeDisplayPrice nil-guards so the
+        // Lifetime CTA never produces a bare trailing "— " string.
+        let tier = PaywallCopy.Tier(rawValue: selection.rawValue) ?? .yearly
+        let introEligible = mockPaywallPrices || manager.eligibleForIntroOffer
+        return PaywallCopy.ctaTitle(for: tier,
+                                    lifetimePrice: lifetimeDisplayPrice,
+                                    eligibleForIntroOffer: introEligible)
     }
 
     /// Trial-/terms copy under the CTA. Lifetime is a one-time buy, so it shows
