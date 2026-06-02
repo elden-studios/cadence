@@ -497,7 +497,18 @@ struct PaywallView: View {
     private func planRow(_ plan: Plan) -> some View {
         let isSelected = selection == plan
         let isHero = (plan == .yearly)
-        let product: Product? = isHero ? manager.yearly : manager.monthly
+        let isLifetime = (plan == .lifetime)
+        let product: Product? = {
+            switch plan {
+            case .yearly:   return manager.yearly
+            case .monthly:  return manager.monthly
+            case .lifetime: return manager.lifetime
+            }
+        }()
+        // Gold accent for the Lifetime "pay once" peer; blue accent hero for Yearly;
+        // recessed card for Monthly. Lifetime's selected border/badge read gold.
+        let lifetimeGold = Color(red: 0.72, green: 0.53, blue: 0.04)
+        let selectionAccent: Color = isLifetime ? lifetimeGold : Color.accentColor
 
         Button {
             selection = plan
@@ -507,38 +518,41 @@ struct PaywallView: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(isHero ? "Yearly" : "Monthly")
+                        Text(planTitle(plan))
                             .font(.headline)
                         if isHero {
-                            Text("BEST VALUE")
+                            Text(PricingConfig.bestValueBadge)
                                 .font(.caption2.weight(.bold))
                                 .padding(.horizontal, 6).padding(.vertical, 2)
                                 .background(.white.opacity(0.22), in: .capsule)
                                 .foregroundStyle(.white)
-                            savingsPill
+                        } else if isLifetime {
+                            Text(PricingConfig.payOnceBadge)
+                                .font(.caption2.weight(.bold))
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(lifetimeGold.opacity(0.16), in: .capsule)
+                                .foregroundStyle(lifetimeGold)
                         }
                     }
-                    Text(perCycleLabel(for: plan, product: product))
-                        .font(.caption)
-                        .foregroundStyle(isHero ? AnyShapeStyle(.white.opacity(0.85))
-                                                : AnyShapeStyle(.secondary))
+                    if let sub = planSubLine(plan, product: product) {
+                        Text(sub)
+                            .font(.caption)
+                            .foregroundStyle(isHero ? AnyShapeStyle(.white.opacity(0.85))
+                                                    : AnyShapeStyle(.secondary))
+                    }
                 }
                 Spacer()
-                if let product {
-                    Text(product.displayPrice)
-                        .font(.title3.weight(.semibold).monospacedDigit())
-                } else {
-                    ProgressView().controlSize(.small)
-                        .tint(isHero ? .white : nil)
-                }
-                if isHero && isSelected {
+                planPrice(plan, product: product, isHero: isHero)
+                if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(isHero ? AnyShapeStyle(.white)
+                                                : AnyShapeStyle(selectionAccent))
                 }
             }
             // The hero gets taller padding + a solid accent fill + white text so
-            // Yearly is the unmistakable default; Monthly recedes to a plain card.
+            // Yearly is the default; Monthly/Lifetime recede to plain cards with a
+            // consistent selection border.
             .padding(.vertical, isHero ? 20 : 14)
             .padding(.horizontal, 14)
             .foregroundStyle(isHero ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
@@ -556,11 +570,64 @@ struct PaywallView: View {
             }
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(isSelected ? Color.accentColor : Color.gray.opacity(0.18),
+                    .strokeBorder(isSelected ? selectionAccent : Color.gray.opacity(0.18),
                                   lineWidth: isSelected ? 2 : 1)
             )
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private func planTitle(_ plan: Plan) -> String {
+        switch plan {
+        case .yearly:   return "Yearly"
+        case .monthly:  return "Monthly"
+        case .lifetime: return "Lifetime"
+        }
+    }
+
+    /// Sub-line under each tier title. Yearly carries the per-locale
+    /// "Just $X/mo · 2 months free" saving (hidden when products/currencies
+    /// aren't comparable); Monthly + Lifetime carry their static framing.
+    private func planSubLine(_ plan: Plan, product: Product?) -> String? {
+        switch plan {
+        case .yearly:
+            // Hide the line entirely when products aren't loaded or the
+            // monthly/yearly currencies mismatch (mirrors savingsPill's guard).
+            guard let yearly = product else { return "Billed yearly" }
+            let monthlyCurrency = manager.monthly?.priceFormatStyle.locale.currency?.identifier
+            let yearlyCurrency  = yearly.priceFormatStyle.locale.currency?.identifier
+            let comparableMonthly: Decimal? =
+                (monthlyCurrency != nil && monthlyCurrency == yearlyCurrency) ? manager.monthly?.price : nil
+            return PaywallCopy.monthlyEquivalentLine(
+                yearlyPrice: yearly.price,
+                monthlyPrice: comparableMonthly,
+                locale: yearly.priceFormatStyle.locale)
+                ?? "Billed yearly"
+        case .monthly:
+            return "Billed monthly · Cancel anytime"
+        case .lifetime:
+            return PricingConfig.lifetimePeerSubtitle
+        }
+    }
+
+    /// The trailing price for a tier. Lifetime composes "<price> once"; others
+    /// show the plain localized display price, or a spinner while loading.
+    @ViewBuilder
+    private func planPrice(_ plan: Plan, product: Product?, isHero: Bool) -> some View {
+        if let product {
+            if plan == .lifetime {
+                Text("\(product.displayPrice) \(PricingConfig.lifetimeOnceSuffix)")
+                    .font(.title3.weight(.semibold).monospacedDigit())
+            } else {
+                Text(product.displayPrice)
+                    .font(.title3.weight(.semibold).monospacedDigit())
+            }
+        } else {
+            ProgressView().controlSize(.small)
+                .tint(isHero ? .white : nil)
+        }
     }
 
     /// Computed savings badge on the yearly tier — the real saving vs. 12× monthly,
@@ -576,8 +643,8 @@ struct PaywallView: View {
             Text(PricingDisplay.savingsBadge(s, currencyCode: yearlyCurrency))
                 .font(.caption2.weight(.bold))
                 .padding(.horizontal, 6).padding(.vertical, 2)
-                .background(Color.green.opacity(0.18), in: .capsule)
-                .foregroundStyle(.green)
+                .background(Color.green, in: .capsule)
+                .foregroundStyle(.white)
         }
     }
 
@@ -588,31 +655,6 @@ struct PaywallView: View {
         manager.yearly?.priceFormatStyle.locale.currency?.identifier
             ?? Locale.current.currency?.identifier
             ?? "USD"
-    }
-
-    private func perCycleLabel(for plan: Plan, product: Product?) -> String {
-        switch plan {
-        case .yearly:
-            // Delegate to the unit-tested pure helper so the copy is consistent with
-            // the savings pill ("about N months free" in both). Falls back to plain
-            // "Billed yearly" only when the yearly product hasn't loaded yet.
-            guard let yearly = product else { return "Billed yearly" }
-            let monthlyCurrency = manager.monthly?.priceFormatStyle.locale.currency?.identifier
-            let yearlyCurrency  = yearly.priceFormatStyle.locale.currency?.identifier
-            let comparableMonthly: Decimal? =
-                (monthlyCurrency != nil && monthlyCurrency == yearlyCurrency) ? manager.monthly?.price : nil
-            return PaywallCopy.monthlyEquivalentLine(
-                yearlyPrice: yearly.price,
-                monthlyPrice: comparableMonthly,
-                locale: yearly.priceFormatStyle.locale)
-                ?? "Billed yearly"
-        case .monthly:
-            return "Billed monthly · Cancel anytime"
-        case .lifetime:
-            // Lifetime isn't shown in the tier picker (it lives in the demoted
-            // affordance), so this is defensive — keep the switch exhaustive.
-            return "One-time purchase"
-        }
     }
 
     private var purchaseButton: some View {
@@ -701,37 +743,15 @@ struct PaywallView: View {
         return mockPaywallPrices ? "$99.99" : nil
     }
 
+    /// When the user already owns Lifetime, the body's `!ownsLifetime` guard
+    /// suppresses the picker + CTA + trialTerms; this renders the owned-state
+    /// label (the double-buy guard) in their place. Lifetime is otherwise a
+    /// first-class row in `pricePicker`, so there is no demoted affordance.
     @ViewBuilder
     private var lifetimeAffordance: some View {
         if manager.ownsLifetime {
             Label(PricingConfig.ownedTitle, systemImage: "checkmark.seal.fill")
                 .font(.subheadline.weight(.semibold)).foregroundStyle(.green)
-        } else if let price = lifetimeDisplayPrice {
-            Divider().padding(.vertical, 4)
-            Button {
-                selection = .lifetime
-                PaywallMetrics.record(.tierSelected, variant: PricingConfig.variant,
-                                      trigger: trigger.metricKey, tier: "lifetime")
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(PricingConfig.lifetimeAffordanceTitle).font(.subheadline.weight(.semibold))
-                        Text("\(PricingConfig.lifetimeAffordanceSubtitle) — \(price)")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                }
-                .padding(.vertical, 8)
-                .padding(.horizontal, 10)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .overlay(alignment: .center) {
-                if selection == .lifetime {
-                    RoundedRectangle(cornerRadius: 10).strokeBorder(Color.accentColor, lineWidth: 2)
-                }
-            }
         }
     }
 
