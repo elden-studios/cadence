@@ -396,8 +396,9 @@ struct PaywallView: View {
                 .frame(maxWidth: .infinity, minHeight: 100)
         case .ready:
             VStack(spacing: 10) {
-                planRow(.yearly)
                 planRow(.monthly)
+                planRow(.yearly)
+                planRow(.lifetime)
             }
         case .failed(let message):
             VStack(spacing: 12) {
