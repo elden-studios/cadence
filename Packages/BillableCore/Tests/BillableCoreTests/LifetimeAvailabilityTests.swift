@@ -66,3 +66,37 @@ struct LifetimeAvailabilityTests {
         )
     }
 }
+
+@Suite("Lifetime diagnostic message")
+struct LifetimeDiagnosticTests {
+
+    @Test("Subscriptions loaded but lifetime nil -> returns a diagnostic naming the product id")
+    func diagnosticWhenLifetimeMissing() {
+        let msg = SubscriptionManager.lifetimeDiagnostic(
+            hasLifetimeProduct: false,
+            hasAnySubscriptionProduct: true
+        )
+        #expect(msg != nil)
+        #expect(msg?.contains(SubscriptionManager.lifetimeProductID) == true)
+    }
+
+    @Test("Lifetime present -> no diagnostic")
+    func noDiagnosticWhenLifetimePresent() {
+        #expect(
+            SubscriptionManager.lifetimeDiagnostic(
+                hasLifetimeProduct: true,
+                hasAnySubscriptionProduct: true
+            ) == nil
+        )
+    }
+
+    @Test("Nothing loaded -> no diagnostic (empty fetch is the .failed path's problem, not a lifetime gap)")
+    func noDiagnosticWhenNothingLoaded() {
+        #expect(
+            SubscriptionManager.lifetimeDiagnostic(
+                hasLifetimeProduct: false,
+                hasAnySubscriptionProduct: false
+            ) == nil
+        )
+    }
+}

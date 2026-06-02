@@ -1,4 +1,5 @@
 import Foundation
+import os
 import StoreKit
 
 /// Tri-state availability of the Lifetime (non-consumable) tier, derived purely from
@@ -29,13 +30,15 @@ public final class SubscriptionManager {
     /// Product identifiers we ship in v1. Order matters — first is monthly,
     /// second is yearly. Keep in sync with `App/Resources/Billable.storekit`
     /// and App Store Connect when we file the real ones.
-    public static let monthlyProductID = "com.eldenstudios.billable.pro.monthly"
-    public static let yearlyProductID  = "com.eldenstudios.billable.pro.yearly"
+    public nonisolated static let monthlyProductID = "com.eldenstudios.billable.pro.monthly"
+    public nonisolated static let yearlyProductID  = "com.eldenstudios.billable.pro.yearly"
 
     /// Non-consumable Lifetime IAP. Owning this grants Pro permanently and is
     /// terminal — it always wins over any subscription state. Keep in sync with
     /// `App/Resources/Billable.storekit` and App Store Connect.
-    public static let lifetimeProductID = "com.eldenstudios.billable.pro.lifetime"
+    public nonisolated static let lifetimeProductID = "com.eldenstudios.billable.pro.lifetime"
+
+    nonisolated static let logger = Logger(subsystem: "com.eldenstudios.billable", category: "Subscriptions")
 
     // MARK: - Load state
 
@@ -170,6 +173,14 @@ public final class SubscriptionManager {
             monthly = products.first { $0.id == Self.monthlyProductID }
             yearly  = products.first { $0.id == Self.yearlyProductID  }
             lifetime = products.first { $0.id == Self.lifetimeProductID }
+            #if DEBUG
+            if let diagnostic = Self.lifetimeDiagnostic(
+                hasLifetimeProduct: lifetime != nil,
+                hasAnySubscriptionProduct: monthly != nil || yearly != nil
+            ) {
+                Self.logger.warning("\(diagnostic, privacy: .public)")
+            }
+            #endif
             // Cache intro-offer eligibility. `isEligibleForIntroOffer` is async
             // (Apple checks per-Apple-ID, per subscription group), so we query
             // both products and store the result synchronously for the UI.
@@ -214,6 +225,22 @@ public final class SubscriptionManager {
         guard loadState == .ready else { return .loading }
         if hasLifetimeProduct { return .available }
         return hasAnySubscriptionProduct ? .unavailable : .loading
+    }
+
+    /// Pure DEBUG diagnostic message builder. Returns a non-nil string ONLY when at
+    /// least one subscription resolved but the lifetime non-consumable did not — the
+    /// exact "silent blank tier" condition (typically the ASC non-consumable
+    /// `com.eldenstudios.billable.pro.lifetime` is not yet created/approved). Returns
+    /// nil otherwise so callers never log spurious warnings during a normal empty/
+    /// in-flight/failed fetch.
+    public nonisolated static func lifetimeDiagnostic(
+        hasLifetimeProduct: Bool,
+        hasAnySubscriptionProduct: Bool
+    ) -> String? {
+        guard hasAnySubscriptionProduct, !hasLifetimeProduct else { return nil }
+        return "Lifetime product \(lifetimeProductID) failed to resolve while subscriptions loaded. "
+            + "Verify the App Store Connect non-consumable exists and is Approved/Ready to Submit. "
+            + "Lifetime tier will be hidden until it resolves."
     }
 
     /// Race the operation against a sleep task. First to finish wins.
