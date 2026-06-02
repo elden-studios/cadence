@@ -206,7 +206,7 @@ public final class SubscriptionManager {
     /// the caller can guarantee it never shows an untransactable price.
     ///
     /// `nonisolated` — pure computation over value types; no actor hop needed.
-    nonisolated static func lifetimeAvailability(
+    public nonisolated static func lifetimeAvailability(
         loadState: LoadState,
         hasLifetimeProduct: Bool,
         hasAnySubscriptionProduct: Bool
