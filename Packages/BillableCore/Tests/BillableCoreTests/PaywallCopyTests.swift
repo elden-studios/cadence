@@ -27,3 +27,29 @@ struct PaywallCopyMonthlyEquivalentTests {
             yearlyPrice: nil, monthlyPrice: 3.99, locale: enUS) == nil)
     }
 }
+
+@Suite("PaywallCopy CTA title")
+struct PaywallCopyCTATests {
+    @Test("lifetime selection names the price and never offers a trial")
+    func lifetime() {
+        #expect(PaywallCopy.ctaTitle(for: .lifetime, lifetimePrice: "$99.99",
+                                     eligibleForIntroOffer: true) == "Buy Lifetime — $99.99")
+        // Eligibility is irrelevant for a one-time buy.
+        #expect(PaywallCopy.ctaTitle(for: .lifetime, lifetimePrice: "£94.99",
+                                     eligibleForIntroOffer: false) == "Buy Lifetime — £94.99")
+    }
+
+    @Test("intro-eligible subscription offers the free trial")
+    func subTrial() {
+        #expect(PaywallCopy.ctaTitle(for: .yearly, lifetimePrice: nil,
+                                     eligibleForIntroOffer: true) == "Start 7-day free trial")
+        #expect(PaywallCopy.ctaTitle(for: .monthly, lifetimePrice: nil,
+                                     eligibleForIntroOffer: true) == "Start 7-day free trial")
+    }
+
+    @Test("ineligible subscription shows Subscribe")
+    func subNoTrial() {
+        #expect(PaywallCopy.ctaTitle(for: .yearly, lifetimePrice: nil,
+                                     eligibleForIntroOffer: false) == "Subscribe")
+    }
+}

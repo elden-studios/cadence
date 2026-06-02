@@ -32,4 +32,29 @@ public enum PaywallCopy {
         }
         return line
     }
+
+    /// Pure mirror of the paywall's three purchasable tiers, so CTA logic is
+    /// testable without the SwiftUI `Plan` enum.
+    public enum Tier: String, CaseIterable, Sendable {
+        case yearly, monthly, lifetime
+    }
+
+    /// The purchase-button title for the current selection.
+    ///
+    /// - Lifetime is a one-time buy: it always reads "Buy Lifetime — <price>" and
+    ///   never offers a trial. `lifetimePrice` is the already-resolved, localized
+    ///   display price the caller derives from the StoreKit product (no literal here).
+    /// - Subscriptions read "Start 7-day free trial" when intro-eligible, else "Subscribe".
+    public static func ctaTitle(
+        for tier: Tier,
+        lifetimePrice: String?,
+        eligibleForIntroOffer: Bool
+    ) -> String {
+        switch tier {
+        case .lifetime:
+            return "Buy Lifetime — \(lifetimePrice ?? "")"
+        case .yearly, .monthly:
+            return eligibleForIntroOffer ? "Start 7-day free trial" : "Subscribe"
+        }
+    }
 }
