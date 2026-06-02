@@ -385,8 +385,9 @@ struct PaywallView: View {
             // with prices from Billable.storekit baked in. Triggered only by
             // the `--mock-paywall-prices` launch arg; never active in prod.
             VStack(spacing: 10) {
-                mockPlanRow(.yearly,  price: "$39.99", perCycle: "Just $3.33 per month, billed yearly")
-                mockPlanRow(.monthly, price: "$3.99",  perCycle: "Billed monthly · Cancel anytime")
+                mockPlanRow(.monthly,  price: "$3.99",  perCycle: "Billed monthly · Cancel anytime")
+                mockPlanRow(.yearly,   price: "$39.99", perCycle: "Just $3.33/mo · 2 months free")
+                mockPlanRow(.lifetime, price: "$99.99", perCycle: PricingConfig.lifetimePeerSubtitle)
             }
         } else {
         switch manager.loadState {
@@ -425,11 +426,14 @@ struct PaywallView: View {
 
     /// Visual twin of `planRow` that takes raw display strings instead of a
     /// StoreKit `Product`. Used only when `--mock-paywall-prices` is set. Mirrors
-    /// the hero/recede styling so marketing screenshots match the real layout.
+    /// the three-tier hero/recede styling so marketing screenshots match the live layout.
     @ViewBuilder
     private func mockPlanRow(_ plan: Plan, price: String, perCycle: String) -> some View {
         let isSelected = selection == plan
         let isHero = (plan == .yearly)
+        let isLifetime = (plan == .lifetime)
+        let lifetimeGold = Color(red: 0.72, green: 0.53, blue: 0.04)
+        let selectionAccent: Color = isLifetime ? lifetimeGold : Color.accentColor
         Button {
             selection = plan
             PaywallMetrics.record(.tierSelected, variant: PricingConfig.variant,
@@ -438,22 +442,20 @@ struct PaywallView: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(isHero ? "Yearly" : "Monthly")
+                        Text(planTitle(plan))
                             .font(.headline)
                         if isHero {
-                            Text("BEST VALUE")
+                            Text(PricingConfig.bestValueBadge)
                                 .font(.caption2.weight(.bold))
                                 .padding(.horizontal, 6).padding(.vertical, 2)
                                 .background(.white.opacity(0.22), in: .capsule)
                                 .foregroundStyle(.white)
-                            // Live products are absent in mock mode, so the
-                            // computed `savingsPill` would be empty — use a
-                            // static figure ($47.88 − $39.99) for screenshots.
-                            Text("SAVE $7.89 · about 2 months free")
+                        } else if isLifetime {
+                            Text(PricingConfig.payOnceBadge)
                                 .font(.caption2.weight(.bold))
                                 .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Color.green.opacity(0.18), in: .capsule)
-                                .foregroundStyle(.green)
+                                .background(lifetimeGold.opacity(0.16), in: .capsule)
+                                .foregroundStyle(lifetimeGold)
                         }
                     }
                     Text(perCycle)
@@ -462,12 +464,18 @@ struct PaywallView: View {
                                                 : AnyShapeStyle(.secondary))
                 }
                 Spacer()
-                Text(price)
-                    .font(.title3.weight(.semibold).monospacedDigit())
-                if isHero && isSelected {
+                if isLifetime {
+                    Text("\(price) \(PricingConfig.lifetimeOnceSuffix)")
+                        .font(.title3.weight(.semibold).monospacedDigit())
+                } else {
+                    Text(price)
+                        .font(.title3.weight(.semibold).monospacedDigit())
+                }
+                if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(isHero ? AnyShapeStyle(.white)
+                                                : AnyShapeStyle(selectionAccent))
                 }
             }
             .padding(.vertical, isHero ? 20 : 14)
@@ -487,11 +495,13 @@ struct PaywallView: View {
             }
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(isSelected ? Color.accentColor : Color.gray.opacity(0.18),
+                    .strokeBorder(isSelected ? selectionAccent : Color.gray.opacity(0.18),
                                   lineWidth: isSelected ? 2 : 1)
             )
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 
     @ViewBuilder
@@ -594,8 +604,11 @@ struct PaywallView: View {
     private func planSubLine(_ plan: Plan, product: Product?) -> String? {
         switch plan {
         case .yearly:
-            // Hide the line entirely when products aren't loaded or the
-            // monthly/yearly currencies mismatch (mirrors savingsPill's guard).
+            // Fall back to "Billed yearly" when the yearly product isn't loaded yet,
+            // keeping the sub-line visible rather than hiding it. When both products
+            // are loaded, use the locale-aware per-month saving line; if currencies
+            // mismatch (e.g. monthly loaded in a different locale), omit the months-free
+            // clause and fall back to "Billed yearly" again via the nil-coalescing.
             guard let yearly = product else { return "Billed yearly" }
             let monthlyCurrency = manager.monthly?.priceFormatStyle.locale.currency?.identifier
             let yearlyCurrency  = yearly.priceFormatStyle.locale.currency?.identifier
@@ -628,24 +641,6 @@ struct PaywallView: View {
         } else {
             ProgressView().controlSize(.small)
                 .tint(isHero ? .white : nil)
-        }
-    }
-
-    /// Computed savings badge on the yearly tier — the real saving vs. 12× monthly,
-    /// led by the tangible "$X · about N months free" framing (never a stale string).
-    /// Hidden until both products load so it can't flash an incorrect figure.
-    @ViewBuilder
-    private var savingsPill: some View {
-        let monthlyCurrency = manager.monthly?.priceFormatStyle.locale.currency?.identifier
-        let yearlyCurrency  = manager.yearly?.priceFormatStyle.locale.currency?.identifier
-        if let monthlyCurrency, let yearlyCurrency, monthlyCurrency == yearlyCurrency,
-           let m = manager.monthly?.price, let y = manager.yearly?.price,
-           let s = PricingDisplay.annualSavings(monthlyPrice: m, yearlyPrice: y) {
-            Text(PricingDisplay.savingsBadge(s, currencyCode: yearlyCurrency))
-                .font(.caption2.weight(.bold))
-                .padding(.horizontal, 6).padding(.vertical, 2)
-                .background(Color.green, in: .capsule)
-                .foregroundStyle(.white)
         }
     }
 
