@@ -446,7 +446,14 @@ struct PaywallView: View {
             VStack(spacing: 10) {
                 planRow(.monthly)
                 planRow(.yearly)
-                planRow(.lifetime)
+                // Only render the Lifetime row when the product is actually
+                // transactable. If lifetimeAvailability == .unavailable (catalog
+                // ready, subscriptions resolved, but lifetime absent — the ASC
+                // product not yet approved) we suppress the row entirely so
+                // there is never a perpetual-spinner dead buy button.
+                if lifetimeAvailability != .unavailable {
+                    planRow(.lifetime)
+                }
             }
         case .failed(let message):
             VStack(spacing: 12) {
@@ -703,9 +710,11 @@ struct PaywallView: View {
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
-        .disabled((selectedProduct == nil && !mockPaywallPrices)
-                  || (selection == .lifetime && lifetimeDisplayPrice == nil)
-                  || isProcessing)
+        .disabled(
+            (selectedProduct == nil && !mockPaywallPrices)
+            || (selection == .lifetime && lifetimeAvailability == .unavailable && !mockPaywallPrices)
+            || isProcessing
+        )
     }
 
     private var purchaseButtonTitle: String {
@@ -762,6 +771,19 @@ struct PaywallView: View {
         }
     }
 
+    /// Tri-state lifetime availability, driving whether the Lifetime tier renders a
+    /// real buy affordance, a loading shimmer, or is suppressed. In the mock-prices
+    /// branch (App Store screenshots) lifetime is always treated as available so the
+    /// shot shows three tiers. Otherwise this defers to the unit-tested resolver.
+    private var lifetimeAvailability: LifetimeAvailability {
+        if mockPaywallPrices { return .available }
+        return SubscriptionManager.lifetimeAvailability(
+            loadState: manager.loadState,
+            hasLifetimeProduct: manager.lifetime != nil,
+            hasAnySubscriptionProduct: manager.monthly != nil || manager.yearly != nil
+        )
+    }
+
     /// Resolved localized display price for the Lifetime tier, feeding both the
     /// CTA button title (`"Buy Lifetime — <price>"`) and the CTA's disable guard
     /// (a nil value disables the button so it never shows a bare trailing "— ").
@@ -782,7 +804,25 @@ struct PaywallView: View {
         if manager.ownsLifetime {
             Label(PricingConfig.ownedTitle, systemImage: "checkmark.seal.fill")
                 .font(.subheadline.weight(.semibold)).foregroundStyle(.green)
+        } else {
+            lifetimeUnavailableDiagnostic
         }
+    }
+
+    /// DEBUG-only diagnostic shown in `lifetimeAffordance` when the ASC non-consumable
+    /// has not resolved. Surfaces the gap during dev without ever exposing a buy control.
+    /// In Release builds this is an empty `EmptyView`.
+    @ViewBuilder
+    private var lifetimeUnavailableDiagnostic: some View {
+        #if DEBUG
+        if lifetimeAvailability == .unavailable {
+            Divider().padding(.vertical, 4)
+            Label("Lifetime unavailable (debug) — ASC product not resolved", systemImage: "exclamationmark.triangle")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+        }
+        #endif
     }
 
     /// Terms of Use + Privacy Policy links shown to Lifetime owners in place of
