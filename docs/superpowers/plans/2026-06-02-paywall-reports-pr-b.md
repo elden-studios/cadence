@@ -11,6 +11,19 @@
 
 ---
 
+## ✅ Build status — where we stopped (2026-06-03)
+
+> **This plan is fully EXECUTED.** Built subagent-driven via three phase-workflows (B1 → B2 → B3) + a perf follow-up, on branch `feature/paywall-reports` (worktree `.worktrees/paywall-reports`, off `origin/main` `6fa10a6`). **OPEN as [PR #27](https://github.com/elden-studios/cadence/pull/27)** (MERGEABLE), tip `f3d5035`.
+>
+> - **B1** (Tasks 1–12) ✅ — three equal tiers + pure `PaywallCopy`. **B2** (13–28) ✅ — GREEN "Collected · last 6 months" locked chart + pure `collectedMonthlyTrend` / `collectedThisYear` / `hasEnoughCollectedHistory`. **B3** (29–39) ✅ — `LifetimeAvailability` guard + DEBUG diagnostic + scheme audit + ASC owner-note. **Perf** ✅ — `ReportsPaywallTeaser` child view so the Reports `@Query` only fire on the `.reports` trigger.
+> - **379 BillableCore tests pass · clean app build · 0 warnings.** Per-task spec + code-quality reviews + a final whole-branch Opus review = **READY**.
+> - **Gemini reviewed** → **applied F8/F9** (perf micro-opts: single-pass `collectedThisYear` + lazy `collectedMonthlyTrend`, `f3d5035`); **declined F1–F7** (localization — app is English-only, no l10n infra); rationale posted on the PR.
+> - **Owner-confirmed:** chart bar = GREEN; teaser middle stat = "This year" (YTD).
+>
+> **⏳ Awaiting USER MERGE** + 3 pre-merge gates (none block code review): (1) create ASC non-consumable `com.eldenstudios.billable.pro.lifetime` @ $99.99 (Lifetime tier stays hidden until then — the B3 guard); (2) on-device CloudKit smoke-test the paywall (sim/tests use the local-store fallback); (3) manual paywall visual check (also covers B1 Task 12). **Next UX-overhaul piece after this merges: PR C** (start-timer motion → Hero Morph default + delete the DEBUG picker; spec sub-project C; plan not yet written).
+
+---
+
 ## File Structure
 
 ### Created
