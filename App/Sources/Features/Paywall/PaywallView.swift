@@ -669,7 +669,9 @@ struct PaywallView: View {
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
-        .disabled((selectedProduct == nil && !mockPaywallPrices) || isProcessing)
+        .disabled((selectedProduct == nil && !mockPaywallPrices)
+                  || (selection == .lifetime && lifetimeDisplayPrice == nil)
+                  || isProcessing)
     }
 
     private var purchaseButtonTitle: String {
