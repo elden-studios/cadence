@@ -56,7 +56,6 @@ struct PaywallView: View {
     @State private var selection: Plan = .yearly
     @State private var isProcessing = false
     @State private var error: String?
-    @State private var teaserModel: ReportsTeaserModel?
     /// Records the Reports paywall impression only once per presentation/mount —
     /// the embedded tab stays mounted, so .onAppear re-fires on revisits. (S4-5)
     @State private var didRecordImpression = false
@@ -64,14 +63,6 @@ struct PaywallView: View {
     /// presentation even though `ownsLifetime` resolves async after onAppear. (NEW-S1-2)
     @State private var didRecordLifetimeOwned = false
     @State private var restoreNotice: String?
-
-    // Backing data for the `.reports` crisp-taste header. We compute a live
-    // snapshot from the user's own entries/invoices so the teaser shows *their*
-    // numbers; if they have nothing reportable yet, we fall back to
-    // `ReportsSampleData` so the pitch never renders empty zeros.
-    @Query private var reportEntries: [TimeEntry]
-    @Query private var reportInvoices: [Invoice]
-    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
 
     enum Plan: String, CaseIterable { case yearly, monthly, lifetime }
 
@@ -130,15 +121,19 @@ struct PaywallView: View {
                                           trigger: trigger.metricKey, tier: "lifetime")
                     didRecordLifetimeOwned = true
                 }
-                recomputeTeaser()
             }
-            .onChange(of: reportEntries) { recomputeTeaser() }
-            .onChange(of: reportInvoices) { recomputeTeaser() }
             .onChange(of: manager.ownsLifetime) { _, owned in
                 guard owned, !didRecordLifetimeOwned else { return }
                 didRecordLifetimeOwned = true
                 PaywallMetrics.record(.lifetimeOwnedView, variant: PricingConfig.variant,
                                       trigger: trigger.metricKey, tier: "lifetime")
+            }
+            // If the lifetime product drops out after the user had it selected
+            // (e.g. the ASC non-consumable de-resolves mid-session), fall the
+            // selection back to Yearly so the CTA never renders a bare
+            // "Buy Lifetime — " with no price. (review cleanup)
+            .onChange(of: lifetimeAvailability) { _, new in
+                if new == .unavailable && selection == .lifetime { selection = .yearly }
             }
             .alert("Couldn't complete purchase", isPresented: Binding(
                 get: { error != nil }, set: { if !$0 { error = nil } }
@@ -163,7 +158,10 @@ struct PaywallView: View {
     @ViewBuilder
     private var headerSection: some View {
         if trigger == .reports {
-            crispTasteHeader
+            // Constructed ONLY in the `.reports` path so its `@Query`
+            // (reportEntries / reportInvoices / profiles) and the O(N)
+            // ReportsAggregator work never activate for the other triggers.
+            ReportsPaywallTeaser(headline: trigger.headline, subhead: trigger.subhead)
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 Image(systemName: "doc.text.fill")
@@ -178,224 +176,6 @@ struct PaywallView: View {
                     .foregroundStyle(.secondary)
             }
         }
-    }
-
-    // MARK: - Reports crisp-taste header
-
-    /// A real slice of the Layout-A Reports dashboard shown above the shared Pro
-    /// core when the paywall is entered from Reports: the "as of today" AR card +
-    /// an Invoiced/Collected/Rate tile row. Fed from the user's own data when they
-    /// have something reportable, else from `ReportsSampleData`. Decorative — the
-    /// real headline sits above it; the figures themselves are `accessibilityHidden`.
-    private var crispTasteHeader: some View {
-        // Don't run the O(N) ReportsAggregator.snapshot in `body`: on the first
-        // frame (before .onAppear memoizes the real model) use an O(1) sample
-        // placeholder, redacted so no figures flash before the real numbers land.
-        let isPlaceholder = (teaserModel == nil)
-        let model = teaserModel ?? sampleTeaserModel()
-
-        return VStack(alignment: .leading, spacing: 14) {
-            Text(trigger.headline)
-                .font(.largeTitle.weight(.bold))
-                .lineLimit(1)
-
-            teaserChartHero(model)
-                .redacted(reason: isPlaceholder ? .placeholder : [])
-                .accessibilityHidden(true)
-
-            if model.isSample && !isPlaceholder {
-                Text("Sample preview")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-
-            Text(trigger.subhead)
-                .font(.body)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    /// Display-only figures for the teaser, plus whether they're sample data.
-    private struct ReportsTeaserModel {
-        let currencyCode: String
-        let outstanding: Decimal
-        let overdue: Decimal
-        let overdueCount: Int
-        let avgDaysToPay: Int?
-        let invoiced: Decimal
-        /// Year-to-date collected (Σ paid invoice totals in the current calendar year).
-        let collectedThisYear: Decimal
-        let effectiveRate: Decimal?
-        let isSample: Bool
-        /// Six monthly "collected" buckets (oldest→newest) driving the teaser bar chart.
-        let collectedSeries: [ReportsAggregator.TrendPoint]
-    }
-
-    /// Memoize the teaser so the O(N) `ReportsAggregator.snapshot` isn't recomputed
-    /// on every body evaluation (mirrors ReportsView's memoization). Only `.reports`
-    /// renders the teaser, so other triggers skip the work.
-    private func recomputeTeaser() {
-        guard trigger == .reports else { return }
-        teaserModel = makeTeaserModel()
-    }
-
-    /// Builds a sample collected series mapped onto the real trailing-6 month starts ending now,
-    /// so month labels are calendar-derived (never hardcoded) while amounts are the sample values.
-    private func sampleCollectedSeries(asOf now: Date = .now, calendar: Calendar = .current) -> [ReportsAggregator.TrendPoint] {
-        let values = ReportsSampleData.collectedLast6Months
-        guard let thisMonthStart = calendar.dateInterval(of: .month, for: now)?.start else { return [] }
-        let count = values.count
-        return values.enumerated().compactMap { idx, amount in
-            // idx 0 == oldest (count-1 months ago) … idx count-1 == current month.
-            guard let start = calendar.date(byAdding: .month, value: -(count - 1 - idx), to: thisMonthStart) else { return nil }
-            return ReportsAggregator.TrendPoint(id: start, bucketStart: start, amount: amount)
-        }
-    }
-
-    /// O(1) placeholder for the first frame, before `recomputeTeaser()` memoizes the
-    /// real snapshot. Pure static sample — never touches @Query data, so it costs
-    /// nothing in `body`; real numbers replace it on `.onAppear`.
-    private func sampleTeaserModel() -> ReportsTeaserModel {
-        // Use the sum of collectedLast6Months as the "This year" sample so the stat
-        // cell is non-zero and coherent with the sample chart bars.
-        let sampleCollectedYTD = ReportsSampleData.collectedLast6Months.reduce(Decimal(0), +)
-        return ReportsTeaserModel(
-            currencyCode: profiles.first?.currencyCode ?? "USD",
-            outstanding: ReportsSampleData.outstanding,
-            overdue: ReportsSampleData.overdue,
-            overdueCount: ReportsSampleData.overdueCount,
-            avgDaysToPay: ReportsSampleData.avgDaysToPay,
-            invoiced: ReportsSampleData.invoiced,
-            collectedThisYear: sampleCollectedYTD,
-            effectiveRate: ReportsSampleData.effectiveRate,
-            isSample: true,
-            collectedSeries: sampleCollectedSeries()
-        )
-    }
-
-    /// Compute the teaser from the user's real snapshot when they have reportable
-    /// data; otherwise use the representative sample slice.
-    private func makeTeaserModel() -> ReportsTeaserModel {
-        let code = profiles.first?.currencyCode ?? "USD"
-        let snap = ReportsAggregator.snapshot(
-            entries: reportEntries,
-            invoices: reportInvoices,
-            in: .thisMonth,
-            activeCurrency: code
-        )
-        // Build the real monthly-collected trend — reads only Invoice scalars
-        // (status/paidAt/total/currencyCodeSnapshot), never traverses \.project
-        // or \.project?.client, so the CloudKit nested-keypath trap cannot occur.
-        let realSeries = ReportsAggregator.collectedMonthlyTrend(
-            invoices: reportInvoices,
-            activeCurrency: code
-        )
-        let collectedHistoryOK = ReportsAggregator.hasEnoughCollectedHistory(realSeries)
-        if snap.hasReportableData && collectedHistoryOK {
-            // YTD collected: pure Invoice-scalar helper, no relationship traversal,
-            // reuses the existing reportInvoices @Query — no new fetch.
-            let ytd = ReportsAggregator.collectedThisYear(
-                invoices: reportInvoices,
-                activeCurrency: code
-            )
-            return ReportsTeaserModel(
-                currencyCode: code,
-                outstanding: snap.ar.outstanding,
-                overdue: snap.ar.overdue,
-                overdueCount: snap.ar.overdueCount,
-                avgDaysToPay: snap.ar.avgDaysToPay.map { Int($0.rounded()) },
-                invoiced: snap.money.invoiced,
-                collectedThisYear: ytd,
-                effectiveRate: snap.performance.effectiveRate,
-                isSample: false,
-                collectedSeries: realSeries
-            )
-        } else {
-            let sampleCollectedYTD = ReportsSampleData.collectedLast6Months.reduce(Decimal(0), +)
-            return ReportsTeaserModel(
-                currencyCode: code,
-                outstanding: ReportsSampleData.outstanding,
-                overdue: ReportsSampleData.overdue,
-                overdueCount: ReportsSampleData.overdueCount,
-                avgDaysToPay: ReportsSampleData.avgDaysToPay,
-                invoiced: ReportsSampleData.invoiced,
-                collectedThisYear: sampleCollectedYTD,
-                effectiveRate: ReportsSampleData.effectiveRate,
-                isSample: true,
-                collectedSeries: sampleCollectedSeries()
-            )
-        }
-    }
-
-    private func currency(_ value: Decimal, code: String) -> String {
-        value.formatted(.currency(code: code))
-    }
-
-    // MARK: - Chart-led locked teaser (B2)
-
-    /// Locked bar-chart hero shown in the Reports paywall teaser. Always wrapped in
-    /// `.redacted` + `.accessibilityHidden(true)` by the caller (`crispTasteHeader`).
-    @ViewBuilder
-    private func teaserChartHero(_ model: ReportsTeaserModel) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Always-on locked-preview eyebrow (both real and sample states).
-            HStack(spacing: 6) {
-                Image(systemName: "lock.fill")
-                    .font(.caption2.weight(.semibold))
-                Text("Your Reports preview")
-                    .font(.caption.weight(.semibold))
-            }
-            .foregroundStyle(.tint)
-
-            Text("Collected · last 6 months")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            Chart(model.collectedSeries) { point in
-                BarMark(
-                    x: .value("Month", point.bucketStart, unit: .month),
-                    y: .value("Collected", (point.amount as NSDecimalNumber).doubleValue)
-                )
-                .foregroundStyle(Color.green.gradient)
-            }
-            .chartXAxis {
-                AxisMarks(values: .stride(by: .month)) { _ in
-                    AxisGridLine()
-                    AxisValueLabel(format: .dateTime.month(.abbreviated))
-                }
-            }
-            .chartYAxis(.hidden)
-            .frame(height: 140)
-
-            teaserStatLine(model)
-        }
-        .padding(16)
-        .background(Color.accentColor.opacity(0.06), in: .rect(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
-        }
-    }
-
-    @ViewBuilder
-    private func teaserStatLine(_ model: ReportsTeaserModel) -> some View {
-        HStack(spacing: 16) {
-            statCell("Owed", currency(model.outstanding, code: model.currencyCode))
-            Divider().frame(height: 28)
-            statCell("This year", currency(model.collectedThisYear, code: model.currencyCode))
-            Divider().frame(height: 28)
-            statCell("Effective rate", model.effectiveRate.map { "\(currency($0, code: model.currencyCode))/h" } ?? "—")
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    @ViewBuilder
-    private func statCell(_ label: String, _ value: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-            Text(label).font(.caption2).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
     }
 
     /// The shared "Everything in Pro" core — identical for every trigger,
@@ -915,5 +695,236 @@ struct PaywallView: View {
         } else {
             restoreNotice = "No active purchases were found for your Apple ID."
         }
+    }
+}
+
+// MARK: - Reports paywall teaser (lazy child)
+
+/// The chart-led "crisp taste" header shown above the shared Pro core when the
+/// paywall is entered from Reports. Extracted into its own view so the backing
+/// `@Query` (reportEntries / reportInvoices / profiles) and the O(N)
+/// `ReportsAggregator` work activate ONLY when this view is constructed — i.e.
+/// only for the `.reports` trigger. For `.settings` / `.removeWatermark` the
+/// parent never builds it, so the full TimeEntry + Invoice tables are never
+/// fetched-and-discarded.
+///
+/// Renders a real slice of the Layout-A Reports dashboard: a locked "Collected ·
+/// last 6 months" bar chart + a "This year" / Owed / Effective-rate stat line.
+/// Fed from the user's own data when they have enough reportable history, else
+/// from `ReportsSampleData`. Decorative — the real headline sits above it inside
+/// here; the figures themselves are `.redacted` on the first frame and always
+/// `.accessibilityHidden`.
+private struct ReportsPaywallTeaser: View {
+    /// Headline + subhead are passed in from the parent's `Trigger` so this view
+    /// stays decoupled from the paywall's trigger enum (it only ever renders for
+    /// `.reports`).
+    let headline: String
+    let subhead: String
+
+    // Backing data for the teaser. We compute a live snapshot from the user's own
+    // entries/invoices so the teaser shows *their* numbers; if they have nothing
+    // reportable yet, we fall back to `ReportsSampleData` so the pitch never
+    // renders empty zeros. These `@Query`s only activate because this view is only
+    // constructed for the `.reports` trigger.
+    @Query private var reportEntries: [TimeEntry]
+    @Query private var reportInvoices: [Invoice]
+    @Query(sort: \BusinessProfile.createdAt, order: .forward) private var profiles: [BusinessProfile]
+
+    @State private var teaserModel: ReportsTeaserModel?
+
+    var body: some View {
+        // Don't run the O(N) ReportsAggregator.snapshot in `body`: on the first
+        // frame (before .onAppear memoizes the real model) use an O(1) sample
+        // placeholder, redacted so no figures flash before the real numbers land.
+        let isPlaceholder = (teaserModel == nil)
+        let model = teaserModel ?? sampleTeaserModel()
+
+        VStack(alignment: .leading, spacing: 14) {
+            Text(headline)
+                .font(.largeTitle.weight(.bold))
+                .lineLimit(1)
+
+            teaserChartHero(model)
+                .redacted(reason: isPlaceholder ? .placeholder : [])
+                .accessibilityHidden(true)
+
+            if model.isSample && !isPlaceholder {
+                Text("Sample preview")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
+            Text(subhead)
+                .font(.body)
+                .foregroundStyle(.secondary)
+        }
+        .onAppear { recomputeTeaser() }
+        .onChange(of: reportEntries) { recomputeTeaser() }
+        .onChange(of: reportInvoices) { recomputeTeaser() }
+    }
+
+    /// Display-only figures for the teaser, plus whether they're sample data.
+    private struct ReportsTeaserModel {
+        let currencyCode: String
+        let outstanding: Decimal
+        /// Year-to-date collected (Σ paid invoice totals in the current calendar year).
+        let collectedThisYear: Decimal
+        let effectiveRate: Decimal?
+        let isSample: Bool
+        /// Six monthly "collected" buckets (oldest→newest) driving the teaser bar chart.
+        let collectedSeries: [ReportsAggregator.TrendPoint]
+    }
+
+    /// Memoize the teaser so the O(N) `ReportsAggregator.snapshot` isn't recomputed
+    /// on every body evaluation (mirrors ReportsView's memoization).
+    private func recomputeTeaser() {
+        teaserModel = makeTeaserModel()
+    }
+
+    /// Builds a sample collected series mapped onto the real trailing-6 month starts ending now,
+    /// so month labels are calendar-derived (never hardcoded) while amounts are the sample values.
+    private func sampleCollectedSeries(asOf now: Date = .now, calendar: Calendar = .current) -> [ReportsAggregator.TrendPoint] {
+        let values = ReportsSampleData.collectedLast6Months
+        guard let thisMonthStart = calendar.dateInterval(of: .month, for: now)?.start else { return [] }
+        let count = values.count
+        return values.enumerated().compactMap { idx, amount in
+            // idx 0 == oldest (count-1 months ago) … idx count-1 == current month.
+            guard let start = calendar.date(byAdding: .month, value: -(count - 1 - idx), to: thisMonthStart) else { return nil }
+            return ReportsAggregator.TrendPoint(id: start, bucketStart: start, amount: amount)
+        }
+    }
+
+    /// O(1) placeholder for the first frame, before `recomputeTeaser()` memoizes the
+    /// real snapshot. Pure static sample — never touches @Query data, so it costs
+    /// nothing in `body`; real numbers replace it on `.onAppear`.
+    private func sampleTeaserModel() -> ReportsTeaserModel {
+        // Use the sum of collectedLast6Months as the "This year" sample so the stat
+        // cell is non-zero and coherent with the sample chart bars.
+        let sampleCollectedYTD = ReportsSampleData.collectedLast6Months.reduce(Decimal(0), +)
+        return ReportsTeaserModel(
+            currencyCode: profiles.first?.currencyCode ?? "USD",
+            outstanding: ReportsSampleData.outstanding,
+            collectedThisYear: sampleCollectedYTD,
+            effectiveRate: ReportsSampleData.effectiveRate,
+            isSample: true,
+            collectedSeries: sampleCollectedSeries()
+        )
+    }
+
+    /// Compute the teaser from the user's real snapshot when they have reportable
+    /// data; otherwise use the representative sample slice.
+    private func makeTeaserModel() -> ReportsTeaserModel {
+        let code = profiles.first?.currencyCode ?? "USD"
+        let snap = ReportsAggregator.snapshot(
+            entries: reportEntries,
+            invoices: reportInvoices,
+            in: .thisMonth,
+            activeCurrency: code
+        )
+        // Build the real monthly-collected trend — reads only Invoice scalars
+        // (status/paidAt/total/currencyCodeSnapshot), never traverses \.project
+        // or \.project?.client, so the CloudKit nested-keypath trap cannot occur.
+        let realSeries = ReportsAggregator.collectedMonthlyTrend(
+            invoices: reportInvoices,
+            activeCurrency: code
+        )
+        let collectedHistoryOK = ReportsAggregator.hasEnoughCollectedHistory(realSeries)
+        if snap.hasReportableData && collectedHistoryOK {
+            // YTD collected: pure Invoice-scalar helper, no relationship traversal,
+            // reuses the existing reportInvoices @Query — no new fetch.
+            let ytd = ReportsAggregator.collectedThisYear(
+                invoices: reportInvoices,
+                activeCurrency: code
+            )
+            return ReportsTeaserModel(
+                currencyCode: code,
+                outstanding: snap.ar.outstanding,
+                collectedThisYear: ytd,
+                effectiveRate: snap.performance.effectiveRate,
+                isSample: false,
+                collectedSeries: realSeries
+            )
+        } else {
+            let sampleCollectedYTD = ReportsSampleData.collectedLast6Months.reduce(Decimal(0), +)
+            return ReportsTeaserModel(
+                currencyCode: code,
+                outstanding: ReportsSampleData.outstanding,
+                collectedThisYear: sampleCollectedYTD,
+                effectiveRate: ReportsSampleData.effectiveRate,
+                isSample: true,
+                collectedSeries: sampleCollectedSeries()
+            )
+        }
+    }
+
+    private func currency(_ value: Decimal, code: String) -> String {
+        value.formatted(.currency(code: code))
+    }
+
+    // MARK: - Chart-led locked teaser (B2)
+
+    /// Locked bar-chart hero shown in the Reports paywall teaser. Always wrapped in
+    /// `.redacted` + `.accessibilityHidden(true)` by `body`.
+    @ViewBuilder
+    private func teaserChartHero(_ model: ReportsTeaserModel) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Always-on locked-preview eyebrow (both real and sample states).
+            HStack(spacing: 6) {
+                Image(systemName: "lock.fill")
+                    .font(.caption2.weight(.semibold))
+                Text("Your Reports preview")
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(.tint)
+
+            Text("Collected · last 6 months")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Chart(model.collectedSeries) { point in
+                BarMark(
+                    x: .value("Month", point.bucketStart, unit: .month),
+                    y: .value("Collected", (point.amount as NSDecimalNumber).doubleValue)
+                )
+                .foregroundStyle(Color.green.gradient)
+            }
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .month)) { _ in
+                    AxisGridLine()
+                    AxisValueLabel(format: .dateTime.month(.abbreviated))
+                }
+            }
+            .chartYAxis(.hidden)
+            .frame(height: 140)
+
+            teaserStatLine(model)
+        }
+        .padding(16)
+        .background(Color.accentColor.opacity(0.06), in: .rect(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private func teaserStatLine(_ model: ReportsTeaserModel) -> some View {
+        HStack(spacing: 16) {
+            statCell("Owed", currency(model.outstanding, code: model.currencyCode))
+            Divider().frame(height: 28)
+            statCell("This year", currency(model.collectedThisYear, code: model.currencyCode))
+            Divider().frame(height: 28)
+            statCell("Effective rate", model.effectiveRate.map { "\(currency($0, code: model.currencyCode))/h" } ?? "—")
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func statCell(_ label: String, _ value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }

@@ -33,6 +33,20 @@ struct LifetimeAvailabilityTests {
         )
     }
 
+    @Test("Ready with lifetime present but NO subscriptions -> .available (non-consumable-only catalog)")
+    func availableWhenOnlyLifetimeLoaded() {
+        // A catalog that resolved only the non-consumable Lifetime (no subscription
+        // products) must still treat Lifetime as transactable — `hasLifetimeProduct`
+        // wins regardless of whether any subscription resolved.
+        #expect(
+            SubscriptionManager.lifetimeAvailability(
+                loadState: .ready,
+                hasLifetimeProduct: true,
+                hasAnySubscriptionProduct: false
+            ) == .available
+        )
+    }
+
     @Test("Products ready, subscriptions present, lifetime nil -> .unavailable (the silent-blank guard)")
     func unavailableWhenOnlyLifetimeMissing() {
         #expect(

@@ -234,6 +234,26 @@ struct ReportsCollectedTrendTests {
         #expect(result == 0)
     }
 
+    @Test("collectedThisYear is year-boundary-precise: first instant of asOf year IN, last instant of prior year OUT")
+    func collectedThisYearYearBoundaryInstants() {
+        // asOf == 2023-11-14 → year interval is [2023-01-01 00:00:00, 2024-01-01 00:00:00).
+        let firstInstantThisYear = gregorian.date(from: DateComponents(year: 2023, month: 1, day: 1))!
+        // One second before the year start == the last instant of the prior (2022) year.
+        let lastInstantPriorYear = firstInstantThisYear.addingTimeInterval(-1)
+
+        let included = makeInvoice(total: 500, status: .paid, issued: firstInstantThisYear, paid: firstInstantThisYear)
+        let excluded = makeInvoice(total: 999, status: .paid, issued: lastInstantPriorYear, paid: lastInstantPriorYear)
+
+        let result = ReportsAggregator.collectedThisYear(
+            invoices: [included, excluded],
+            activeCurrency: "USD",
+            asOf: asOf,
+            calendar: gregorian
+        )
+        // Only the first-instant-of-year invoice counts; the prior-year one is excluded.
+        #expect(result == 500)
+    }
+
     @Test("collectedThisYear excludes draft and sent invoices")
     func collectedThisYearExcludesNonPaid() {
         let when = gregorian.date(byAdding: .day, value: 3, to: monthStart(2))!
