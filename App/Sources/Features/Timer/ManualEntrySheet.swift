@@ -19,6 +19,8 @@ struct ManualEntrySheet: View {
 
     /// Drives the "Recalculate this entry?" confirmation dialog.
     @State private var showingBreakWarning = false
+    @State private var showingAddClient = false
+    @State private var showingNewProject = false
 
     /// When non-nil, the sheet edits the given entry instead of creating a new one.
     let editing: TimeEntry?
@@ -38,6 +40,10 @@ struct ManualEntrySheet: View {
         }
     }
 
+    private var hasAnyProject: Bool {
+        clients.contains { $0.projects.contains { !$0.isArchived } }
+    }
+
     private var isEditing: Bool { editing != nil }
     /// True when the entry being edited is still running (no end time yet).
     /// Running entries are adjusted via RunningTimerCard/adjustStart, not this sheet.
@@ -55,30 +61,61 @@ struct ManualEntrySheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Project") {
-                    projectPicker
-                }
+            Group {
+                if !isEditing && !hasAnyProject {
+                    ContentUnavailableView {
+                        Label("No projects yet", systemImage: "folder.badge.plus")
+                    } description: {
+                        Text(clients.isEmpty
+                             ? "Add a client, then create a project to track time against."
+                             : "Create a project to track time against.")
+                    } actions: {
+                        Button(clients.isEmpty ? "Add a client" : "Create a project") {
+                            if clients.isEmpty { showingAddClient = true } else { showingNewProject = true }
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .sheet(isPresented: $showingAddClient) { NavigationStack { ClientEditorView(client: nil) } }
+                    .sheet(isPresented: $showingNewProject) { GetStartedNewProjectSheet() }
+                } else {
+                    Form {
+                        Section("Project") {
+                            projectPicker
+                        }
 
-                Section("When") {
-                    // Cap the upper bound to now: a manual entry cannot start in
-                    // the future. End is bounded by the chosen start.
-                    DatePicker("Start", selection: $startDate, in: ...Date.now)
-                    DatePicker("End", selection: $endDate, in: startDate...max(startDate, Date.now))
-                    LabeledContent("Duration", value: durationLabel)
-                }
+                        Section("When") {
+                            // Cap the upper bound to now: a manual entry cannot start in
+                            // the future. End is bounded by the chosen start.
+                            DatePicker("Start", selection: $startDate, in: ...Date.now)
+                            DatePicker("End", selection: $endDate, in: startDate...max(startDate, Date.now))
+                            LabeledContent("Duration", value: durationLabel)
+                        }
 
-                Section("Notes") {
-                    TextField("What did you work on?", text: $notes, axis: .vertical)
-                        .lineLimit(3...8)
-                }
+                        Section("Notes") {
+                            TextField("What did you work on?", text: $notes, axis: .vertical)
+                                .lineLimit(3...8)
+                        }
 
-                if isEditingRunningEntry {
-                    Section {
-                        EmptyView()
-                    } footer: {
-                        Text("This timer is still running — stop it first to edit this session's times.")
-                            .foregroundStyle(.secondary)
+                        if isEditingRunningEntry {
+                            Section {
+                                EmptyView()
+                            } footer: {
+                                Text("This timer is still running — stop it first to edit this session's times.")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .confirmationDialog(
+                        "Recalculate this entry?",
+                        isPresented: $showingBreakWarning,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Recalculate & Save", role: .destructive) {
+                            commitEdit(flattenBreaks: true)
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("Editing the times recalculates this entry from start to end and clears its recorded breaks.")
                     }
                 }
             }
@@ -89,22 +126,12 @@ struct ManualEntrySheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save", action: save)
-                        .bold()
-                        .disabled(!canSave)
+                    if isEditing || hasAnyProject {
+                        Button("Save", action: save)
+                            .bold()
+                            .disabled(!canSave)
+                    }
                 }
-            }
-            .confirmationDialog(
-                "Recalculate this entry?",
-                isPresented: $showingBreakWarning,
-                titleVisibility: .visible
-            ) {
-                Button("Recalculate & Save", role: .destructive) {
-                    commitEdit(flattenBreaks: true)
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Editing the times recalculates this entry from start to end and clears its recorded breaks.")
             }
         }
     }

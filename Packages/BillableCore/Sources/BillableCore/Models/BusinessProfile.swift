@@ -86,6 +86,48 @@ public final class BusinessProfile {
             && !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    // MARK: - Profile completeness breakdown
+
+    /// A field that contributes to profile completeness. Tax is intentionally
+    /// excluded — it is optional and governed by `showsTaxByDefault` separately.
+    public enum ProfileField: CaseIterable, Hashable, Sendable {
+        case name
+        case address
+        case bankDetails
+        case logo
+
+        /// A human-readable label for the field, suitable for UI copy.
+        public var label: String {
+            switch self {
+            case .name:        return "name"
+            case .address:     return "address"
+            case .bankDetails: return "bank details"
+            case .logo:        return "logo"
+            }
+        }
+    }
+
+    /// Returns the set of fields that are not yet filled in.
+    /// Use this for progress indicators and first-run guidance.
+    /// Does NOT overlap with `isProfileEnriched` — bank and logo are
+    /// intentionally optional for invoicing but still tracked here.
+    public var missingProfileFields: [ProfileField] {
+        var missing: [ProfileField] = []
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            missing.append(.name)
+        }
+        if address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            missing.append(.address)
+        }
+        if !hasBankDetails {
+            missing.append(.bankDetails)
+        }
+        if logoData == nil {
+            missing.append(.logo)
+        }
+        return missing
+    }
+
     // MARK: - Invoice email templates (v1.6 / Phase 2)
 
     public var invoiceEmailSubjectTemplate: String = BusinessProfile.defaultInvoiceEmailSubject

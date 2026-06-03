@@ -1,11 +1,8 @@
 import XCTest
 
 /// UI checks for the get-started block (spec §7a / §16):
-///  A. Double-tapping "Start a timer now" creates exactly ONE General project
-///     and ONE running timer (the `startingQuickTimer` debounce holds), and the
-///     block header reframes to "Timer running".
-///  B. Adding a client advances checklist Row 1 ("Add a client" → done) and
-///     enables Row 2 ("Create a project").
+///  A. Adding a client advances checklist Row 1 ("Add your first client" → done)
+///     and enables Row 2 ("Create a project").
 ///
 /// Launched with --seed-onboarding-needs-setup (onboarded, first-setup
 /// unreached, no clients) so Today renders the get-started block on first frame.
@@ -26,57 +23,37 @@ final class GetStartedChecklistUITests: XCTestCase {
         return app
     }
 
-    // MARK: A — quick-start double-tap creates exactly one General + one timer
+    // MARK: B — first-run Today leads with "Add your first client"; no timer quick-start CTA
 
-    func test_quickStart_doubleTap_createsOneGeneral_andRunningTimer() throws {
+    func test_firstRun_leadsWithAddClient_andNoTimerCTA() {
         let app = launchedApp()
 
-        // Today tab is the default; the get-started block shows on first frame.
-        let quickStart = app.buttons["getStarted.quickStart"]
-        XCTAssertTrue(quickStart.waitForExistence(timeout: 5),
-                      "Get-started quick-start button must be visible on Today. Tree:\n\(app.debugDescription)")
+        // The setup-first checklist row must be the lead CTA.
+        XCTAssertTrue(app.buttons["Add your first client"].waitForExistence(timeout: 5),
+                      "'Add your first client' must be the lead row on first run. Tree:\n\(app.debugDescription)")
 
-        // Double-tap as fast as possible to race the debounce.
-        quickStart.tap()
-        quickStart.tap()
-
-        // The header reframes to "Timer running" once the timer starts — wait for it.
-        let runningHeader = app.staticTexts["Timer running"]
-        XCTAssertTrue(runningHeader.waitForExistence(timeout: 5),
-                      "Block header must reframe to 'Timer running' after quick-start. Tree:\n\(app.debugDescription)")
-
-        // Verify exactly ONE "General" project exists by navigating to Work and
-        // counting rows whose label is exactly "General". (Two would mean the
-        // debounce failed and we double-inserted.)
-        let workTab = app.tabBars.buttons["Work"]
-        XCTAssertTrue(workTab.waitForExistence(timeout: 3), "Work tab must exist")
-        workTab.tap()
-
-        let generalCells = app.staticTexts.matching(NSPredicate(format: "label == 'General'"))
-        // Allow the list to populate.
-        XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 5),
-                      "A 'General' project must appear in Work after quick-start. Tree:\n\(app.debugDescription)")
-        XCTAssertEqual(generalCells.count, 1,
-                       "Exactly ONE 'General' project must exist (debounce must prevent a double-insert). Found \(generalCells.count). Tree:\n\(app.debugDescription)")
+        // The old "Start a timer now" quick-start button must not exist.
+        XCTAssertFalse(app.buttons["getStarted.quickStart"].exists,
+                       "Timer quick-start button must not appear — that path has been removed")
     }
 
-    // MARK: B — adding a client advances Row 1 + enables Row 2
+    // MARK: A — adding a client advances Row 1 + enables Row 2
 
     func test_addingClient_advancesChecklist_andEnablesProjectRow() throws {
         let app = launchedApp()
 
         // Row 2 "Create a project" starts disabled (no client). XCUITest reports
-        // a disabled SwiftData Button as isEnabled == false.
+        // a disabled SwiftUI Button as isEnabled == false.
         let createProjectRow = app.buttons["Create a project"]
         XCTAssertTrue(createProjectRow.waitForExistence(timeout: 5),
                       "'Create a project' checklist row must be present. Tree:\n\(app.debugDescription)")
         XCTAssertFalse(createProjectRow.isEnabled,
                        "'Create a project' must be disabled until a client exists")
 
-        // Tap Row 1 "Add a client" → ClientEditorView sheet.
-        let addClientRow = app.buttons["Add a client"]
+        // Tap Row 1 "Add your first client" → ClientEditorView sheet.
+        let addClientRow = app.buttons["Add your first client"]
         XCTAssertTrue(addClientRow.waitForExistence(timeout: 3),
-                      "'Add a client' checklist row must be present")
+                      "'Add your first client' checklist row must be present")
         addClientRow.tap()
 
         // Fill the client name. ClientEditorView's first field placeholder is "Client name".

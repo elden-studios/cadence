@@ -103,8 +103,9 @@ struct WorkView: View {
         // Group by client identity (not name) so two clients sharing a name
         // don't collide into one section. Projects within a group keep the
         // @Query's name order (Dictionary(grouping:) preserves insertion order).
-        // "No client" bucket: load-bearing for the quickStart "General"
-        // project (client-less by design). Do not remove.
+        // "No client" bucket: handles any pre-existing / legacy clientless
+        // projects. The quickStart "General" creation path is gone, but the
+        // bucket is still needed for users who upgraded with one already.
         let byClient = Dictionary(grouping: filteredProjects) { $0.client?.persistentModelID }
         return byClient.map { id, projects in
             let client = projects.first?.client

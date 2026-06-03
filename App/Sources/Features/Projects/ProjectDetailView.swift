@@ -12,8 +12,7 @@ struct ProjectDetailView: View {
     @Query(Self.runningDescriptor) private var runningEntries: [TimeEntry]
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(TimerMotionStyle.storageKey) private var motionStyleRaw = TimerMotionStyle.spring.rawValue
-    private var motionStyle: TimerMotionStyle { TimerMotionStyle(rawValue: motionStyleRaw) ?? .spring }
+    @AppStorage(TimerMotionStyle.storageKey) private var motionStyle: TimerMotionStyle = .heroMorph
 
     @State private var showingEdit = false
     @State private var showingInvoiceGenerator = false
