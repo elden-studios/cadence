@@ -141,7 +141,7 @@ struct TodayView: View {
         case .nameBanner:
             nameBanner
         case .getStarted:
-            GetStartedSection(clients: allClients, currencyCode: currencyCode)
+            GetStartedSection(clients: allClients)
                 .padding(.horizontal)
         case .enrichment:
             enrichmentNudge
@@ -183,7 +183,7 @@ struct TodayView: View {
                         Text("Finish your invoice details")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(.primary)
-                        Text("Add your address so invoices look complete.")
+                        Text("Add your address, bank details, and logo so invoices look professional.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -423,23 +423,20 @@ private struct TodaySummarySection: View {
         let uninvoiced = uninvoicedEntries
             .reduce(into: Decimal(0)) { $0 += $1.amount(asOf: referenceDate) }
 
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Today")
-                .font(.title3.weight(.semibold))
-            HStack(spacing: 12) {
-                SummaryTile(label: "Hours", value: DurationFormatting.hoursMinutes(seconds: todaysSeconds), color: .blue)
-                SummaryTile(
-                    label: "Earnings",
-                    value: todaysAmount.formatted(.currency(code: currencyCode)),
-                    color: .green
-                )
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Today").font(.title3.weight(.semibold))
+                HStack(spacing: 12) {
+                    SummaryTile(label: "Hours", value: DurationFormatting.hoursMinutes(seconds: todaysSeconds), color: .blue)
+                    SummaryTile(label: "Earnings", value: todaysAmount.formatted(.currency(code: currencyCode)), color: .green)
+                }
             }
-            // F46: pass onTap only when there is uninvoiced work to invoice.
-            UninvoicedTile(
-                amount: uninvoiced,
-                currency: currencyCode,
-                onTap: uninvoiced > 0 ? { showingGenerator = true } : nil
-            )
+            if uninvoiced > 0 {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Ready to invoice").font(.title3.weight(.semibold))
+                    UninvoicedTile(amount: uninvoiced, currency: currencyCode, onTap: { showingGenerator = true })
+                }
+            }
         }
     }
 
@@ -468,41 +465,28 @@ private struct SummaryTile: View {
 private struct UninvoicedTile: View {
     let amount: Decimal
     let currency: String
-    /// F46: When non-nil the tile is tappable and presents the invoice generator.
-    /// Pass nil (the default) when `amount == 0` to keep the tile inert.
-    var onTap: (() -> Void)? = nil
+    let onTap: () -> Void
 
     var body: some View {
-        let tileContent = tileBody
-        if let onTap {
-            Button(action: onTap) {
-                tileContent
-            }
-            .buttonStyle(.plain)
-        } else {
-            tileContent
+        Button(action: onTap) {
+            tileBody
         }
+        .buttonStyle(.plain)
     }
 
     private var tileBody: some View {
-        // F20: label updated to "UNINVOICED · ALL PROJECTS" to clarify scope.
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("UNINVOICED · ALL PROJECTS")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
                 Text(amount.formatted(.currency(code: currency)))
                     .font(.system(size: 36, weight: .bold, design: .rounded).monospacedDigit())
                 Text("Hours you've tracked but haven't invoiced yet.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if onTap != nil {
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
