@@ -135,6 +135,15 @@ All in `PaywallView.swift` (+ pricing/subscription/sample/reports). **Must land 
 
 **Files:** `PaywallView.swift` (`lifetimeDisplayPrice`), `SubscriptionManager.swift`, `Billable.xcscheme` (Profile only, if at all).
 
+> **Owner action required (B3 — not codeable):** Create the App Store Connect non-consumable
+> `com.eldenstudios.billable.pro.lifetime` priced at the Lifetime tier (illustratively $99.99 USD;
+> App Store Connect manages all 175 storefront equivalents) and move it to **Approved / Ready to Submit**.
+> Until this exists and is approved, `manager.lifetime` resolves `nil` in TestFlight/Production, so the
+> Lifetime tier is intentionally hidden (the DEBUG build logs a diagnostic naming this product id, and the
+> in-app DEBUG "Lifetime unavailable" caption appears). No code change unblocks this — it is purely an
+> App Store Connect catalog dependency. The product id must stay byte-identical across
+> `SubscriptionManager.lifetimeProductID`, `App/Resources/Billable.storekit`, and the ASC product.
+
 ---
 
 ## Sub-project C — Start-timer motion (C7)

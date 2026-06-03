@@ -97,6 +97,12 @@ public enum ReportsAggregator {
         public let id: Date
         public let bucketStart: Date
         public let amount: Decimal       // invoiced total in this bucket
+
+        public init(id: Date, bucketStart: Date, amount: Decimal) {
+            self.id = id
+            self.bucketStart = bucketStart
+            self.amount = amount
+        }
     }
 
     public enum TrendBucket: Sendable { case day, week, month }  // x-axis granularity for the chart
@@ -194,6 +200,84 @@ public enum ReportsAggregator {
             revenueTrend: trend.points, trendBucket: trend.bucket,
             excludedCurrencyCount: excludedCurrencyCount, hasAnyBilledInvoice: hasAnyBilledInvoice,
             currencyCode: activeCurrency)
+    }
+
+    // MARK: - Collected monthly trend (paywall teaser)
+
+    /// Σ `invoice.total` of PAID invoices, grouped by the calendar month of `paidAt`, over a
+    /// fixed trailing window of `monthsBack` months ending the `referenceDate` month.
+    ///
+    /// Pure: takes plain `[Invoice]`, returns `[TrendPoint]` (oldest→newest), no SwiftData /
+    /// `ModelContext` / fetch. Months with no collected invoices are gap-filled with `amount == 0`,
+    /// so the result always has exactly `monthsBack` elements (a continuous bar axis).
+    ///
+    /// "Collected" is binary at the invoice level (no `Payment` model / partial-payment field):
+    /// an invoice counts iff `status == .paid`; its bucket is `month(paidAt)` (a `.paid` invoice
+    /// with `paidAt == nil` is excluded); its contribution is `invoice.total` (tax-inclusive).
+    /// This is the series generalization of the scalar `MoneySummary.collected`, so the chart
+    /// agrees with the COLLECTED tile. Currency-filtered FIRST (never sums across currencies).
+    public static func collectedMonthlyTrend(
+        invoices: [Invoice],
+        activeCurrency: String,
+        monthsBack: Int = 6,
+        asOf referenceDate: Date = .now,
+        calendar: Calendar = .current
+    ) -> [TrendPoint] {
+        guard monthsBack > 0 else { return [] }
+
+        guard let thisMonthStart = calendar.dateInterval(of: .month, for: referenceDate)?.start,
+              let oldestStart = calendar.date(byAdding: .month, value: -(monthsBack - 1), to: thisMonthStart)
+        else { return [] }
+
+        // Pre-group paid, in-currency invoices by their paidAt month-start in a SINGLE lazy
+        // pass (no intermediate arrays). The nil-key bucket (paid but no paidAt) is never
+        // walked below, so it is excluded.
+        let paidByMonth = Dictionary(
+            grouping: invoices.lazy.filter { $0.currencyCodeSnapshot == activeCurrency && $0.status == .paid }
+        ) { inv in
+            inv.paidAt.flatMap { calendar.dateInterval(of: .month, for: $0)?.start }
+        }
+
+        // Compute each month start directly from `oldestStart` using a fixed offset so
+        // the loop always emits exactly `monthsBack` points — no early break possible.
+        return (0..<monthsBack).map { offset in
+            let start = calendar.date(byAdding: .month, value: offset, to: oldestStart) ?? oldestStart
+            let amount = (paidByMonth[start] ?? []).reduce(Decimal(0)) { $0 + $1.total }
+            return TrendPoint(id: start, bucketStart: start, amount: amount)
+        }
+    }
+
+    /// Σ `invoice.total` of PAID invoices whose `paidAt` falls in the same calendar year as
+    /// `referenceDate`, currency-filtered to `activeCurrency`.
+    ///
+    /// Pure: Invoice scalars only — no `.project` / `.project?.client` traversal, no fetch, no
+    /// SwiftData dependency. CloudKit-safe by construction (mirrors `collectedMonthlyTrend`).
+    /// A `.paid` invoice with `paidAt == nil` is excluded (consistent with `MoneySummary.collected`).
+    /// Returns a tax-inclusive total (`invoice.total`).
+    public static func collectedThisYear(
+        invoices: [Invoice],
+        activeCurrency: String,
+        asOf referenceDate: Date = .now,
+        calendar: Calendar = .current
+    ) -> Decimal {
+        guard let yearInterval = calendar.dateInterval(of: .year, for: referenceDate) else { return 0 }
+        // Single pass — no intermediate filtered/compactMapped arrays.
+        return invoices.reduce(Decimal(0)) { sum, inv in
+            guard inv.currencyCodeSnapshot == activeCurrency,
+                  inv.status == .paid,
+                  let paidAt = inv.paidAt,
+                  paidAt >= yearInterval.start && paidAt < yearInterval.end
+            else { return sum }
+            return sum + inv.total
+        }
+    }
+
+    /// Presentation gate for the paywall teaser: returns `true` only when at least two distinct
+    /// months in the trend carry a positive collected amount. Below that threshold the caller
+    /// shows a clearly-labeled SAMPLE chart instead of a sparse/declining real trend, so a thin
+    /// history never reads as "your numbers". Pure predicate — unit-tested in BillableCore.
+    public static func hasEnoughCollectedHistory(_ trend: [TrendPoint]) -> Bool {
+        trend.filter { $0.amount > 0 }.count >= 2
     }
 
     // MARK: - Per-client / per-project grouping (existing behaviour, lifted)
