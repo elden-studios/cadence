@@ -10,9 +10,6 @@ struct SettingsView: View {
     @State private var restoreNotice: String?
     @State private var isRestoring = false
     private var subscriptions = SubscriptionManager.shared
-    #if DEBUG
-    @AppStorage(TimerMotionStyle.storageKey) private var timerMotionRaw = TimerMotionStyle.spring.rawValue
-    #endif
 
     var body: some View {
         NavigationStack {
@@ -114,27 +111,6 @@ struct SettingsView: View {
                         Label("Payment reminders", systemImage: "bell.badge")
                     }
                 } header: { Text("Reminders") }
-
-                #if DEBUG
-                Section {
-                    Picker(selection: $timerMotionRaw) {
-                        ForEach(TimerMotionStyle.allCases) { style in
-                            Text(style.label).tag(style.rawValue)
-                        }
-                    } label: {
-                        Label("Start-timer motion", systemImage: "wand.and.stars")
-                    }
-                    if let style = TimerMotionStyle(rawValue: timerMotionRaw) {
-                        Text(style.blurb)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    Text("Timer motion")
-                } footer: {
-                    Text("Flip the Start ↔ Running animation, then open a project and tap Start to compare. DEBUG builds only.")
-                }
-                #endif
 
                 if CommandLine.arguments.contains("--debug-scheduler") {
                     Section {
