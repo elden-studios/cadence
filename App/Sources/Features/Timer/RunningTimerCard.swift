@@ -363,37 +363,18 @@ struct AdjustStartTimePickerSheet: View {
 
 // MARK: - Timer start↔running motion
 
-/// User-selectable motion for the Start ↔ Running-card swap on the project-detail
-/// screen, surfaced via a DEBUG-only picker in Settings so the feel can be chosen
-/// live. All three are render-transform (opacity + scale/offset) transitions —
-/// none clip or frame-constrain the card, so none can "squish" its content the
-/// way the earlier height-animated expand did.
-enum TimerMotionStyle: String, CaseIterable, Identifiable {
-    /// Proposed default — grows into place with a soft overshoot.
+/// Motion for the Start ↔ Running-card swap on the project-detail screen.
+/// `heroMorph` is the shipped default (set via the `@AppStorage` default +
+/// decode fallback in `ProjectDetailView`). `spring`/`fadeScale` are retained
+/// so a legacy persisted key still resolves; all three are render-transform
+/// (opacity + scale/offset) transitions that never clip or frame-constrain the
+/// card. (A former DEBUG-only Settings picker chose between them — now removed.)
+enum TimerMotionStyle: String {
     case spring
-    /// Calm native cross-fade.
     case fadeScale
-    /// Most drama — blooms open from the button's top edge.
     case heroMorph
 
     static let storageKey = "timerMotionStyle"
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .spring: return "Spring Pop"
-        case .fadeScale: return "Fade + Scale"
-        case .heroMorph: return "Hero Morph"
-        }
-    }
-
-    var blurb: String {
-        switch self {
-        case .spring: return "Grows into place with a soft overshoot."
-        case .fadeScale: return "Quiet cross-fade — the native default."
-        case .heroMorph: return "Blooms open from the button's edge."
-        }
-    }
 
     func animation(reduceMotion: Bool) -> Animation {
         if reduceMotion { return .easeInOut(duration: 0.16) }
